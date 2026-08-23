@@ -34,9 +34,12 @@ public class FavoriteController {
 
     @Operation(summary = "获取收藏列表")
     @GetMapping
-    public Result<List<FavoriteVO>> list(HttpServletRequest request) {
+    public Result<List<FavoriteVO>> list(
+            @RequestParam(required = false) String beforeId,
+            @RequestParam(required = false) Integer limit,
+            HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        return Result.success(favoriteService.list(userId));
+        return Result.success(favoriteService.list(userId, parseOptionalId(beforeId), limit));
     }
 
     @Operation(summary = "查询收藏存储空间")
@@ -108,5 +111,12 @@ public class FavoriteController {
         } catch (NumberFormatException e) {
             throw new com.linkx.server.exception.CustomException(400, "无效的 ID");
         }
+    }
+
+    private Long parseOptionalId(String id) {
+        if (id == null || id.isBlank()) {
+            return null;
+        }
+        return parseId(id);
     }
 }

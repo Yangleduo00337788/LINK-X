@@ -16,8 +16,10 @@ import com.linkx.server.entity.FavoriteTag;
 import com.linkx.server.entity.admin.SysReviewTask;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.FavoriteMapper;
+import com.linkx.server.mapper.FavoriteSqlMapper;
 import com.linkx.server.mapper.FavoriteStorageMapper;
 import com.linkx.server.mapper.FavoriteTagMapper;
+import com.linkx.server.mapper.row.FavoriteTypeCountRow;
 import com.linkx.server.service.FavoriteService;
 import com.linkx.server.service.SensitiveWordService;
 import com.linkx.server.service.admin.AdminReviewService;
@@ -48,6 +50,9 @@ public class FavoriteServiceImpl implements FavoriteService {
     private static final DateTimeFormatter TIME_FMT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault());
 
+    private static final int DEFAULT_LIST_LIMIT = 50;
+    private static final int MAX_LIST_LIMIT = 200;
+
     private static final String[][] PRESET_TAGS = {
             {"工作", "#f43f5e"},
             {"学习", "#3b82f6"},
@@ -57,21 +62,40 @@ public class FavoriteServiceImpl implements FavoriteService {
     };
 
     private final FavoriteMapper favoriteMapper;
+    private final FavoriteSqlMapper favoriteSqlMapper;
     private final FavoriteStorageMapper favoriteStorageMapper;
     private final FavoriteTagMapper favoriteTagMapper;
     private final SensitiveWordService sensitiveWordService;
     private final ObjectProvider<AdminReviewService> adminReviewService;
 
     @Override
-    public List<FavoriteVO> list(Long userId) {
+    public List<FavoriteVO> list(Long userId, Long beforeId, Integer limit) {
         ensureStorage(userId);
         ensurePresetTags(userId);
-        List<Favorite> list = favoriteMapper.selectListByQuery(
-                QueryWrapper.create()
-                        .where(Favorite::getUserId).eq(userId)
-                        .orderBy(Favorite::getUpdateTime, false)
-        );
+        int pageSize = normalizeListLimit(limit);
+        QueryWrapper qw = QueryWrapper.create()
+                .where(Favorite::getUserId).eq(userId)
+                .orderBy(Favorite::getUpdateTime, false)
+                .orderBy(Favorite::getId, false)
+                .limit(pageSize);
+        if (beforeId != null) {
+            Favorite cursor = favoriteMapper.selectOneById(beforeId);
+            if (cursor != null && Objects.equals(cursor.getUserId(), userId)) {
+                qw.and("(update_time < ? OR (update_time = ? AND id < ?))",
+                        cursor.getUpdateTime(), cursor.getUpdateTime(), beforeId);
+            } else {
+                qw.and(Favorite::getId).lt(beforeId);
+            }
+        }
+        List<Favorite> list = favoriteMapper.selectListByQuery(qw);
         return list.stream().map(this::toVO).collect(Collectors.toList());
+    }
+
+    private int normalizeListLimit(Integer limit) {
+        if (limit == null || limit < 1) {
+            return DEFAULT_LIST_LIMIT;
+        }
+        return Math.min(limit, MAX_LIST_LIMIT);
     }
 
     @Override
@@ -397,16 +421,15 @@ public class FavoriteServiceImpl implements FavoriteService {
         map.put("note", 0);
         map.put("message", 0);
         map.put("other", 0);
-        List<Favorite> all = favoriteMapper.selectListByQuery(
-                QueryWrapper.create().where(Favorite::getUserId).eq(userId)
-        );
-        map.put("all", all.size());
-        for (Favorite f : all) {
-            String type = classifyType(f.getType());
+        long total = favoriteSqlMapper.countByUser(userId);
+        map.put("all", (int) Math.min(total, Integer.MAX_VALUE));
+        for (FavoriteTypeCountRow row : favoriteSqlMapper.countByType(userId)) {
+            String type = classifyType(row.getType());
+            int count = row.getCount() != null ? (int) Math.min(row.getCount(), Integer.MAX_VALUE) : 0;
             if (map.containsKey(type) && !"all".equals(type)) {
-                map.put(type, map.get(type) + 1);
+                map.put(type, map.get(type) + count);
             } else {
-                map.put("other", map.get("other") + 1);
+                map.put("other", map.get("other") + count);
             }
         }
         return map;
@@ -414,11 +437,8 @@ public class FavoriteServiceImpl implements FavoriteService {
 
     private Map<String, Integer> countTagUsage(Long userId) {
         Map<String, Integer> usage = new HashMap<>();
-        List<Favorite> all = favoriteMapper.selectListByQuery(
-                QueryWrapper.create().where(Favorite::getUserId).eq(userId)
-        );
-        for (Favorite f : all) {
-            for (String tag : parseTagNames(f.getTags())) {
+        for (String tags : favoriteSqlMapper.selectTagColumnsByUser(userId)) {
+            for (String tag : parseTagNames(tags)) {
                 usage.put(tag, usage.getOrDefault(tag, 0) + 1);
             }
         }

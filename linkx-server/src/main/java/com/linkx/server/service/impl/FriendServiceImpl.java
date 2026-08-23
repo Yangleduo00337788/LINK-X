@@ -4,6 +4,7 @@ package com.linkx.server.service.impl;
 /**
  * 作者：yangleduo
  */
+import com.linkx.server.common.SqlLikeUtils;
 import com.linkx.server.controller.dto.SendFriendRequestDTO;
 import com.linkx.server.controller.vo.ConversationVO;
 import com.linkx.server.controller.vo.FriendItemVO;
@@ -23,6 +24,7 @@ import com.linkx.server.mapper.ImConversationMemberMapper;
 import com.linkx.server.repository.ImMessageRepository;
 import com.linkx.server.mapper.SysFriendRequestMapper;
 import com.linkx.server.mapper.SysUserMapper;
+import com.linkx.server.mapper.SysUserSqlMapper;
 import com.linkx.server.mapper.SysUserRelationMapper;
 import com.linkx.server.service.ChatService;
 import com.linkx.server.service.FriendService;
@@ -56,6 +58,7 @@ public class FriendServiceImpl implements FriendService {
     private static final int RELATION_STATUS_BLOCKED = 2;
 
     private final SysUserMapper sysUserMapper;
+    private final SysUserSqlMapper sysUserSqlMapper;
     private final SysUserRelationMapper sysUserRelationMapper;
     private final SysFriendRequestMapper sysFriendRequestMapper;
     private final ImConversationMapper conversationMapper;
@@ -89,33 +92,23 @@ public class FriendServiceImpl implements FriendService {
             }
         }
 
-        // 优先精确匹配 LinkX ID（username）
+        // 优先精确匹配 LinkX ID（username）；utf8mb4_unicode_ci 下等值比较不区分大小写
         SysUser exactUser = sysUserMapper.selectOneByQuery(
                 QueryWrapper.create()
                         .where(SysUser::getUsername).eq(q)
                         .and(SysUser::getStatus).eq(1)
         );
-        if (exactUser == null) {
-            exactUser = sysUserMapper.selectOneByQuery(
-                    QueryWrapper.create()
-                            .where("LOWER(username) = {0}", q.toLowerCase())
-                            .and(SysUser::getStatus).eq(1)
-            );
-        }
         if (exactUser != null) {
             return List.of(toSearchVO(exactUser));
         }
 
         List<SysUser> byUsername = sysUserMapper.selectListByQuery(
                 QueryWrapper.create()
-                        .where(SysUser::getUsername).like(q)
+                        .where(SysUser::getUsername).like(SqlLikeUtils.escapeLike(q))
                         .and(SysUser::getStatus).eq(1)
+                        .limit(SEARCH_LIMIT)
         );
-        List<SysUser> byNickname = sysUserMapper.selectListByQuery(
-                QueryWrapper.create()
-                        .where(SysUser::getNickname).like(q)
-                        .and(SysUser::getStatus).eq(1)
-        );
+        List<SysUser> byNickname = sysUserSqlMapper.searchByNicknameFulltext(q, SEARCH_LIMIT);
 
         Map<Long, SysUser> merged = new java.util.LinkedHashMap<>();
         for (SysUser user : byUsername) {

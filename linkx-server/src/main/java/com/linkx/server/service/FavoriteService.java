@@ -14,7 +14,7 @@ import java.util.List;
 
 public interface FavoriteService {
 
-    List<FavoriteVO> list(Long userId);
+    List<FavoriteVO> list(Long userId, Long beforeId, Integer limit);
 
     FavoriteVO get(Long userId, Long favoriteId);
 

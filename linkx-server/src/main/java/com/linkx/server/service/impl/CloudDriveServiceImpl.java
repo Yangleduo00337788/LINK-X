@@ -23,12 +23,15 @@ import com.linkx.server.common.FileExtensionValidator;
 import com.linkx.server.common.PasswordEncoderHolder;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.CloudActivityMapper;
+import com.linkx.server.mapper.CloudDriveSqlMapper;
 import com.linkx.server.mapper.CloudFileMapper;
 import com.linkx.server.mapper.CloudFileTagMapper;
 import com.linkx.server.mapper.CloudFolderMapper;
 import com.linkx.server.mapper.CloudShareMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.mapper.UserStorageMapper;
+import com.linkx.server.mapper.row.FolderChildCountRow;
+import com.linkx.server.mapper.row.FolderFileAggRow;
 import com.linkx.server.service.CloudDriveService;
 import com.linkx.server.service.FileStorageService;
 import com.linkx.server.service.MediaUrlService;
@@ -47,7 +50,6 @@ import java.util.Calendar;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -67,6 +69,7 @@ public class CloudDriveServiceImpl implements CloudDriveService {
     private static final int SHARE_PWD_LOCK_MINUTES = 5;
 
     private final UserStorageMapper userStorageMapper;
+    private final CloudDriveSqlMapper cloudDriveSqlMapper;
     private final CloudFolderMapper cloudFolderMapper;
     private final CloudFileMapper cloudFileMapper;
     private final CloudFileTagMapper cloudFileTagMapper;
@@ -705,15 +708,13 @@ public class CloudDriveServiceImpl implements CloudDriveService {
     }
 
     private boolean isDescendant(Long userId, Long ancestorId, Long maybeChildId) {
-        Long cur = maybeChildId;
-        int guard = 0;
-        while (cur != null && guard++ < 64) {
-            if (Objects.equals(cur, ancestorId)) return true;
-            CloudFolder f = cloudFolderMapper.selectOneById(cur);
-            if (f == null || !Objects.equals(f.getUserId(), userId)) return false;
-            cur = f.getParentId();
+        if (ancestorId == null || maybeChildId == null) {
+            return false;
         }
-        return false;
+        if (Objects.equals(ancestorId, maybeChildId)) {
+            return true;
+        }
+        return cloudDriveSqlMapper.countDescendant(userId, ancestorId, maybeChildId) > 0;
     }
 
     private void softDeleteFile(Long userId, CloudFile file) {
@@ -737,23 +738,20 @@ public class CloudDriveServiceImpl implements CloudDriveService {
     }
 
     private void deleteFolderRecursive(Long userId, CloudFolder folder) {
-        List<CloudFolder> children = cloudFolderMapper.selectListByQuery(
-                QueryWrapper.create()
-                        .where(CloudFolder::getUserId).eq(userId)
-                        .and(CloudFolder::getParentId).eq(folder.getId())
-        );
-        for (CloudFolder child : children) {
-            deleteFolderRecursive(userId, child);
+        List<Long> folderIds = cloudDriveSqlMapper.selectSubtreeFolderIds(userId, folder.getId());
+        if (folderIds.isEmpty()) {
+            return;
         }
         List<CloudFile> files = cloudFileMapper.selectListByQuery(
                 QueryWrapper.create()
                         .where(CloudFile::getUserId).eq(userId)
-                        .and(CloudFile::getFolderId).eq(folder.getId())
-        );
-        for (CloudFile f : files) {
-            softDeleteFile(userId, f);
+                        .and(CloudFile::getFolderId).in(folderIds));
+        for (CloudFile file : files) {
+            softDeleteFile(userId, file);
         }
-        cloudFolderMapper.deleteById(folder.getId());
+        for (Long folderId : folderIds) {
+            cloudFolderMapper.deleteById(folderId);
+        }
         logActivity(userId, CloudActivity.TARGET_FOLDER, folder.getId(), folder.getName(),
                 CloudActivity.ACTION_DELETE, "删除文件夹");
     }
@@ -793,65 +791,61 @@ public class CloudDriveServiceImpl implements CloudDriveService {
     }
 
     /**
-     * 批量计算文件夹直属子项数与子树占用，避免 listItems 对每个文件夹 N+1 查询。
+     * 批量计算文件夹直属子项数与子树占用；仅查询目标目录子树，避免拉取用户全盘文件/文件夹。
      */
     private Map<Long, FolderListStats> batchFolderListStats(Long userId, List<CloudFolder> folders) {
         if (folders == null || folders.isEmpty()) {
             return Map.of();
         }
-        Set<Long> targetIds = folders.stream().map(CloudFolder::getId).collect(Collectors.toSet());
 
-        List<CloudFolder> allFolders = cloudFolderMapper.selectListByQuery(
-                QueryWrapper.create().where(CloudFolder::getUserId).eq(userId)
-        );
-        Map<Long, List<CloudFolder>> childrenByParent = new HashMap<>();
-        for (CloudFolder folder : allFolders) {
-            Long parentId = folder.getParentId();
-            if (parentId == null) {
-                continue;
+        Set<Long> targetIds = folders.stream().map(CloudFolder::getId).collect(Collectors.toSet());
+        String targetIdCsv = joinLongIds(targetIds);
+        Map<Long, Integer> subfolderCountByParent = new HashMap<>();
+        if (!targetIdCsv.isEmpty()) {
+            for (FolderChildCountRow row : cloudDriveSqlMapper.countDirectSubfolders(userId, targetIdCsv)) {
+                if (row.getParentId() != null && row.getCount() != null) {
+                    subfolderCountByParent.put(row.getParentId(), (int) Math.min(row.getCount(), Integer.MAX_VALUE));
+                }
             }
-            childrenByParent.computeIfAbsent(parentId, k -> new ArrayList<>()).add(folder);
         }
 
-        List<CloudFile> allFiles = cloudFileMapper.selectListByQuery(
-                QueryWrapper.create().where(CloudFile::getUserId).eq(userId)
-        );
-        Map<Long, List<CloudFile>> filesByFolder = new HashMap<>();
-        for (CloudFile file : allFiles) {
-            if (file.getFolderId() == null) {
-                continue;
+        Map<Long, Integer> directFileCountByFolder = new HashMap<>();
+        if (!targetIdCsv.isEmpty()) {
+            for (FolderChildCountRow row : cloudDriveSqlMapper.countDirectFiles(userId, targetIdCsv)) {
+                if (row.getParentId() != null && row.getCount() != null) {
+                    directFileCountByFolder.put(row.getParentId(), (int) Math.min(row.getCount(), Integer.MAX_VALUE));
+                }
             }
-            filesByFolder.computeIfAbsent(file.getFolderId(), k -> new ArrayList<>()).add(file);
+        }
+
+        Map<Long, Long> subtreeSizeByTarget = new HashMap<>();
+        for (CloudFolder target : folders) {
+            long size = 0L;
+            String basePath = target.getPath();
+            if (StringUtils.hasText(basePath)) {
+                FolderFileAggRow agg = cloudDriveSqlMapper.aggregateSubtreeFiles(userId, basePath);
+                if (agg != null && agg.getTotalSize() != null) {
+                    size = agg.getTotalSize();
+                }
+            }
+            subtreeSizeByTarget.put(target.getId(), size);
         }
 
         Map<Long, FolderListStats> result = new HashMap<>();
         for (Long folderId : targetIds) {
-            int directChildren = childrenByParent.getOrDefault(folderId, List.of()).size()
-                    + filesByFolder.getOrDefault(folderId, List.of()).size();
-
-            Set<Long> subtree = new HashSet<>();
-            LinkedList<Long> queue = new LinkedList<>();
-            subtree.add(folderId);
-            queue.add(folderId);
-            while (!queue.isEmpty()) {
-                Long current = queue.removeFirst();
-                for (CloudFolder child : childrenByParent.getOrDefault(current, List.of())) {
-                    if (subtree.add(child.getId())) {
-                        queue.add(child.getId());
-                    }
-                }
-            }
-            long size = 0L;
-            for (Long id : subtree) {
-                for (CloudFile file : filesByFolder.getOrDefault(id, List.of())) {
-                    if (file.getFileSize() != null) {
-                        size += file.getFileSize();
-                    }
-                }
-            }
+            int directChildren = subfolderCountByParent.getOrDefault(folderId, 0)
+                    + directFileCountByFolder.getOrDefault(folderId, 0);
+            long size = subtreeSizeByTarget.getOrDefault(folderId, 0L);
             result.put(folderId, new FolderListStats(directChildren, size));
         }
         return result;
+    }
+
+    private static String joinLongIds(Set<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return "";
+        }
+        return ids.stream().map(String::valueOf).collect(Collectors.joining(","));
     }
 
     private record FolderListStats(int childCount, long sizeBytes) {
