@@ -7,6 +7,7 @@ package com.linkx.server.service.impl;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linkx.server.config.LinkxProperties;
+import com.linkx.server.common.MomentsPostSearchSupport;
 import com.linkx.server.controller.dto.CommentMomentsDTO;
 import com.linkx.server.controller.dto.PublishMomentsDTO;
 import com.linkx.server.controller.dto.UpdateMomentsDTO;
@@ -263,6 +264,9 @@ public class MomentsServiceImpl implements MomentsService {
         applyContentSearch(qw, q);
 
         List<MomentsPostVO> result = buildPostList(qw, userId, null);
+        if (q != null && q.isBlank()) {
+            return result;
+        }
         return filterSearchResults(result, q, pageSize);
     }
 
@@ -297,9 +301,6 @@ public class MomentsServiceImpl implements MomentsService {
         if (posts.isEmpty()) {
             return Collections.emptyList();
         }
-        if (q != null && !q.isBlank() && messageContentCipher.isEnabled()) {
-            posts = filterPostsByKeyword(posts, q, pageSize);
-        }
         Map<Long, List<MomentsImage>> imagesMap = loadImages(posts);
         Map<Long, List<MomentsLike>> likesMap = loadLikes(posts);
         Map<Long, List<MomentsComment>> commentsMap = loadComments(posts);
@@ -326,20 +327,13 @@ public class MomentsServiceImpl implements MomentsService {
     }
 
     private void applyContentSearch(QueryWrapper qw, String q) {
-        if (q == null || q.isBlank() || messageContentCipher.isEnabled()) {
+        if (q == null || q.isBlank()) {
             return;
         }
-        String keyword = q.trim();
-        if (keyword.length() > 64) {
-            keyword = keyword.substring(0, 64);
-        }
-        qw.and("content LIKE ?", "%" + escapeLike(keyword) + "%");
+        MomentsPostSearchSupport.applyContentSearch(qw, q, messageContentCipher.isEnabled());
     }
 
     private int resolveFetchLimit(int pageSize, boolean searching) {
-        if (searching && messageContentCipher.isEnabled()) {
-            return linkxProperties.getMessageEncryption().getSearchScanLimit();
-        }
         return pageSize;
     }
 
@@ -350,14 +344,6 @@ public class MomentsServiceImpl implements MomentsService {
         String keyword = q.trim().toLowerCase();
         return posts.stream()
                 .filter(vo -> matchesMomentsKeyword(vo.getContent(), vo.getLocation(), keyword))
-                .limit(pageSize)
-                .toList();
-    }
-
-    private List<MomentsPost> filterPostsByKeyword(List<MomentsPost> posts, String q, int pageSize) {
-        String keyword = q.trim().toLowerCase();
-        return posts.stream()
-                .filter(post -> matchesMomentsKeyword(post.getContent(), post.getLocation(), keyword))
                 .limit(pageSize)
                 .toList();
     }
@@ -691,13 +677,6 @@ public class MomentsServiceImpl implements MomentsService {
                         .eq("deleted", 0)) == null) {
             throw new CustomException(404, "动态不存在");
         }
-    }
-
-    private static String escapeLike(String raw) {
-        if (raw == null || raw.isEmpty()) {
-            return raw;
-        }
-        return raw.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
     private Set<Long> getFriendIds(Long userId) {

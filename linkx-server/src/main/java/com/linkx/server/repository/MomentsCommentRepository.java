@@ -134,7 +134,7 @@ public class MomentsCommentRepository {
 
     private static QueryWrapper pendingReencryptQuery() {
         return QueryWrapper.create().where(
-                "content_enc_version = 0 AND content IS NOT NULL AND TRIM(content) <> ''");
+                "content_enc_version = 0 AND content IS NOT NULL AND content <> ''");
     }
 
     private MomentsComment copyForPersistence(MomentsComment source) {

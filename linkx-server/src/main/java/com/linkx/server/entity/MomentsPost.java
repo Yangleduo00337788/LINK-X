@@ -37,6 +37,9 @@ public class MomentsPost implements Serializable {
 
     private String location;
 
+    /** 搜索摘要（明文，仅用于 FULLTEXT 检索） */
+    private String searchText;
+
     private Byte locationEncVersion;
 
     private String atUsers;

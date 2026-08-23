@@ -71,6 +71,9 @@ public class ImMessage implements Serializable {
 
     private String fileName;
 
+    /** 搜索摘要（明文，仅用于 FULLTEXT 检索） */
+    private String searchText;
+
     private Long fileSize;
 
     private String fileUrl;

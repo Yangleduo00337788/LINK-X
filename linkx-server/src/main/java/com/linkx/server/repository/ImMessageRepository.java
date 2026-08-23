@@ -4,6 +4,7 @@ package com.linkx.server.repository;
 /**
  * 作者：yangleduo
  */
+import com.linkx.server.common.SearchTextSupport;
 import com.linkx.server.entity.ImMessage;
 import com.linkx.server.mapper.ImMessageMapper;
 import com.linkx.server.security.crypto.MessageContentCipher;
@@ -25,12 +26,14 @@ public class ImMessageRepository {
     private final MessageContentCipher messageContentCipher;
 
     public void insert(ImMessage message) {
+        ensureSearchText(message);
         ImMessage stored = copyForPersistence(message);
         messageMapper.insert(stored);
         message.setId(stored.getId());
     }
 
     public void update(ImMessage message) {
+        ensureSearchText(message);
         messageMapper.update(copyForPersistence(message));
     }
 
@@ -92,6 +95,50 @@ public class ImMessageRepository {
         return updated;
     }
 
+    /**
+     * 统计仍缺 search_text 且正文/文件名非空的 IM 消息条数。
+     */
+    public long countPendingSearchTextBackfill() {
+        return messageMapper.selectCountByQuery(pendingSearchTextBackfillQuery());
+    }
+
+    /**
+     * 批量回填历史消息的 search_text（解密正文后生成摘要，仅更新检索列）。
+     */
+    public int backfillSearchTextBatch(int batchSize) {
+        if (batchSize <= 0) {
+            return 0;
+        }
+        int limit = Math.min(Math.max(batchSize, 1), 5000);
+        List<ImMessage> rows = messageMapper.selectListByQuery(
+                pendingSearchTextBackfillQuery().orderBy(ImMessage::getId, true).limit(limit));
+        if (rows.isEmpty()) {
+            return 0;
+        }
+        messageContentCipher.decryptMessageFields(rows);
+        int updated = 0;
+        for (ImMessage row : rows) {
+            if (backfillSearchTextRow(row)) {
+                updated++;
+            }
+        }
+        return updated;
+    }
+
+    private boolean backfillSearchTextRow(ImMessage row) {
+        if (row == null || row.getId() == null) {
+            return false;
+        }
+        String searchText = SearchTextSupport.buildMessageSearchText(row.getContent(), row.getFileName());
+        if (searchText == null) {
+            return false;
+        }
+        return UpdateChain.of(ImMessage.class)
+                .set(ImMessage::getSearchText, searchText)
+                .where(ImMessage::getId).eq(row.getId())
+                .update();
+    }
+
     private boolean reencryptRow(ImMessage row) {
         if (row == null || row.getId() == null) {
             return false;
@@ -103,6 +150,8 @@ public class ImMessageRepository {
             chain.set(ImMessage::getContent,
                     messageContentCipher.encryptPlaintextForStorage(row.getContent()));
             chain.set(ImMessage::getContentEncVersion, MessageContentCipher.ENC_VERSION);
+            chain.set(ImMessage::getSearchText,
+                    SearchTextSupport.buildMessageSearchText(row.getContent(), row.getFileName()));
             changed = true;
         } else if (messageContentCipher.isEncryptedContent(row.getContent(), row.getContentEncVersion())
                 && (row.getContentEncVersion() == null || row.getContentEncVersion() == 0)) {
@@ -199,8 +248,21 @@ public class ImMessageRepository {
 
     private static QueryWrapper pendingReencryptQuery() {
         return QueryWrapper.create().where(
-                "((content_enc_version = 0 AND content IS NOT NULL AND TRIM(content) <> '') "
-                        + "OR (quote_content_enc_version = 0 AND quote_content IS NOT NULL AND TRIM(quote_content) <> ''))");
+                "((content_enc_version = 0 AND content IS NOT NULL AND content <> '') "
+                        + "OR (quote_content_enc_version = 0 AND quote_content IS NOT NULL AND quote_content <> ''))");
+    }
+
+    private static QueryWrapper pendingSearchTextBackfillQuery() {
+        return QueryWrapper.create().where("(search_text IS NULL OR search_text = '')")
+                .and("(IFNULL(content, '') <> '' OR IFNULL(file_name, '') <> '')");
+    }
+
+    private void ensureSearchText(ImMessage message) {
+        if (message == null || message.getSearchText() != null) {
+            return;
+        }
+        message.setSearchText(SearchTextSupport.buildMessageSearchText(
+                message.getContent(), message.getFileName()));
     }
 
     private ImMessage copyForPersistence(ImMessage source) {
@@ -229,6 +291,7 @@ public class ImMessageRepository {
                 .content(source.getContent())
                 .contentEncVersion(source.getContentEncVersion())
                 .fileName(source.getFileName())
+                .searchText(source.getSearchText())
                 .fileSize(source.getFileSize())
                 .fileUrl(source.getFileUrl())
                 .clientMsgId(source.getClientMsgId())

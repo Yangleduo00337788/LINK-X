@@ -4,6 +4,7 @@ package com.linkx.server.repository;
 /**
  * 作者：yangleduo
  */
+import com.linkx.server.common.SearchTextSupport;
 import com.linkx.server.entity.MomentsPost;
 import com.linkx.server.mapper.MomentsPostMapper;
 import com.linkx.server.security.crypto.MessageContentCipher;
@@ -25,12 +26,14 @@ public class MomentsPostRepository {
     private final MessageContentCipher messageContentCipher;
 
     public void insert(MomentsPost post) {
+        ensureSearchText(post);
         MomentsPost stored = copyForPersistence(post);
         postMapper.insert(stored);
         post.setId(stored.getId());
     }
 
     public void update(MomentsPost post) {
+        ensureSearchText(post);
         postMapper.update(copyForPersistence(post));
     }
 
@@ -76,6 +79,44 @@ public class MomentsPostRepository {
         return updated;
     }
 
+    public long countPendingSearchTextBackfill() {
+        return postMapper.selectCountByQuery(pendingSearchTextBackfillQuery());
+    }
+
+    public int backfillSearchTextBatch(int batchSize) {
+        if (batchSize <= 0) {
+            return 0;
+        }
+        int limit = Math.min(Math.max(batchSize, 1), 5000);
+        List<MomentsPost> rows = postMapper.selectListByQuery(
+                pendingSearchTextBackfillQuery().orderBy(MomentsPost::getId, true).limit(limit));
+        if (rows.isEmpty()) {
+            return 0;
+        }
+        messageContentCipher.decryptMomentsPostFields(rows);
+        int updated = 0;
+        for (MomentsPost row : rows) {
+            if (backfillSearchTextRow(row)) {
+                updated++;
+            }
+        }
+        return updated;
+    }
+
+    private boolean backfillSearchTextRow(MomentsPost row) {
+        if (row == null || row.getId() == null) {
+            return false;
+        }
+        String searchText = SearchTextSupport.buildMomentsSearchText(row.getContent(), row.getLocation());
+        if (searchText == null) {
+            return false;
+        }
+        return UpdateChain.of(MomentsPost.class)
+                .set(MomentsPost::getSearchText, searchText)
+                .where(MomentsPost::getId).eq(row.getId())
+                .update();
+    }
+
     public long countPendingKeyRotation() {
         if (!messageContentCipher.isEnabled()) {
             return 0;
@@ -110,6 +151,8 @@ public class MomentsPostRepository {
             chain.set(MomentsPost::getContent,
                     messageContentCipher.encryptPlaintextForStorage(row.getContent()));
             chain.set(MomentsPost::getContentEncVersion, MessageContentCipher.ENC_VERSION);
+            chain.set(MomentsPost::getSearchText,
+                    SearchTextSupport.buildMomentsSearchText(row.getContent(), row.getLocation()));
             changed = true;
         } else if (messageContentCipher.isEncryptedContent(row.getContent(), row.getContentEncVersion())
                 && (row.getContentEncVersion() == null || row.getContentEncVersion() == 0)) {
@@ -121,6 +164,8 @@ public class MomentsPostRepository {
             chain.set(MomentsPost::getLocation,
                     messageContentCipher.encryptPlaintextForStorage(row.getLocation()));
             chain.set(MomentsPost::getLocationEncVersion, MessageContentCipher.ENC_VERSION);
+            chain.set(MomentsPost::getSearchText,
+                    SearchTextSupport.buildMomentsSearchText(row.getContent(), row.getLocation()));
             changed = true;
         } else if (messageContentCipher.isEncryptedContent(row.getLocation(), row.getLocationEncVersion())
                 && (row.getLocationEncVersion() == null || row.getLocationEncVersion() == 0)) {
@@ -173,8 +218,20 @@ public class MomentsPostRepository {
 
     private static QueryWrapper pendingReencryptQuery() {
         return QueryWrapper.create().where(
-                "((content_enc_version = 0 AND content IS NOT NULL AND TRIM(content) <> '') "
-                        + "OR (location_enc_version = 0 AND location IS NOT NULL AND TRIM(location) <> ''))");
+                "((content_enc_version = 0 AND content IS NOT NULL AND content <> '') "
+                        + "OR (location_enc_version = 0 AND location IS NOT NULL AND location <> ''))");
+    }
+
+    private static QueryWrapper pendingSearchTextBackfillQuery() {
+        return QueryWrapper.create().where("(search_text IS NULL OR search_text = '')")
+                .and("(IFNULL(content, '') <> '' OR IFNULL(location, '') <> '')");
+    }
+
+    private void ensureSearchText(MomentsPost post) {
+        if (post == null || post.getSearchText() != null) {
+            return;
+        }
+        post.setSearchText(SearchTextSupport.buildMomentsSearchText(post.getContent(), post.getLocation()));
     }
 
     private MomentsPost copyForPersistence(MomentsPost source) {
@@ -201,6 +258,7 @@ public class MomentsPostRepository {
                 .content(source.getContent())
                 .contentEncVersion(source.getContentEncVersion())
                 .location(source.getLocation())
+                .searchText(source.getSearchText())
                 .locationEncVersion(source.getLocationEncVersion())
                 .atUsers(source.getAtUsers())
                 .visibility(source.getVisibility())
