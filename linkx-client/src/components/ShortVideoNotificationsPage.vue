@@ -184,6 +184,7 @@ function toggleFriendsInteractOnly() {
 function getNotificationIcon(type: string) {
   if (type === 'short_video_like') return HeartOutline
   if (type === 'short_video_comment') return ChatbubbleOutline
+  if (type === 'short_video_mention') return ChatbubbleOutline
   return ChatbubbleOutline
 }
 
@@ -194,6 +195,8 @@ function getNotificationTypeText(type: string, aggregateCount = 1, aggregateName
         return t('shortVideo.likedYour')
       case 'short_video_comment':
         return t('shortVideo.commentedYour')
+      case 'short_video_mention':
+        return t('shortVideo.mentionedYou')
       default:
         return t('shortVideo.newNotif')
     }

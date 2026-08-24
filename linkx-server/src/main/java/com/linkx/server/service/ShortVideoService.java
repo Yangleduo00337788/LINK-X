@@ -32,9 +32,17 @@ public interface ShortVideoService {
 
     List<ShortVideoPostVO> listByUser(Long userId, Long targetUserId, Long beforeId, Integer limit);
 
+    List<ShortVideoPostVO> listFavorites(Long userId, Long beforeId, Integer limit);
+
+    List<ShortVideoPostVO> listLikes(Long userId, Long beforeId, Integer limit);
+
     void like(Long userId, Long postId);
 
     void unlike(Long userId, Long postId);
+
+    void favorite(Long userId, Long postId);
+
+    void unfavorite(Long userId, Long postId);
 
     ShortVideoCommentVO comment(Long userId, Long postId, CommentShortVideoDTO dto);
 
@@ -42,17 +50,25 @@ public interface ShortVideoService {
 
     void deleteComment(Long userId, Long commentId);
 
+    void likeComment(Long userId, Long commentId);
+
+    void unlikeComment(Long userId, Long commentId);
+
     void follow(Long userId, Long targetUserId);
 
     void unfollow(Long userId, Long targetUserId);
 
     void recordPlay(Long userId, Long postId);
 
+    void recordShare(Long userId, Long postId);
+
     String uploadMedia(Long userId, MultipartFile file);
 
     FileStorageService.StoredObject openVideoContent(Long userId, Long postId);
 
     FileStorageService.StoredObject openCoverContent(Long userId, Long postId);
+
+    FileStorageService.StoredObject openCommentImageContent(Long userId, Long commentId);
 
     void adminDeletePost(Long postId);
 

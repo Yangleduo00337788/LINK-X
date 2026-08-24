@@ -21,29 +21,17 @@ import java.util.Date;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Table("short_video_comment")
-public class ShortVideoComment implements Serializable {
+@Table("short_video_comment_like")
+public class ShortVideoCommentLike implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
     @Id(keyType = KeyType.Generator, value = KeyGenerators.snowFlakeId)
     private Long id;
 
-    private Long postId;
+    private Long commentId;
 
     private Long userId;
-
-    private String content;
-
-    private Byte contentEncVersion;
-
-    private Long parentId;
-
-    private String mentions;
-
-    private String imageKey;
-
-    private String imageStorageProvider;
 
     @Column(onInsertValue = "NOW()")
     private Date createTime;

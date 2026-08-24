@@ -6,16 +6,23 @@ import {
   commentShortVideo,
   deleteShortVideo,
   deleteShortVideoComment,
+  likeShortVideoComment,
+  unlikeShortVideoComment,
   followShortVideoAuthor,
   getShortVideo,
   likeShortVideo,
+  favoriteShortVideo,
+  unfavoriteShortVideo,
   listFollowingShortVideos,
   listFriendsShortVideos,
+  listFavoriteShortVideos,
+  listLikedShortVideos,
   listShortVideoComments,
   listShortVideos,
   listUserShortVideos,
   publishShortVideo,
   recordShortVideoPlay,
+  recordShortVideoShare,
   unfollowShortVideoAuthor,
   unlikeShortVideo,
   updateShortVideo,
@@ -28,11 +35,19 @@ import { t } from '../i18n'
 import { isEncryptedShortVideoText } from '../utils/shortVideoText'
 import { captureVideoCover } from '../utils/shortVideoCover'
 
-export type ShortVideoFeedTab = 'live' | 'following' | 'friends' | 'recommend'
+export type ShortVideoFeedTab = 'following' | 'friends' | 'recommend'
 export type ShortVideoPanelTabId = 'main'
 
 let ensurePanelReadyTask: Promise<void> | null = null
 let fetchFeedTask: Promise<void> | null = null
+const playedSessionKeys = new Set<string>()
+const sharedSessionKeys = new Set<string>()
+
+function assertApiOk(res: { code?: number; message?: string }, fallback: string) {
+  if (res.code !== 200) {
+    throw new Error(res.message || fallback)
+  }
+}
 
 function normalizeShortVideoList(data: unknown): ShortVideoPost[] {
   if (!Array.isArray(data)) return []
@@ -40,7 +55,16 @@ function normalizeShortVideoList(data: unknown): ShortVideoPost[] {
     const post = item as ShortVideoPost
     return {
       ...post,
-      comments: Array.isArray(post.comments) ? post.comments : []
+      comments: Array.isArray(post.comments) ? post.comments : [],
+      favorites: typeof post.favorites === 'number' ? post.favorites : 0,
+      favorited: Boolean(post.favorited),
+      shares: typeof post.shares === 'number' ? post.shares : 0,
+      commentCount:
+        typeof post.commentCount === 'number'
+          ? post.commentCount
+          : Array.isArray(post.comments)
+            ? post.comments.length
+            : 0
     }
   })
 }
@@ -48,6 +72,17 @@ function normalizeShortVideoList(data: unknown): ShortVideoPost[] {
 function normalizeCommentCount(post: ShortVideoPost): number {
   if (typeof post.commentCount === 'number') return post.commentCount
   return Array.isArray(post.comments) ? post.comments.length : 0
+}
+
+function forEachPostRef(
+  lists: ShortVideoPost[][],
+  postId: string,
+  fn: (post: ShortVideoPost) => void
+) {
+  for (const list of lists) {
+    const post = list.find(p => p.id === postId)
+    if (post) fn(post)
+  }
 }
 
 export const useShortVideoStore = defineStore('shortVideo', {
@@ -63,6 +98,13 @@ export const useShortVideoStore = defineStore('shortVideo', {
     activeTabId: '' as ShortVideoPanelTabId | '',
     myPosts: [] as ShortVideoPost[],
     myPostsLoading: false,
+    authorPosts: [] as ShortVideoPost[],
+    authorPostsLoading: false,
+    authorProfile: null as { userId: string; nickname?: string; avatar?: string } | null,
+    favoritePosts: [] as ShortVideoPost[],
+    favoritePostsLoading: false,
+    likedPosts: [] as ShortVideoPost[],
+    likedPostsLoading: false,
     feedError: '' as string
   }),
 
@@ -178,8 +220,7 @@ export const useShortVideoStore = defineStore('shortVideo', {
     },
 
     setFeedTab(tab: ShortVideoFeedTab) {
-      const nextTab = tab === 'live' ? 'recommend' : tab
-      this.feedTab = nextTab
+      this.feedTab = tab
       this.posts = []
       this.activeIndex = 0
       this.hasMore = true
@@ -192,15 +233,6 @@ export const useShortVideoStore = defineStore('shortVideo', {
         if (!reset) return
       }
 
-      if (this.feedTab === 'live') {
-        if (reset) {
-          this.posts = []
-          this.activeIndex = 0
-          this.hasMore = false
-          this.initialized = true
-        }
-        return
-      }
       if (!reset && !this.hasMore) return
 
       fetchFeedTask = (async () => {
@@ -282,7 +314,7 @@ export const useShortVideoStore = defineStore('shortVideo', {
           throw new Error(res.message || 'publish failed')
         }
         if (res.data) {
-          const post = res.data
+          const post = normalizeShortVideoList([res.data])[0]
           if (isEncryptedShortVideoText(post.description)) {
             await this.fetchFeed(true)
           } else {
@@ -298,14 +330,48 @@ export const useShortVideoStore = defineStore('shortVideo', {
     },
 
     async toggleLike(post: ShortVideoPost) {
+      const lists = [this.posts, this.myPosts, this.authorPosts, this.likedPosts]
       if (post.liked) {
-        await unlikeShortVideo(post.id)
-        post.liked = false
-        post.likes = Math.max(0, post.likes - 1)
+        const res = await unlikeShortVideo(post.id)
+        assertApiOk(res, 'unlike failed')
+        forEachPostRef(lists, post.id, p => {
+          p.liked = false
+          p.likes = Math.max(0, p.likes - 1)
+        })
+        const likedIdx = this.likedPosts.findIndex(p => p.id === post.id)
+        if (likedIdx >= 0) {
+          this.likedPosts.splice(likedIdx, 1)
+        }
       } else {
-        await likeShortVideo(post.id)
-        post.liked = true
-        post.likes += 1
+        const res = await likeShortVideo(post.id)
+        assertApiOk(res, 'like failed')
+        forEachPostRef(lists, post.id, p => {
+          p.liked = true
+          p.likes += 1
+        })
+      }
+    },
+
+    async toggleFavorite(post: ShortVideoPost) {
+      const lists = [this.posts, this.myPosts, this.authorPosts, this.favoritePosts]
+      if (post.favorited) {
+        const res = await unfavoriteShortVideo(post.id)
+        assertApiOk(res, 'unfavorite failed')
+        forEachPostRef(lists, post.id, p => {
+          p.favorited = false
+          p.favorites = Math.max(0, (p.favorites ?? 0) - 1)
+        })
+        const favIdx = this.favoritePosts.findIndex(p => p.id === post.id)
+        if (favIdx >= 0) {
+          this.favoritePosts.splice(favIdx, 1)
+        }
+      } else {
+        const res = await favoriteShortVideo(post.id)
+        assertApiOk(res, 'favorite failed')
+        forEachPostRef(lists, post.id, p => {
+          p.favorited = true
+          p.favorites = (p.favorites ?? 0) + 1
+        })
       }
     },
 
@@ -313,10 +379,12 @@ export const useShortVideoStore = defineStore('shortVideo', {
       const me = String(useAppStore().userProfile.userId || '')
       if (!post.userId || post.userId === me) return
       if (post.followingAuthor) {
-        await unfollowShortVideoAuthor(post.userId)
+        const res = await unfollowShortVideoAuthor(post.userId)
+        assertApiOk(res, 'unfollow failed')
         post.followingAuthor = false
       } else {
-        await followShortVideoAuthor(post.userId)
+        const res = await followShortVideoAuthor(post.userId)
+        assertApiOk(res, 'follow failed')
         post.followingAuthor = true
       }
     },
@@ -341,8 +409,78 @@ export const useShortVideoStore = defineStore('shortVideo', {
       }
     },
 
+    async fetchAuthorPosts(userId: string, profile?: { nickname?: string; avatar?: string }) {
+      await this.ensureAuthReady()
+      const id = String(userId || '').trim()
+      if (!id) {
+        this.authorPosts = []
+        this.authorProfile = null
+        return
+      }
+      this.authorProfile = {
+        userId: id,
+        nickname: profile?.nickname,
+        avatar: profile?.avatar
+      }
+      this.authorPostsLoading = true
+      try {
+        const res = await listUserShortVideos(id, { limit: 50 })
+        if (res.code === 200) {
+          this.authorPosts = normalizeShortVideoList(res.data)
+          const first = this.authorPosts[0]
+          if (first && !this.authorProfile.nickname) {
+            this.authorProfile = {
+              userId: id,
+              nickname: first.nickname,
+              avatar: first.avatar
+            }
+          }
+        } else {
+          this.authorPosts = []
+        }
+      } finally {
+        this.authorPostsLoading = false
+      }
+    },
+
+    clearAuthorPosts() {
+      this.authorPosts = []
+      this.authorProfile = null
+    },
+
+    async fetchFavoritePosts() {
+      await this.ensureAuthReady()
+      this.favoritePostsLoading = true
+      try {
+        const res = await listFavoriteShortVideos({ limit: 50 })
+        if (res.code === 200) {
+          this.favoritePosts = normalizeShortVideoList(res.data)
+        } else {
+          this.favoritePosts = []
+        }
+      } finally {
+        this.favoritePostsLoading = false
+      }
+    },
+
+    async fetchLikedPosts() {
+      await this.ensureAuthReady()
+      this.likedPostsLoading = true
+      try {
+        const res = await listLikedShortVideos({ limit: 50 })
+        if (res.code === 200) {
+          this.likedPosts = normalizeShortVideoList(res.data)
+        } else {
+          this.likedPosts = []
+        }
+      } finally {
+        this.likedPostsLoading = false
+      }
+    },
+
     async deletePost(postId: string) {
-      await deleteShortVideo(postId)
+      const res = await deleteShortVideo(postId)
+      assertApiOk(res, 'delete failed')
       const idx = this.posts.findIndex(p => p.id === postId)
       if (idx >= 0) {
         this.posts.splice(idx, 1)
@@ -353,6 +491,10 @@ export const useShortVideoStore = defineStore('shortVideo', {
       const myIdx = this.myPosts.findIndex(p => p.id === postId)
       if (myIdx >= 0) {
         this.myPosts.splice(myIdx, 1)
+      }
+      const authorIdx = this.authorPosts.findIndex(p => p.id === postId)
+      if (authorIdx >= 0) {
+        this.authorPosts.splice(authorIdx, 1)
       }
     },
 
@@ -382,15 +524,16 @@ export const useShortVideoStore = defineStore('shortVideo', {
       if (res.code !== 200 || !res.data) {
         throw new Error(res.message || 'update failed')
       }
-      const updated = res.data
+      const updated = normalizeShortVideoList([res.data])[0]
       const apply = (list: ShortVideoPost[]) => {
         const idx = list.findIndex(p => p.id === postId)
         if (idx >= 0) {
-          list[idx] = { ...list[idx], ...updated }
+          list[idx] = { ...list[idx], ...updated, comments: list[idx].comments }
         }
       }
       apply(this.posts)
       apply(this.myPosts)
+      apply(this.authorPosts)
       return updated
     },
 
@@ -398,7 +541,7 @@ export const useShortVideoStore = defineStore('shortVideo', {
       const post = this.posts.find(p => p.id === postId)
       if (!post) return []
       const beforeId = reset ? undefined : post.comments[0]?.id
-      const res = await listShortVideoComments(postId, { beforeId, limit: 20 })
+      const res = await listShortVideoComments(postId, { beforeId, limit: 50 })
       if (res.code !== 200) {
         throw new Error(res.message || 'fetch comments failed')
       }
@@ -416,22 +559,35 @@ export const useShortVideoStore = defineStore('shortVideo', {
       return post.comments
     },
 
-    async addComment(postId: string, content: string, parentId?: string) {
-      const res = await commentShortVideo(postId, { content, parentId })
+    async addComment(
+      postId: string,
+      content: string,
+      parentId?: string,
+      mentions?: Array<string | number>,
+      imageKey?: string
+    ) {
+      const res = await commentShortVideo(postId, {
+        content: content || undefined,
+        parentId,
+        mentions: mentions && mentions.length > 0 ? mentions : undefined,
+        imageKey: imageKey || undefined
+      })
+      assertApiOk(res, 'comment failed')
       const post = this.posts.find(p => p.id === postId)
-      if (post && res.data) {
-        if (isEncryptedShortVideoText(res.data.content)) {
-          await this.fetchComments(postId, true)
+      if (post) {
+        await this.fetchComments(postId, true)
+        if (typeof post.commentCount !== 'number') {
+          post.commentCount = normalizeCommentCount(post)
         } else {
-          post.comments = [...post.comments, res.data]
-          post.commentCount = (post.commentCount ?? post.comments.length - 1) + 1
+          post.commentCount = Math.max(post.commentCount, post.comments.length)
         }
       }
       return res.data
     },
 
     async removeComment(postId: string, commentId: string) {
-      await deleteShortVideoComment(commentId)
+      const res = await deleteShortVideoComment(commentId)
+      assertApiOk(res, 'delete comment failed')
       const post = this.posts.find(p => p.id === postId)
       if (post) {
         const before = post.comments.length
@@ -442,17 +598,61 @@ export const useShortVideoStore = defineStore('shortVideo', {
       }
     },
 
+    async toggleCommentLike(postId: string, comment: ShortVideoComment) {
+      const post = this.posts.find(p => p.id === postId)
+      if (!post) return
+      const target = post.comments.find(c => c.id === comment.id)
+      if (!target) return
+      if (target.liked) {
+        const res = await unlikeShortVideoComment(comment.id)
+        assertApiOk(res, 'unlike comment failed')
+        target.liked = false
+        target.likes = Math.max(0, (target.likes ?? 0) - 1)
+      } else {
+        const res = await likeShortVideoComment(comment.id)
+        assertApiOk(res, 'like comment failed')
+        target.liked = true
+        target.likes = (target.likes ?? 0) + 1
+      }
+    },
+
     commentCount(post: ShortVideoPost) {
       return normalizeCommentCount(post)
     },
 
     async markPlayed(postId: string) {
+      if (playedSessionKeys.has(postId)) return
       try {
-        await recordShortVideoPlay(postId)
-        const post = this.posts.find(p => p.id === postId)
-        if (post) {
-          post.playCount = (post.playCount || 0) + 1
+        const res = await recordShortVideoPlay(postId)
+        assertApiOk(res, 'record play failed')
+        playedSessionKeys.add(postId)
+        const bump = (list: ShortVideoPost[]) => {
+          const post = list.find(p => p.id === postId)
+          if (post) {
+            post.playCount = (post.playCount || 0) + 1
+          }
         }
+        bump(this.posts)
+        bump(this.myPosts)
+        bump(this.authorPosts)
+      } catch {
+        /* ignore */
+      }
+    },
+
+    async markShared(postId: string) {
+      if (sharedSessionKeys.has(postId)) return
+      try {
+        const res = await recordShortVideoShare(postId)
+        assertApiOk(res, 'record share failed')
+        sharedSessionKeys.add(postId)
+        forEachPostRef(
+          [this.posts, this.myPosts, this.authorPosts, this.favoritePosts, this.likedPosts],
+          postId,
+          post => {
+            post.shares = (post.shares ?? 0) + 1
+          }
+        )
       } catch {
         /* ignore */
       }

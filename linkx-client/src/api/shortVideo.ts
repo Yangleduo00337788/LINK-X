@@ -15,9 +15,12 @@ export interface ShortVideoPost {
   durationMs?: number
   visibility?: number
   playCount?: number
+  shares?: number
   time: string
   likes: number
   liked: boolean
+  favorites?: number
+  favorited?: boolean
   followingAuthor?: boolean
   commentCount?: number
   comments: ShortVideoComment[]
@@ -33,6 +36,9 @@ export interface ShortVideoComment {
   mentions?: number[]
   parentId?: string
   replyToNickname?: string
+  imageUrl?: string
+  likes?: number
+  liked?: boolean
 }
 
 export interface PublishShortVideoPayload {
@@ -50,9 +56,10 @@ export interface UpdateShortVideoPayload {
 }
 
 export interface CommentShortVideoPayload {
-  content: string
+  content?: string
   parentId?: string
   mentions?: Array<string | number>
+  imageKey?: string
 }
 
 export interface ListShortVideoParams {
@@ -79,6 +86,20 @@ export function listFollowingShortVideos(params?: Omit<ListShortVideoParams, 'q'
 
 export function listFriendsShortVideos(params?: Omit<ListShortVideoParams, 'q'>) {
   return apiClient.get<never, ApiResult<ShortVideoPost[]>>('/short-video/friends', {
+    params,
+    timeout: SHORT_VIDEO_READ_TIMEOUT
+  })
+}
+
+export function listFavoriteShortVideos(params?: Omit<ListShortVideoParams, 'q'>) {
+  return apiClient.get<never, ApiResult<ShortVideoPost[]>>('/short-video/favorites', {
+    params,
+    timeout: SHORT_VIDEO_READ_TIMEOUT
+  })
+}
+
+export function listLikedShortVideos(params?: Omit<ListShortVideoParams, 'q'>) {
+  return apiClient.get<never, ApiResult<ShortVideoPost[]>>('/short-video/likes', {
     params,
     timeout: SHORT_VIDEO_READ_TIMEOUT
   })
@@ -117,6 +138,14 @@ export function unlikeShortVideo(postId: string) {
   return apiClient.delete<never, ApiResult<null>>(`/short-video/${postId}/like`)
 }
 
+export function favoriteShortVideo(postId: string) {
+  return apiClient.post<never, ApiResult<null>>(`/short-video/${postId}/favorite`)
+}
+
+export function unfavoriteShortVideo(postId: string) {
+  return apiClient.delete<never, ApiResult<null>>(`/short-video/${postId}/favorite`)
+}
+
 export function commentShortVideo(postId: string, payload: CommentShortVideoPayload) {
   return apiClient.post<never, ApiResult<ShortVideoComment>>(`/short-video/${postId}/comment`, payload)
 }
@@ -129,6 +158,14 @@ export function deleteShortVideoComment(commentId: string) {
   return apiClient.delete<never, ApiResult<null>>(`/short-video/comment/${commentId}`)
 }
 
+export function likeShortVideoComment(commentId: string) {
+  return apiClient.post<never, ApiResult<null>>(`/short-video/comment/${commentId}/like`)
+}
+
+export function unlikeShortVideoComment(commentId: string) {
+  return apiClient.delete<never, ApiResult<null>>(`/short-video/comment/${commentId}/like`)
+}
+
 export function followShortVideoAuthor(userId: string) {
   return apiClient.post<never, ApiResult<null>>(`/short-video/follow/${userId}`)
 }
@@ -139,6 +176,10 @@ export function unfollowShortVideoAuthor(userId: string) {
 
 export function recordShortVideoPlay(postId: string) {
   return apiClient.post<never, ApiResult<null>>(`/short-video/${postId}/play`)
+}
+
+export function recordShortVideoShare(postId: string) {
+  return apiClient.post<never, ApiResult<null>>(`/short-video/${postId}/share`)
 }
 
 export function uploadShortVideoMedia(file: File) {

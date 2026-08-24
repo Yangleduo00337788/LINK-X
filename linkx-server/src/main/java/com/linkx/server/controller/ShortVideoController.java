@@ -92,6 +92,28 @@ public class ShortVideoController {
         return Result.success(shortVideoService.listFollowing(userId, parseOptionalId(beforeId), limit));
     }
 
+    @Operation(summary = "我的收藏短视频列表")
+    @GetMapping("/favorites")
+    @RateLimit(scope = "short-video:favorites", value = 60, window = 60)
+    public Result<List<ShortVideoPostVO>> listFavorites(
+            @RequestParam(required = false) String beforeId,
+            @RequestParam(required = false) @Min(1) @Max(50) Integer limit,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(shortVideoService.listFavorites(userId, parseOptionalId(beforeId), limit));
+    }
+
+    @Operation(summary = "我的点赞短视频列表")
+    @GetMapping("/likes")
+    @RateLimit(scope = "short-video:likes", value = 60, window = 60)
+    public Result<List<ShortVideoPostVO>> listLikes(
+            @RequestParam(required = false) String beforeId,
+            @RequestParam(required = false) @Min(1) @Max(50) Integer limit,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(shortVideoService.listLikes(userId, parseOptionalId(beforeId), limit));
+    }
+
     @Operation(summary = "指定用户短视频列表")
     @GetMapping("/user/{userId}")
     public Result<List<ShortVideoPostVO>> listByUser(
@@ -140,6 +162,23 @@ public class ShortVideoController {
         return Result.success(null);
     }
 
+    @Operation(summary = "收藏短视频")
+    @PostMapping("/{postId}/favorite")
+    @RateLimit(scope = "short-video:favorite", value = 30, window = 60)
+    public Result<Void> favorite(@PathVariable String postId, HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        shortVideoService.favorite(userId, parseId(postId));
+        return Result.success(null);
+    }
+
+    @Operation(summary = "取消收藏")
+    @DeleteMapping("/{postId}/favorite")
+    public Result<Void> unfavorite(@PathVariable String postId, HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        shortVideoService.unfavorite(userId, parseId(postId));
+        return Result.success(null);
+    }
+
     @Operation(summary = "评论短视频")
     @PostMapping("/{postId}/comment")
     @RateLimit(scope = "short-video:comment", value = 30, window = 60)
@@ -172,6 +211,23 @@ public class ShortVideoController {
         return Result.success(null);
     }
 
+    @Operation(summary = "点赞评论")
+    @PostMapping("/comment/{commentId}/like")
+    @RateLimit(scope = "short-video:comment-like", value = 60, window = 60)
+    public Result<Void> likeComment(@PathVariable String commentId, HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        shortVideoService.likeComment(userId, parseId(commentId));
+        return Result.success(null);
+    }
+
+    @Operation(summary = "取消点赞评论")
+    @DeleteMapping("/comment/{commentId}/like")
+    public Result<Void> unlikeComment(@PathVariable String commentId, HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        shortVideoService.unlikeComment(userId, parseId(commentId));
+        return Result.success(null);
+    }
+
     @Operation(summary = "关注创作者")
     @PostMapping("/follow/{userId}")
     public Result<Void> follow(@PathVariable String userId, HttpServletRequest request) {
@@ -193,6 +249,15 @@ public class ShortVideoController {
     public Result<Void> recordPlay(@PathVariable String postId, HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         shortVideoService.recordPlay(userId, parseId(postId));
+        return Result.success(null);
+    }
+
+    @Operation(summary = "记录分享")
+    @PostMapping("/{postId}/share")
+    @RateLimit(scope = "short-video:share", value = 30, window = 60)
+    public Result<Void> recordShare(@PathVariable String postId, HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        shortVideoService.recordShare(userId, parseId(postId));
         return Result.success(null);
     }
 
@@ -225,6 +290,17 @@ public class ShortVideoController {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         var object = shortVideoService.openCoverContent(userId, parseId(postId));
         return MediaStreamResponses.inline(object, "cover.jpg");
+    }
+
+    @Operation(summary = "鉴权读取评论图片")
+    @GetMapping("/comment/{commentId}/image/content")
+    @RateLimit(scope = "short-video:comment-image", value = 60, window = 60)
+    public ResponseEntity<InputStreamResource> commentImageContent(
+            @PathVariable String commentId,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        var object = shortVideoService.openCommentImageContent(userId, parseId(commentId));
+        return MediaStreamResponses.inline(object, "comment.jpg");
     }
 
     private Long parseId(String id) {

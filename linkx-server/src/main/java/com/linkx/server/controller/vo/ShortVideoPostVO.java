@@ -41,11 +41,17 @@ public class ShortVideoPostVO {
 
     private Long playCount;
 
+    private Long shares;
+
     private String time;
 
     private Integer likes;
 
     private boolean liked;
+
+    private Integer favorites;
+
+    private boolean favorited;
 
     private boolean followingAuthor;
 

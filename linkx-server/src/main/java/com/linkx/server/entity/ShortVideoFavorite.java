@@ -21,8 +21,8 @@ import java.util.Date;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Table("short_video_comment")
-public class ShortVideoComment implements Serializable {
+@Table("short_video_favorite")
+public class ShortVideoFavorite implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
@@ -32,18 +32,6 @@ public class ShortVideoComment implements Serializable {
     private Long postId;
 
     private Long userId;
-
-    private String content;
-
-    private Byte contentEncVersion;
-
-    private Long parentId;
-
-    private String mentions;
-
-    private String imageKey;
-
-    private String imageStorageProvider;
 
     @Column(onInsertValue = "NOW()")
     private Date createTime;

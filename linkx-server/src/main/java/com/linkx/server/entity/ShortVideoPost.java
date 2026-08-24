@@ -50,6 +50,8 @@ public class ShortVideoPost implements Serializable {
 
     private Long playCount;
 
+    private Long shareCount;
+
     @Column(onInsertValue = "NOW()")
     private Date createTime;
 

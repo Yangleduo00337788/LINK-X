@@ -135,9 +135,7 @@ public class MessageContentCipher {
         if (!StringUtils.hasText(stored)) {
             return false;
         }
-        if (version != null && version == ENC_VERSION) {
-            return true;
-        }
+        // 仅以 lxenc 前缀判断密文；version 在内存解密后仍可能为 1，不能单独作为密文依据。
         return stored.startsWith(PREFIX);
     }
 

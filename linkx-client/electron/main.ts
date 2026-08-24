@@ -645,7 +645,9 @@ function registerApiMediaAuthInjection() {
     const url = details.url || ''
     const isShortVideoMedia =
       url.includes('/short-video/') &&
-      (url.includes('/video/content') || url.includes('/cover/content'))
+      (url.includes('/video/content') ||
+        url.includes('/cover/content') ||
+        url.includes('/comment/') && url.includes('/image/content'))
     if (!isShortVideoMedia) {
       callback({ requestHeaders: headers })
       return

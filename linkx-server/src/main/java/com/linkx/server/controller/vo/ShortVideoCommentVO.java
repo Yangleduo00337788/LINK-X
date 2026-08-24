@@ -39,4 +39,10 @@ public class ShortVideoCommentVO {
     private Long parentId;
 
     private String replyToNickname;
+
+    private String imageUrl;
+
+    private Integer likes;
+
+    private boolean liked;
 }

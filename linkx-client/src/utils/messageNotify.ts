@@ -231,7 +231,11 @@ export function notifyMomentsEvent(type: string): void {
   void showChatDesktopNotification(title, body, !settings.notifySound, { kind: 'moments' })
 }
 
-const SHORT_VIDEO_NOTIFY_TYPES = new Set(['short_video_like', 'short_video_comment'])
+const SHORT_VIDEO_NOTIFY_TYPES = new Set([
+  'short_video_like',
+  'short_video_comment',
+  'short_video_mention'
+])
 
 /** 短视频点赞 / 评论：复用友链提醒偏好。 */
 export function notifyShortVideoEvent(type: string): void {
@@ -248,7 +252,8 @@ export function notifyShortVideoEvent(type: string): void {
 
   const bodyByType: Record<string, string> = {
     short_video_like: t('shortVideo.likedYour'),
-    short_video_comment: t('shortVideo.commentedYour')
+    short_video_comment: t('shortVideo.commentedYour'),
+    short_video_mention: t('shortVideo.mentionedYou')
   }
   const title = t('shortVideo.notifyTitle')
   const body = settings.messageDetail
