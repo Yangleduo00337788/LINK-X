@@ -53,6 +53,10 @@ public class ImMessage implements Serializable {
      * {@code fileSize} 为 1 表示需要密码。仅服务端创建会议时写入，禁止客户端上行伪造。
      */
     public static final String TYPE_CONFERENCE = "conference";
+    /**
+     * 短视频分享卡片：{@code fileUrl} 存 postId，{@code fileName} 存描述摘要。仅服务端 REST 写入。
+     */
+    public static final String TYPE_SHORT_VIDEO = "shortVideo";
 
     @Id(keyType = KeyType.Generator, value = KeyGenerators.snowFlakeId)
     private Long id;

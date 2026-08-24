@@ -89,6 +89,15 @@ public interface ChatService {
     void assertConversationMember(Long userId, Long conversationId);
 
     /**
+     * 分享短视频到多个会话（卡片消息 + 可选留言）。
+     */
+    List<MessageVO> postShortVideoShareMessages(
+            Long senderId,
+            Long postId,
+            List<Long> conversationIds,
+            String leaveMessage);
+
+    /**
      * 鉴权后打开聊天消息附件流（会话成员）。
      */
     FileStorageService.StoredObject openMessageFile(Long userId, Long messageId);

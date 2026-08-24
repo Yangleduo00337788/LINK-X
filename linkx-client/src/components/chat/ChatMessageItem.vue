@@ -27,6 +27,7 @@ import TextBubble from './bubbles/TextBubble.vue'
 import LinkMateChatBubble from './bubbles/LinkMateChatBubble.vue'
 import DataCardBubble from './bubbles/DataCardBubble.vue'
 import CallBubble from './bubbles/CallBubble.vue'
+import ShortVideoBubble from './bubbles/ShortVideoBubble.vue'
 import { groupReadCountLabel, privateStatusLabel } from '../../utils/messageStatus'
 import LinkMateLogoMark from '../LinkMateLogoMark.vue'
 import { isLinkMateBotSender } from '../../utils/linkmateLogo'
@@ -46,6 +47,7 @@ const emit = defineEmits<{
   (e: 'openImageView', msg: ChatMessage): void
   (e: 'clickRedPacket', msg: ChatMessage): void
   (e: 'clickConference', msg: ChatMessage): void
+  (e: 'clickShortVideo', msg: ChatMessage): void
   (e: 'openPeerProfile', event: MouseEvent): void
   (e: 'openSelfProfile', event: MouseEvent): void
   (e: 'openGroupMemberProfile', event: MouseEvent, msg: ChatMessage): void
@@ -293,6 +295,7 @@ function onGroupMemberAvatarClick(e: MouseEvent) {
       <RedPacketBubble v-else-if="msg.type === 'redPacket'" :msg="msg" @click="emit('clickRedPacket', msg)" />
       <LocationBubble v-else-if="msg.type === 'location'" :msg="msg" />
       <CallBubble v-else-if="msg.type === 'conference'" :msg="msg" @click="emit('clickConference', msg)" />
+      <ShortVideoBubble v-else-if="msg.type === 'shortVideo'" :msg="msg" @click="emit('clickShortVideo', msg)" />
       <DataCardBubble v-else-if="msg.type === 'dataCard'" :msg="msg" />
       <LinkMateChatBubble v-else-if="isLinkMateBot" :msg="msg" />
       <TextBubble v-else :msg="msg" />

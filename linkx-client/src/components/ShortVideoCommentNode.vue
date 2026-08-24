@@ -1,6 +1,6 @@
 <!-- 作者：yangleduo -->
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { NIcon } from 'naive-ui'
 import { Heart, HeartOutline } from '@vicons/ionicons5'
 import Avatar from './Avatar.vue'
@@ -19,6 +19,7 @@ const props = defineProps<{
   post: ShortVideoPost
   currentUserId: string
   isReply?: boolean
+  highlightCommentId?: string | null
 }>()
 
 const emit = defineEmits<{
@@ -29,6 +30,26 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const repliesExpanded = ref(false)
+
+function containsHighlight(node: ShortVideoCommentNode, id: string): boolean {
+  if (node.id === id) return true
+  return node.replies.some(reply => containsHighlight(reply, id))
+}
+
+const isHighlighted = computed(() =>
+  Boolean(props.highlightCommentId && props.node.id === props.highlightCommentId)
+)
+
+watch(
+  () => props.highlightCommentId,
+  id => {
+    if (!id || props.isReply) return
+    if (containsHighlight(props.node, id)) {
+      repliesExpanded.value = true
+    }
+  },
+  { immediate: true }
+)
 
 const visibleReplies = computed(() => (repliesExpanded.value ? props.node.replies : []))
 
@@ -59,8 +80,12 @@ function formatLikeCount(n?: number) {
 
 <template>
   <div
+    :id="`sv-comment-${node.id}`"
     class="sv-comment-node"
-    :class="{ 'sv-comment-node--nested': isReply }"
+    :class="{
+      'sv-comment-node--nested': isReply,
+      'sv-comment-node--highlight': isHighlighted
+    }"
     :style="{ marginLeft: isReply ? '28px' : undefined }"
   >
     <div class="sv-comment-node__row">
@@ -137,6 +162,7 @@ function formatLikeCount(n?: number) {
           :node="reply"
           :post="post"
           :current-user-id="currentUserId"
+          :highlight-comment-id="highlightCommentId"
           is-reply
           @reply="emit('reply', $event)"
           @delete="emit('delete', $event)"
@@ -154,6 +180,14 @@ function formatLikeCount(n?: number) {
 
 .sv-comment-node--nested {
   padding-top: 6px;
+}
+
+.sv-comment-node--highlight .sv-comment-node__main {
+  border-radius: 8px;
+  background: rgba(254, 44, 85, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(254, 44, 85, 0.35);
+  padding: 6px 8px;
+  margin: -6px -8px;
 }
 
 .sv-comment-node__row {

@@ -190,6 +190,9 @@ function messagePreview(msg: ChatMessage): string {
   if (msg.type === 'redPacket') {
     return redPacketPreviewLabel(msg.redPacketGreeting)
   }
+  if (msg.type === 'shortVideo') {
+    return `[${t('shortVideo.shareCardPreview')}] ${msg.shortVideoTitle || msg.fileName || msg.content || ''}`
+  }
   if (msg.type === 'conference') {
     const content = (msg.content || '').trim()
     if (content && (/语音通话|视频通话|会议|Voice call|Video call|Meeting/i.test(content))) {

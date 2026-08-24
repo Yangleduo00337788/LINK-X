@@ -29,10 +29,15 @@ import ModalOverlayCaption from './ModalOverlayCaption.vue'
 
 type Mode = 'text' | 'media'
 
-const props = defineProps<{
-  visible: boolean
-  initialMode?: Mode
-}>()
+const props = withDefaults(
+  defineProps<{
+    visible: boolean
+    initialMode?: Mode
+    /** 嵌入扩展面板内，遮罩相对面板定位 */
+    embedded?: boolean
+  }>(),
+  { embedded: false }
+)
 
 const emit = defineEmits<{
   (e: 'update:visible', val: boolean): void
@@ -366,11 +371,11 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
   </transition>
 
   <transition name="composer-fade">
-    <div v-if="visible" class="moments-composer-mask" @click.self="close">
-      <ModalOverlayCaption />
+    <div v-if="visible" class="moments-composer-mask" :class="{ 'moments-composer-mask--embedded': embedded }" @click.self="close">
+      <ModalOverlayCaption v-if="!embedded" />
       
       <!-- ========== 文字发布模式 ========== -->
-      <div v-if="mode === 'text'" class="composer-text-mode" role="dialog">
+      <div v-if="mode === 'text'" class="composer-text-mode" :class="{ 'composer-panel--embedded': embedded }" role="dialog">
         <header class="composer-header">
           <div class="header-title">
             <n-icon :component="AtCircleOutline" :size="18" />
@@ -438,7 +443,7 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
       </div>
 
       <!-- ========== 图片/视频发布模式 ========== -->
-      <div v-else class="composer-media-mode" role="dialog">
+      <div v-else class="composer-media-mode" :class="{ 'composer-panel--embedded': embedded }" role="dialog">
         <header class="composer-header">
           <div class="header-title">
             <n-icon :component="ImageOutline" :size="18" />
@@ -627,6 +632,20 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
   align-items: center;
   justify-content: center;
   -webkit-app-region: no-drag;
+}
+
+.moments-composer-mask--embedded {
+  position: absolute;
+  align-items: flex-end;
+  justify-content: stretch;
+  padding: 0;
+}
+
+.composer-panel--embedded {
+  width: 100% !important;
+  max-width: none !important;
+  max-height: 88%;
+  border-radius: 16px 16px 0 0;
 }
 
 /* ========== 通用头部 ========== */

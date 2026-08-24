@@ -475,7 +475,7 @@ public class ShortVideoServiceImpl implements ShortVideoService {
 
         if (!post.getUserId().equals(userId)) {
             String preview = raw.isEmpty() ? "[图片]" : truncate(raw, 100);
-            notifyAuthor(post.getUserId(), userId, "short_video_comment", postId, preview);
+            notifyAuthor(post.getUserId(), userId, "short_video_comment", postId, comment.getId(), preview);
         }
         if (!mentions.isEmpty()) {
             Set<Long> notifyTargets = new LinkedHashSet<>(mentions);
@@ -483,7 +483,7 @@ public class ShortVideoServiceImpl implements ShortVideoService {
             notifyTargets.remove(post.getUserId());
             String preview = raw.isEmpty() ? "[图片]" : truncate(raw, 100);
             for (Long targetId : notifyTargets) {
-                notifyAuthor(targetId, userId, "short_video_mention", postId, preview);
+                notifyAuthor(targetId, userId, "short_video_mention", postId, comment.getId(), preview);
             }
         }
         String replyToNickname = resolveReplyToNickname(dto.getParentId());
@@ -1127,6 +1127,10 @@ public class ShortVideoServiceImpl implements ShortVideoService {
     }
 
     private void notifyAuthor(Long authorId, Long actorId, String type, Long postId, String previewText) {
+        notifyAuthor(authorId, actorId, type, postId, null, previewText);
+    }
+
+    private void notifyAuthor(Long authorId, Long actorId, String type, Long postId, Long extraId, String previewText) {
         try {
             SysUser actor = userMapper.selectOneById(actorId);
             notificationService.create(
@@ -1136,6 +1140,7 @@ public class ShortVideoServiceImpl implements ShortVideoService {
                     actor != null ? actor.getAvatar() : null,
                     type,
                     postId,
+                    extraId,
                     previewText);
             imPushService.pushToUser(authorId, "notification_refresh", Map.of("type", type));
         } catch (Exception e) {

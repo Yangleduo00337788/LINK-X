@@ -69,6 +69,11 @@ public interface MessageNotificationService {
      */
     void create(Long userId, Long senderId, String senderName, String senderAvatar, String type, Long relatedId, String content);
 
+  /**
+   * 创建通知（带扩展关联 ID，如短视频评论 ID）。
+   */
+    void create(Long userId, Long senderId, String senderName, String senderAvatar, String type, Long relatedId, Long extraId, String content);
+
     /**
      * 批量为多用户创建同一条通知（系统公告广播等）。
      *

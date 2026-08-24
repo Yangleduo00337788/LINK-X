@@ -23,10 +23,15 @@ const { messageNotifs } = storeToRefs(notificationsStore)
 const { markMessageAsRead, fetchMessageNotifications, clearAllMessageNotifsRemote } =
   notificationsStore
 
-const props = defineProps<{
-  visible: boolean
-  anchorEl?: HTMLElement | null
-}>()
+const props = withDefaults(
+  defineProps<{
+    visible: boolean
+    anchorEl?: HTMLElement | null
+    /** 嵌入扩展面板内，相对面板定位而非全屏 */
+    embedded?: boolean
+  }>(),
+  { embedded: false }
+)
 
 const POPOVER_WIDTH = 360
 const HEADER_HEIGHT = 52
@@ -37,13 +42,35 @@ const layout = ref({
   top: 0,
   left: 0,
   arrowLeft: POPOVER_WIDTH / 2,
-  bodyMaxHeight: 320
+  bodyMaxHeight: 320,
+  width: POPOVER_WIDTH
 })
 
 function updateLayout() {
   const el = props.anchorEl
   if (!el) return
   const rect = el.getBoundingClientRect()
+
+  if (props.embedded) {
+    const root = el.closest('.short-video-main') as HTMLElement | null
+    if (!root) return
+    const rootRect = root.getBoundingClientRect()
+    const popoverWidth = Math.min(POPOVER_WIDTH, rootRect.width - EDGE * 2)
+    let left = rect.left - rootRect.left + rect.width / 2 - popoverWidth / 2
+    left = Math.max(EDGE, Math.min(left, rootRect.width - popoverWidth - EDGE))
+    const top = rect.bottom - rootRect.top + GAP
+    const available = rootRect.height - top - EDGE
+    const bodyMaxHeight = Math.max(120, Math.min(320, available - HEADER_HEIGHT))
+    layout.value = {
+      top,
+      left,
+      arrowLeft: rect.left - rootRect.left + rect.width / 2 - left,
+      bodyMaxHeight,
+      width: popoverWidth
+    }
+    return
+  }
+
   let left = rect.left + rect.width / 2 - POPOVER_WIDTH / 2
   left = Math.max(EDGE, Math.min(left, window.innerWidth - POPOVER_WIDTH - EDGE))
   const top = rect.bottom + GAP
@@ -53,14 +80,15 @@ function updateLayout() {
     top,
     left,
     arrowLeft: rect.left + rect.width / 2 - left,
-    bodyMaxHeight
+    bodyMaxHeight,
+    width: POPOVER_WIDTH
   }
 }
 
 const wrapStyle = computed(() => ({
   top: `${layout.value.top}px`,
   left: `${layout.value.left}px`,
-  width: `${POPOVER_WIDTH}px`
+  width: `${layout.value.width}px`
 }))
 
 const popoverStyle = computed(() => ({
@@ -248,9 +276,15 @@ function onAvatarError(e: Event, notif: (typeof messageNotifs.value)[0]) {
 </script>
 
 <template>
-  <Teleport to="body">
+  <Teleport to="body" :disabled="embedded">
     <Transition name="notif-popover">
-      <div v-if="visible" class="notif-popover-wrap" :style="wrapStyle" @click.stop>
+      <div
+        v-if="visible"
+        class="notif-popover-wrap"
+        :class="{ 'notif-popover-wrap--embedded': embedded }"
+        :style="wrapStyle"
+        @click.stop
+      >
         <div class="notif-popover" :style="popoverStyle">
           <header class="notif-popover-header">
             <h3 class="notif-popover-title">{{ t('shortVideo.allInteractiveMessages') }}</h3>
@@ -326,6 +360,11 @@ function onAvatarError(e: Event, notif: (typeof messageNotifs.value)[0]) {
   position: fixed;
   z-index: var(--lx-z-critical);
   transform-origin: top center;
+}
+
+.notif-popover-wrap--embedded {
+  position: absolute;
+  z-index: 75;
 }
 
 .notif-popover {

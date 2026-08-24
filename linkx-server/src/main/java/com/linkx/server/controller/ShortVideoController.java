@@ -11,9 +11,13 @@ import com.linkx.server.common.RateLimit;
 import com.linkx.server.common.Result;
 import com.linkx.server.controller.dto.CommentShortVideoDTO;
 import com.linkx.server.controller.dto.PublishShortVideoDTO;
+import com.linkx.server.controller.dto.ShareShortVideoChatDTO;
 import com.linkx.server.controller.dto.UpdateShortVideoDTO;
+import com.linkx.server.controller.vo.MessageVO;
 import com.linkx.server.controller.vo.ShortVideoCommentVO;
 import com.linkx.server.controller.vo.ShortVideoPostVO;
+import com.linkx.server.im.ImMessagePushService;
+import com.linkx.server.service.ChatService;
 import com.linkx.server.service.ShortVideoService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -38,6 +42,8 @@ import java.util.List;
 public class ShortVideoController {
 
     private final ShortVideoService shortVideoService;
+    private final ChatService chatService;
+    private final ImMessagePushService imMessagePushService;
     private final JwtUtils jwtUtils;
 
     @Operation(summary = "发布短视频")
@@ -259,6 +265,26 @@ public class ShortVideoController {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         shortVideoService.recordShare(userId, parseId(postId));
         return Result.success(null);
+    }
+
+    @Operation(summary = "分享短视频到聊天")
+    @PostMapping("/{postId}/share-chat")
+    @RateLimit(scope = "short-video:share-chat", value = 20, window = 60)
+    public Result<List<MessageVO>> shareToChat(
+            @PathVariable String postId,
+            @Valid @RequestBody ShareShortVideoChatDTO dto,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        List<Long> conversationIds = dto.getConversationIds().stream()
+                .map(this::parseId)
+                .distinct()
+                .toList();
+        List<MessageVO> messages = chatService.postShortVideoShareMessages(
+                userId, parseId(postId), conversationIds, dto.getLeaveMessage());
+        for (MessageVO vo : messages) {
+            imMessagePushService.pushToConversationMembers(vo, userId, vo.getClientMsgId());
+        }
+        return Result.success(messages);
     }
 
     @Operation(summary = "上传短视频媒体")

@@ -80,6 +80,8 @@ import ForwardPickerModal from './chat/ForwardPickerModal.vue'
 import ConferenceSessionBanner from './chat/ConferenceSessionBanner.vue'
 import type { SessionBannerInfo } from './chat/ConferenceSessionBanner.vue'
 import { useConferenceStore } from '../stores/conference'
+import { useShortVideoStore } from '../stores/shortVideo'
+import { useExtensionDockStore } from '../stores/extensionDock'
 import { LxButton, LxIconButton, LxModal } from './ui'
 
 // 获取 Naive UI 消息提示实例
@@ -715,6 +717,20 @@ async function onConferenceClick(msg: ChatMessage) {
   )
 }
 
+async function onShortVideoClick(msg: ChatMessage) {
+  const postId = String(msg.shortVideoPostId || msg.fileUrl || '').trim()
+  if (!postId) return
+  const sv = useShortVideoStore()
+  const dock = useExtensionDockStore()
+  sv.openPanel()
+  dock.expandPanel()
+  try {
+    await sv.openPostById(postId)
+  } catch {
+    message.error(t('shortVideo.postNotFound'))
+  }
+}
+
 /** 顶栏条：加入 / 返回进行中电话或会议 */
 async function onSessionConferenceJoin() {
   const info = sessionMediaBanner.value
@@ -1292,7 +1308,8 @@ const ctxOptions = computed<DropdownOption[]>(() => {
     msg.type !== 'system' &&
     msg.type !== 'recall' &&
     msg.type !== 'redPacket' &&
-    msg.type !== 'conference'
+    msg.type !== 'conference' &&
+    msg.type !== 'shortVideo'
   ) {
     opts.push({ label: t('chat.forward'), key: 'forward' })
   }
@@ -1319,6 +1336,7 @@ function canSetEssence(msg: ChatMessage) {
     msg.type === 'recall' ||
     msg.type === 'redPacket' ||
     msg.type === 'conference' ||
+    msg.type === 'shortVideo' ||
     msg.type === 'dataCard'
   ) {
     return false
@@ -1712,6 +1730,7 @@ function onDrop(e: DragEvent) {
                         @open-image-view="openImageView"
                         @click-red-packet="onRedPacketClick"
                         @click-conference="onConferenceClick"
+                        @click-short-video="onShortVideoClick"
                         @open-peer-profile="openPeerProfile"
                         @open-self-profile="openSelfProfileClick"
                         @open-group-member-profile="openGroupMemberProfile"

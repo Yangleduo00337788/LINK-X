@@ -37,6 +37,8 @@ public class MessageNotificationVO implements Serializable {
 
     private Long relatedId;
 
+    private Long extraId;
+
     private String content;
 
     private Integer readStatus;

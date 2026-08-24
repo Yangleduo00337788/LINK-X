@@ -171,8 +171,20 @@ function onBannerContextMenu(e: MouseEvent) {
   // 仅本人可操作
   if (!myUserId.value) return
   e.preventDefault()
-  bannerMenuX.value = e.clientX
-  bannerMenuY.value = e.clientY
+  if (props.embedded) {
+    const root = (e.currentTarget as HTMLElement | null)?.closest('.moments-wrapper') as HTMLElement | null
+    const rootRect = root?.getBoundingClientRect()
+    if (rootRect) {
+      bannerMenuX.value = e.clientX - rootRect.left
+      bannerMenuY.value = e.clientY - rootRect.top
+    } else {
+      bannerMenuX.value = e.clientX
+      bannerMenuY.value = e.clientY
+    }
+  } else {
+    bannerMenuX.value = e.clientX
+    bannerMenuY.value = e.clientY
+  }
   showBannerMenu.value = true
 }
 
@@ -1178,6 +1190,7 @@ const showMomentsOps = ref(false)
     />
 
     <MomentsNotificationsPage
+      :embedded="embedded"
       :visible="showNotifications"
       :anchor-el="bellAnchorRef"
       @close="showNotifications = false"
@@ -1232,12 +1245,13 @@ const showMomentsOps = ref(false)
     <!-- Web / 嵌入模式：应用内发布浮层 -->
     <MomentsComposerModal
       v-model:visible="showComposer"
+      :embedded="embedded"
       :initial-mode="composerMode"
       @published="onComposerPublished"
     />
 
     <!-- 背景图右键菜单 -->
-    <Teleport to="body">
+    <Teleport to="body" :disabled="embedded">
       <div
         v-if="showBannerMenu"
         class="banner-context-menu"
@@ -2129,5 +2143,15 @@ const showMomentsOps = ref(false)
 
 .ctx-item:hover {
   background: var(--lx-bg-hover);
+}
+
+.moments-wrapper.embedded .publish-menu-backdrop,
+.moments-wrapper.embedded .notif-dismiss-layer,
+.moments-wrapper.embedded .ctx-backdrop {
+  position: absolute;
+}
+
+.moments-wrapper.embedded .banner-context-menu {
+  position: absolute;
 }
 </style>

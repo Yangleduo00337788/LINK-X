@@ -57,6 +57,7 @@ export interface MessageNotification {
   type: string
   category?: string
   relatedId?: string
+  extraId?: string
   content: string
   readStatus: number
   createTime: string
@@ -139,6 +140,7 @@ function mapRawNotification(n: notificationApi.MessageNotificationVO): MessageNo
     type: n.type,
     category: n.category,
     relatedId: n.relatedId ? String(n.relatedId) : undefined,
+    extraId: n.extraId ? String(n.extraId) : undefined,
     content: n.content,
     readStatus: n.readStatus,
     createTime: String(n.createTime ?? '')

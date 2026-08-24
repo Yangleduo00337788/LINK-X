@@ -21,16 +21,21 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '../../stores/app'
 import { useI18n } from '../../i18n'
 
-const props = defineProps<{
-  show: boolean
-  /** 排除的会话（通常是消息来源会话） */
-  excludeSessionId?: string
-  loading?: boolean
-  /** 转发内容预览文案 */
-  previewText?: string
-  /** 图片类消息缩略图 */
-  previewImageUrl?: string
-}>()
+const props = withDefaults(
+  defineProps<{
+    show: boolean
+    /** 排除的会话（通常是消息来源会话） */
+    excludeSessionId?: string
+    loading?: boolean
+    /** 转发内容预览文案 */
+    previewText?: string
+    /** 图片类消息缩略图 */
+    previewImageUrl?: string
+    /** 嵌入扩展面板内展示，不挂到全屏 Modal */
+    embedded?: boolean
+  }>(),
+  { embedded: false }
+)
 
 const emit = defineEmits<{
   (e: 'update:show', v: boolean): void
@@ -100,7 +105,103 @@ function onConfirm() {
 </script>
 
 <template>
+  <div
+    v-if="embedded && show"
+    class="fwd-embedded-overlay"
+    @click.self="onClose"
+  >
+    <div class="fwd-embedded-card" @click.stop>
+      <header class="fwd-embedded-header">
+        <span>{{ t('viewer.forwardSendTo') }}</span>
+        <LxIconButton variant="close" :title="t('common.close')" @click="onClose">×</LxIconButton>
+      </header>
+
+      <div class="fwd-embedded-search">
+        <n-icon :component="SearchOutline" :size="16" class="fwd-search-ico" />
+        <input
+          v-model="search"
+          class="fwd-search-input"
+          type="search"
+          :placeholder="t('common.search')"
+        />
+      </div>
+
+      <div class="fwd-embedded-selected">
+        <div v-for="s in selectedSessions" :key="s.id" class="fwd-chip">
+          <Avatar
+            :text="s.avatarText || '?'"
+            :color="s.avatarColor || 'var(--lx-accent)'"
+            :image-url="s.avatarUrl"
+            :size="28"
+          />
+          <span class="fwd-chip-name">{{ s.name }}</span>
+          <LxIconButton
+            variant="close"
+            class="fwd-chip-x lx-close-btn--sm"
+            :title="t('common.close')"
+            @click="removeSelected(s.id)"
+          >
+            ×
+          </LxIconButton>
+        </div>
+      </div>
+
+      <div class="fwd-embedded-list">
+        <button
+          v-for="s in recentSessions"
+          :key="s.id"
+          type="button"
+          class="fwd-row"
+          @click="toggle(s.id)"
+        >
+          <n-icon
+            :component="selectedIds.includes(s.id) ? CheckmarkCircle : EllipseOutline"
+            :size="18"
+            :class="selectedIds.includes(s.id) ? 'chk on' : 'chk'"
+          />
+          <Avatar
+            :text="s.avatarText || '?'"
+            :color="s.avatarColor || 'var(--lx-accent)'"
+            :image-url="s.avatarUrl"
+            :size="32"
+          />
+          <span class="fwd-row-name" :title="s.name">{{ s.name }}</span>
+        </button>
+        <p v-if="!recentSessions.length" class="fwd-empty">{{ t('chat.noForwardTarget') }}</p>
+      </div>
+
+      <div v-if="hasPreview" class="fwd-preview">
+        <img v-if="previewImageUrl" class="fwd-preview-img" :src="previewImageUrl" alt="" />
+        <p v-if="previewText" class="fwd-preview-text">{{ previewText }}</p>
+      </div>
+
+      <div class="fwd-leave">
+        <input
+          v-model="leaveMessage"
+          class="fwd-leave-input"
+          type="text"
+          :placeholder="t('viewer.forwardLeaveMsg')"
+          :disabled="loading"
+        />
+      </div>
+
+      <div class="fwd-embedded-actions">
+        <LxButton variant="modal" :disabled="loading" @click="onClose">
+          {{ t('common.cancel') }}
+        </LxButton>
+        <LxButton
+          variant="modal-primary"
+          :disabled="loading || !selectedIds.length"
+          @click="onConfirm"
+        >
+          {{ t('common.confirm') }}
+        </LxButton>
+      </div>
+    </div>
+  </div>
+
   <LxModal
+    v-else
     :show="show"
     :mask-closable="!loading"
     :auto-focus="false"
@@ -476,5 +577,85 @@ function onConfirm() {
   gap: var(--lx-space-md);
   margin-top: auto;
   padding-top: var(--lx-space-xs);
+}
+
+.fwd-embedded-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  box-sizing: border-box;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.fwd-embedded-card {
+  width: 100%;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--lx-bg-card);
+  border-radius: var(--lx-radius-lg);
+  overflow: hidden;
+  color: var(--lx-conf-surface);
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.18);
+}
+
+.fwd-embedded-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  font-size: 15px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--lx-divider);
+}
+
+.fwd-embedded-search {
+  display: flex;
+  align-items: center;
+  gap: var(--lx-space-sm);
+  margin: 12px 12px 8px;
+  padding: var(--lx-space-sm-plus) var(--lx-space-md);
+  border-radius: var(--lx-radius-xs);
+  background: var(--lx-bg-panel);
+  border: 1px solid var(--lx-divider);
+}
+
+.fwd-embedded-selected {
+  min-height: 0;
+  max-height: 72px;
+  overflow: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lx-space);
+  padding: 0 12px 8px;
+}
+
+.fwd-embedded-list {
+  flex: 1;
+  min-height: 120px;
+  max-height: 220px;
+  overflow: auto;
+  padding: 0 8px;
+}
+
+.fwd-embedded-card .fwd-preview {
+  margin: 0 12px 8px;
+}
+
+.fwd-embedded-card .fwd-leave {
+  margin: 0 12px 8px;
+}
+
+.fwd-embedded-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--lx-space-md);
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--lx-divider);
 }
 </style>

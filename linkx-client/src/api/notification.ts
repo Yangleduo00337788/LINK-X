@@ -16,6 +16,7 @@ export interface MessageNotificationVO {
   /** moments / system / social / other */
   category?: string
   relatedId?: number
+  extraId?: number
   content: string
   readStatus: number
   createTime: string

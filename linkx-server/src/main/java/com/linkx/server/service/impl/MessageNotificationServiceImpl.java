@@ -156,6 +156,12 @@ public class MessageNotificationServiceImpl implements MessageNotificationServic
     @Override
     @Transactional
     public void create(Long userId, Long senderId, String senderName, String senderAvatar, String type, Long relatedId, String content) {
+        create(userId, senderId, senderName, senderAvatar, type, relatedId, null, content);
+    }
+
+    @Override
+    @Transactional
+    public void create(Long userId, Long senderId, String senderName, String senderAvatar, String type, Long relatedId, Long extraId, String content) {
         // 获取发送者信息
         String name = senderName;
         String avatar = senderAvatar;
@@ -174,6 +180,7 @@ public class MessageNotificationServiceImpl implements MessageNotificationServic
                 .senderAvatar(avatar)
                 .type(type)
                 .relatedId(relatedId)
+                .extraId(extraId)
                 .content(content)
                 .readStatus(0)
                 .build();
@@ -284,6 +291,7 @@ public class MessageNotificationServiceImpl implements MessageNotificationServic
                 .type(notification.getType())
                 .category(resolveCategory(notification.getType()))
                 .relatedId(notification.getRelatedId())
+                .extraId(notification.getExtraId())
                 .content(notification.getContent())
                 .readStatus(notification.getReadStatus())
                 .createTime(notification.getCreateTime())

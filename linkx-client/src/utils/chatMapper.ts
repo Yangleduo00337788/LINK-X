@@ -127,6 +127,8 @@ export function messageToChatMessage(message: MessageItem, sessionId: string): C
   let conferenceHasPassword: boolean | undefined
   let conferenceType: 'voice' | 'video' | undefined
   let conferenceScene: 'call' | 'meeting' | undefined
+  let shortVideoPostId: string | undefined
+  let shortVideoTitle: string | undefined
 
   switch (type) {
     case 'file':
@@ -208,6 +210,15 @@ export function messageToChatMessage(message: MessageItem, sessionId: string): C
       fileSize = undefined
       break
     }
+    case 'shortVideo': {
+      shortVideoPostId = message.fileUrl ?? undefined
+      shortVideoTitle = message.fileName || message.content || ''
+      content = message.content || t('shortVideo.shareCardHint')
+      fileName = shortVideoTitle
+      fileUrl = shortVideoPostId
+      isImage = false
+      break
+    }
   }
 
   return {
@@ -251,6 +262,8 @@ export function messageToChatMessage(message: MessageItem, sessionId: string): C
     conferenceHasPassword,
     conferenceType,
     conferenceScene,
+    shortVideoPostId,
+    shortVideoTitle,
     deliveryStatus: message.deliveryStatus,
     edited: message.edited,
     clientMsgId: message.clientMsgId,
@@ -338,6 +351,8 @@ export function messagePreviewFromItem(message: MessageItem): string {
       return recalledPreviewLabel()
     case 'system':
       return systemPreviewLabel(message.content)
+    case 'shortVideo':
+      return `[${t('shortVideo.shareCardPreview')}] ${message.fileName || message.content || ''}`
     default:
       return message.content
   }

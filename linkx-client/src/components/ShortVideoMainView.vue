@@ -41,9 +41,10 @@ import { submitFeedback } from '../api/feedback'
 import Avatar from './Avatar.vue'
 import ShortVideoNotificationsPage from './ShortVideoNotificationsPage.vue'
 import ShortVideoCommentNode from './ShortVideoCommentNode.vue'
+import ForwardPickerModal from './chat/ForwardPickerModal.vue'
 import { CHAT_EMOJIS } from '../constants/emojis'
 import { buildShortVideoCommentTree } from '../utils/shortVideoComments'
-import { uploadShortVideoMedia } from '../api/shortVideo'
+import { uploadShortVideoMedia, shareShortVideoToChat } from '../api/shortVideo'
 import { resolveUserAvatarUrl } from '../utils/defaultAvatar'
 import { resolveShortVideoDisplaySrc, buildShortVideoMediaApiUrl } from '../utils/shortVideoMediaAccess'
 import { readableShortVideoText } from '../utils/shortVideoText'
@@ -59,7 +60,7 @@ const store = useShortVideoStore()
 const appStore = useAppStore()
 const notificationsStore = useNotificationsStore()
 const contactsStore = useContactsStore()
-const { feedTab, posts, loading, publishing, activeIndex, myPosts, myPostsLoading, feedError, authorPosts, authorPostsLoading, authorProfile, favoritePosts, favoritePostsLoading, likedPosts, likedPostsLoading } = storeToRefs(store)
+const { feedTab, posts, loading, publishing, activeIndex, myPosts, myPostsLoading, myPostsLoadingMore, feedError, authorPosts, authorPostsLoading, authorPostsLoadingMore, authorPostsHasMore, authorProfile, favoritePosts, favoritePostsLoading, favoritePostsLoadingMore, likedPosts, likedPostsLoading, likedPostsLoadingMore } = storeToRefs(store)
 const { messageNotifs } = storeToRefs(notificationsStore)
 
 const mineTabs = computed(() => [
@@ -78,6 +79,24 @@ const currentMineLoading = computed(() => {
   if (mineTab.value === 'works') return myPostsLoading.value
   if (mineTab.value === 'favorites') return favoritePostsLoading.value
   return likedPostsLoading.value
+})
+
+const currentMineLoadingMore = computed(() => {
+  if (mineTab.value === 'works') return myPostsLoadingMore.value
+  if (mineTab.value === 'favorites') return favoritePostsLoadingMore.value
+  return likedPostsLoadingMore.value
+})
+
+const sharePreviewText = computed(() => {
+  const post = sharePostTarget.value
+  if (!post) return ''
+  return readableShortVideoText(post.description) || t('shortVideo.empty')
+})
+
+const sharePreviewImageUrl = computed(() => {
+  const post = sharePostTarget.value
+  if (!post) return ''
+  return buildShortVideoMediaApiUrl(post.id, 'cover')
 })
 
 const currentMineEmptyText = computed(() => {
@@ -112,6 +131,9 @@ const mineOpen = ref(false)
 type MineTab = 'works' | 'favorites' | 'likes'
 const mineTab = ref<MineTab>('works')
 const sharePostTarget = ref<ShortVideoPost | null>(null)
+const shareForwardOpen = ref(false)
+const shareForwardLoading = ref(false)
+const highlightCommentId = ref<string | null>(null)
 const editOpen = ref(false)
 const editTarget = ref<ShortVideoPost | null>(null)
 const editDesc = ref('')
@@ -455,8 +477,8 @@ function canLoadMoreComments(post: ShortVideoPost) {
   return post.comments.length < displayCommentCount(post)
 }
 
-async function openComments(post: ShortVideoPost) {
-  if (commentOpenFor.value === post.id) {
+async function openComments(post: ShortVideoPost, opts?: { highlightCommentId?: string }) {
+  if (commentOpenFor.value === post.id && !opts?.highlightCommentId) {
     closeComments()
     return
   }
@@ -465,14 +487,28 @@ async function openComments(post: ShortVideoPost) {
   replyToComment.value = null
   commentMentions.value = []
   showCommentMention.value = false
+  highlightCommentId.value = opts?.highlightCommentId || null
   commentLoadingFor.value = post.id
   try {
     await store.fetchComments(post.id, true)
+    await scrollToHighlightedComment()
   } catch (e) {
     message.error(resolveApiErrorMessage(e, t('shortVideo.commentFail')))
   } finally {
     commentLoadingFor.value = null
   }
+}
+
+async function scrollToHighlightedComment() {
+  const id = highlightCommentId.value
+  if (!id) return
+  await nextTick()
+  window.setTimeout(() => {
+    document.getElementById(`sv-comment-${id}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    window.setTimeout(() => {
+      highlightCommentId.value = null
+    }, 2500)
+  }, 150)
 }
 
 function closeComments() {
@@ -496,7 +532,7 @@ async function loadMoreComments(post: ShortVideoPost) {
   }
 }
 
-async function handleNotificationSelect(notif: { relatedId?: string; type: string }) {
+async function handleNotificationSelect(notif: { relatedId?: string; extraId?: string; type: string }) {
   if (!notif.relatedId) return
   if (
     notif.type !== 'short_video_like' &&
@@ -514,7 +550,7 @@ async function handleNotificationSelect(notif: { relatedId?: string; type: strin
     if (notif.type === 'short_video_comment' || notif.type === 'short_video_mention') {
       const post = posts.value[store.activeIndex]
       if (post) {
-        await openComments(post)
+        await openComments(post, { highlightCommentId: notif.extraId })
       }
     }
   } catch {
@@ -599,7 +635,27 @@ async function openMine() {
   favoriteCoverFailed.value = {}
   likedCoverFailed.value = {}
   mineOpen.value = true
-  await Promise.all([store.fetchMyPosts(), store.fetchFavoritePosts(), store.fetchLikedPosts()])
+  await Promise.all([
+    store.fetchMyPosts(true),
+    store.fetchFavoritePosts(true),
+    store.fetchLikedPosts(true)
+  ])
+}
+
+function onMineBodyScroll(e: Event) {
+  const el = e.target as HTMLElement
+  if (currentMineLoading.value || currentMineLoadingMore.value) return
+  if (el.scrollTop + el.clientHeight < el.scrollHeight - 80) return
+  void store.loadMoreMineTab(mineTab.value)
+}
+
+function onAuthorBodyScroll(e: Event) {
+  const el = e.target as HTMLElement
+  if (authorPostsLoading.value || authorPostsLoadingMore.value || !authorPostsHasMore.value) return
+  if (el.scrollTop + el.clientHeight < el.scrollHeight - 80) return
+  const userId = authorProfile.value?.userId
+  if (!userId) return
+  void store.fetchAuthorPosts(userId, undefined, false)
 }
 
 async function openMyVideo(item: ShortVideoPost) {
@@ -625,6 +681,34 @@ function openShareSheet(post: ShortVideoPost) {
 
 function closeShareSheet() {
   sharePostTarget.value = null
+  shareForwardOpen.value = false
+}
+
+function openShareForward() {
+  shareForwardOpen.value = true
+}
+
+async function confirmShareToChat(payload: { targetIds: string[]; leaveMessage: string }) {
+  const post = sharePostTarget.value
+  if (!post) return
+  shareForwardLoading.value = true
+  try {
+    const res = await shareShortVideoToChat(post.id, {
+      conversationIds: payload.targetIds,
+      leaveMessage: payload.leaveMessage || undefined
+    })
+    if (res.code !== 200) {
+      throw new Error(res.message || 'share failed')
+    }
+    void store.markShared(post.id)
+    message.success(t('shortVideo.shareToChatOk'))
+    shareForwardOpen.value = false
+    closeShareSheet()
+  } catch (e) {
+    message.error(resolveApiErrorMessage(e, t('shortVideo.shareToChatFail')))
+  } finally {
+    shareForwardLoading.value = false
+  }
 }
 
 async function confirmShareCopy() {
@@ -1262,9 +1346,10 @@ function videoSrc(post: ShortVideoPost) {
                 :node="node"
                 :post="commentPost"
                 :current-user-id="currentUserId"
+                :highlight-comment-id="highlightCommentId"
                 @reply="startReply"
-                @delete="c => confirmDeleteComment(commentPost, c)"
-                @like="c => toggleCommentLike(commentPost, c)"
+                @delete="c => commentPost && confirmDeleteComment(commentPost, c)"
+                @like="c => commentPost && toggleCommentLike(commentPost, c)"
               />
             </template>
           </div>
@@ -1410,52 +1495,66 @@ function videoSrc(post: ShortVideoPost) {
       </div>
     </div>
 
-    <div v-if="authorOpen" class="short-video-modal" @click.self="closeAuthorProfile">
-      <div class="short-video-modal-card short-video-modal-card--author">
-        <h3>{{ t('shortVideo.viewAuthor') }}</h3>
-        <div class="short-video-mine-profile">
-          <Avatar
-            :text="(authorProfile?.nickname || t('shortVideo.author')).slice(0, 1)"
-            color="transparent"
-            :size="48"
-            :image-url="resolveUserAvatarUrl(authorProfile?.avatar, authorProfile?.userId)"
-          />
-          <span>{{ authorProfile?.nickname || t('shortVideo.author') }}</span>
-        </div>
-        <h4 class="short-video-mine-section">{{ t('shortVideo.authorVideos') }}</h4>
-        <div v-if="authorPostsLoading" class="short-video-mine-empty">{{ t('common.loading') }}</div>
-        <div v-else-if="authorPosts.length === 0" class="short-video-mine-empty">{{ t('shortVideo.noAuthorVideos') }}</div>
-        <div v-else class="short-video-author-grid">
-          <div
-            v-for="item in authorPosts"
-            :key="item.id"
-            class="short-video-author-cell"
+    <div v-if="authorOpen" class="short-video-modal short-video-modal--sheet" @click.self="closeAuthorProfile">
+      <div class="short-video-modal-card short-video-modal-card--mine short-video-modal-card--sheet" @click.stop>
+        <div class="short-video-mine-header short-video-mine-header--compact">
+          <button
+            type="button"
+            class="short-video-mine-header__close"
+            :aria-label="t('common.close')"
+            @click="closeAuthorProfile"
           >
-            <button
-              type="button"
-              class="short-video-author-tile"
-              :title="readableShortVideoText(item.description) || t('shortVideo.empty')"
-              @click="openAuthorVideo(item)"
-            >
-              <img
-                v-if="!authorCoverFailedFor(item.id)"
-                :src="coverPoster(item)"
-                class="short-video-author-tile__cover"
-                alt=""
-                loading="lazy"
-                @error="onAuthorCoverError(item.id)"
-              />
-              <div v-else class="short-video-author-tile__fallback">
-                <NIcon :component="VideocamOutline" :size="28" />
-              </div>
-            </button>
-            <span class="short-video-author-cell__plays">
-              {{ t('shortVideo.playCount', { n: item.playCount || 0 }) }}
+            <NIcon :component="CloseOutline" :size="22" />
+          </button>
+          <div class="short-video-mine-profile">
+            <Avatar
+              :text="(authorProfile?.nickname || t('shortVideo.author')).slice(0, 1)"
+              color="transparent"
+              :size="48"
+              :image-url="resolveUserAvatarUrl(authorProfile?.avatar, authorProfile?.userId)"
+            />
+            <span class="short-video-mine-profile__name">
+              {{ authorProfile?.nickname || t('shortVideo.author') }}
             </span>
           </div>
         </div>
-        <div class="short-video-modal-actions">
-          <LxButton @click="closeAuthorProfile">{{ t('common.close') }}</LxButton>
+        <h4 class="short-video-mine-section">{{ t('shortVideo.authorVideos') }}</h4>
+        <div class="short-video-mine-body" @scroll="onAuthorBodyScroll">
+          <div v-if="authorPostsLoading" class="short-video-mine-empty">{{ t('common.loading') }}</div>
+          <div v-else-if="authorPosts.length === 0" class="short-video-mine-empty">{{ t('shortVideo.noAuthorVideos') }}</div>
+          <div v-else class="short-video-mine-grid">
+            <div
+              v-for="item in authorPosts"
+              :key="item.id"
+              class="short-video-mine-cell"
+            >
+              <button
+                type="button"
+                class="short-video-mine-tile"
+                :title="readableShortVideoText(item.description) || t('shortVideo.empty')"
+                @click="openAuthorVideo(item)"
+              >
+                <img
+                  v-if="!authorCoverFailedFor(item.id)"
+                  :src="coverPoster(item)"
+                  class="short-video-mine-tile__cover"
+                  alt=""
+                  loading="lazy"
+                  @error="onAuthorCoverError(item.id)"
+                />
+                <div v-else class="short-video-mine-tile__fallback">
+                  <NIcon :component="VideocamOutline" :size="22" />
+                </div>
+                <span class="short-video-mine-tile__plays">
+                  <NIcon :component="Play" :size="10" />
+                  {{ formatCount(item.playCount || 0) }}
+                </span>
+              </button>
+            </div>
+          </div>
+          <div v-if="authorPostsLoadingMore" class="short-video-mine-empty short-video-mine-empty--inline">
+            {{ t('common.loading') }}
+          </div>
         </div>
       </div>
     </div>
@@ -1486,8 +1585,8 @@ function videoSrc(post: ShortVideoPost) {
       </div>
     </div>
 
-    <div v-if="mineOpen" class="short-video-modal" @click.self="mineOpen = false">
-      <div class="short-video-modal-card short-video-modal-card--mine" @click.stop>
+    <div v-if="mineOpen" class="short-video-modal short-video-modal--sheet" @click.self="mineOpen = false">
+      <div class="short-video-modal-card short-video-modal-card--mine short-video-modal-card--sheet" @click.stop>
         <div class="short-video-mine-header">
           <button
             type="button"
@@ -1532,7 +1631,7 @@ function videoSrc(post: ShortVideoPost) {
           </button>
         </div>
 
-        <div class="short-video-mine-body">
+        <div class="short-video-mine-body" @scroll="onMineBodyScroll">
           <div v-if="currentMineLoading" class="short-video-mine-empty">{{ t('common.loading') }}</div>
           <div v-else-if="currentMinePosts.length === 0" class="short-video-mine-empty">
             {{ currentMineEmptyText }}
@@ -1585,6 +1684,9 @@ function videoSrc(post: ShortVideoPost) {
               </div>
             </div>
           </div>
+          <div v-if="currentMineLoadingMore" class="short-video-mine-empty short-video-mine-empty--inline">
+            {{ t('common.loading') }}
+          </div>
         </div>
       </div>
     </div>
@@ -1602,12 +1704,25 @@ function videoSrc(post: ShortVideoPost) {
             <NIcon :component="CloseOutline" :size="20" />
           </button>
         </div>
+        <button type="button" class="short-video-share-panel__item" @click="openShareForward">
+          <NIcon :component="ChatbubbleOutline" :size="22" />
+          <span>{{ t('shortVideo.shareToChat') }}</span>
+        </button>
         <button type="button" class="short-video-share-panel__item" @click="confirmShareCopy">
           <NIcon :component="ShareSocialOutline" :size="22" />
           <span>{{ t('viewer.copyLink') }}</span>
         </button>
       </div>
     </div>
+
+    <ForwardPickerModal
+      v-model:show="shareForwardOpen"
+      embedded
+      :loading="shareForwardLoading"
+      :preview-text="sharePreviewText"
+      :preview-image-url="sharePreviewImageUrl"
+      @confirm="confirmShareToChat"
+    />
 
     <div v-if="publishOpen" class="short-video-modal">
       <div class="short-video-modal-card">
@@ -1680,6 +1795,7 @@ function videoSrc(post: ShortVideoPost) {
     />
 
     <ShortVideoNotificationsPage
+      embedded
       :visible="showNotifications"
       :anchor-el="bellAnchorRef"
       @close="showNotifications = false"
@@ -1912,7 +2028,7 @@ function videoSrc(post: ShortVideoPost) {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-  padding: 56px 10px 52px 14px;
+  padding: 48px 8px 64px 12px;
   pointer-events: none;
   z-index: 10;
 }
@@ -1923,14 +2039,15 @@ function videoSrc(post: ShortVideoPost) {
 }
 
 .short-video-meta {
-  max-width: calc(100% - 64px);
+  max-width: calc(100% - 58px);
+  min-width: 0;
   color: #fff;
 }
 
 .short-video-desc {
-  margin: 0 0 10px;
-  line-height: 1.45;
-  font-size: 14px;
+  margin: 0 0 8px;
+  line-height: 1.4;
+  font-size: 13px;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
   display: -webkit-box;
   -webkit-line-clamp: 3;
@@ -1947,7 +2064,11 @@ function videoSrc(post: ShortVideoPost) {
 
 .short-video-name {
   font-weight: 600;
-  font-size: 15px;
+  font-size: 14px;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
 }
 
@@ -1956,9 +2077,10 @@ function videoSrc(post: ShortVideoPost) {
   border-radius: 4px;
   background: #20d492;
   color: #fff;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
-  padding: 4px 10px;
+  padding: 3px 8px;
+  flex-shrink: 0;
   cursor: pointer;
 }
 
@@ -1981,13 +2103,13 @@ function videoSrc(post: ShortVideoPost) {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   color: #fff;
   background: transparent;
   border: none;
   cursor: pointer;
-  font-size: 12px;
-  min-width: 48px;
+  font-size: 11px;
+  min-width: 44px;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
 }
 
@@ -2334,7 +2456,7 @@ function videoSrc(post: ShortVideoPost) {
 }
 
 .notif-dismiss-layer {
-  position: fixed;
+  position: absolute;
   inset: 0;
   z-index: calc(var(--lx-z-critical) - 1);
   background: transparent;
@@ -2402,17 +2524,26 @@ function videoSrc(post: ShortVideoPost) {
 }
 
 .short-video-modal {
-  position: fixed;
+  position: absolute;
   inset: 0;
   background: rgba(0, 0, 0, 0.45);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
+  z-index: 60;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.short-video-modal--sheet {
+  align-items: flex-end;
+  justify-content: stretch;
+  padding: 0;
+  background: rgba(0, 0, 0, 0.55);
 }
 
 .short-video-modal-card {
-  width: min(420px, 92vw);
+  width: min(420px, 100%);
   background: var(--lx-bg-panel);
   border-radius: var(--lx-radius-lg);
   padding: 16px;
@@ -2427,16 +2558,37 @@ function videoSrc(post: ShortVideoPost) {
 }
 
 .short-video-modal-card--search {
-  width: min(480px, 92vw);
+  width: min(480px, 100%);
 }
 
 .short-video-modal-card--mine {
-  width: min(420px, 92vw);
+  width: min(420px, 100%);
   max-height: min(78vh, 640px);
   padding: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+.short-video-modal-card--sheet {
+  width: 100%;
+  max-width: none;
+  max-height: 72%;
+  height: auto;
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.18);
+  animation: short-video-sheet-up 0.22s ease;
+}
+
+@keyframes short-video-sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.short-video-modal-card--sheet .short-video-mine-body {
+  flex: 0 1 auto;
+  max-height: 320px;
+  overflow-y: auto;
 }
 
 .short-video-mine-header {
@@ -2472,6 +2624,7 @@ function videoSrc(post: ShortVideoPost) {
 .short-video-mine-profile__name {
   font-size: 16px;
   font-weight: 600;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2587,9 +2740,9 @@ function videoSrc(post: ShortVideoPost) {
 }
 
 .short-video-share-sheet {
-  position: fixed;
+  position: absolute;
   inset: 0;
-  z-index: 1200;
+  z-index: 70;
   background: rgba(0, 0, 0, 0.45);
   display: flex;
   align-items: flex-end;
@@ -2597,7 +2750,7 @@ function videoSrc(post: ShortVideoPost) {
 }
 
 .short-video-share-panel {
-  width: min(420px, 100%);
+  width: 100%;
   background: var(--lx-bg-panel, #fff);
   border-radius: 16px 16px 0 0;
   padding: 12px 16px calc(16px + env(safe-area-inset-bottom, 0px));
@@ -2636,7 +2789,22 @@ function videoSrc(post: ShortVideoPost) {
 }
 
 .short-video-modal-card--author {
-  width: min(520px, 94vw);
+  width: min(420px, 100%);
+  max-height: min(78vh, 640px);
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.short-video-mine-header--compact {
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--lx-border-light);
+}
+
+.short-video-mine-empty--inline {
+  padding: 8px 0 12px;
+  font-size: 13px;
 }
 
 .short-video-author-grid {
@@ -2745,15 +2913,19 @@ function videoSrc(post: ShortVideoPost) {
 }
 
 .short-video-mine-section {
-  margin: 4px 0 0;
+  margin: 0;
+  padding: 10px 16px;
   font-size: 14px;
   font-weight: 600;
+  color: var(--lx-text-body);
+  border-bottom: 1px solid var(--lx-border-light);
 }
 
 .short-video-mine-empty {
   font-size: 13px;
   color: var(--lx-text-secondary);
-  padding: 8px 0;
+  padding: 16px;
+  text-align: center;
 }
 
 .short-video-mine-list {

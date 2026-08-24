@@ -182,6 +182,13 @@ export function recordShortVideoShare(postId: string) {
   return apiClient.post<never, ApiResult<null>>(`/short-video/${postId}/share`)
 }
 
+export function shareShortVideoToChat(
+  postId: string,
+  payload: { conversationIds: string[]; leaveMessage?: string }
+) {
+  return apiClient.post<never, ApiResult<unknown>>(`/short-video/${postId}/share-chat`, payload)
+}
+
 export function uploadShortVideoMedia(file: File) {
   const formData = new FormData()
   formData.append('file', file)

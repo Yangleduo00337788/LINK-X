@@ -16,6 +16,7 @@ import com.linkx.server.controller.vo.ChatSearchHitVO;
 import com.linkx.server.controller.vo.ConversationVO;
 import com.linkx.server.controller.vo.GroupMemberAvatarVO;
 import com.linkx.server.controller.vo.MessageVO;
+import com.linkx.server.controller.vo.ShortVideoPostVO;
 import com.linkx.server.entity.ImConversation;
 import com.linkx.server.entity.ImConversationMember;
 import com.linkx.server.entity.ImMessage;
@@ -40,6 +41,7 @@ import com.linkx.server.service.MediaUrlService;
 import com.linkx.server.service.MessageStormService;
 import com.linkx.server.service.ObjectKeyOwnershipService;
 import com.linkx.server.service.SensitiveWordService;
+import com.linkx.server.service.ShortVideoService;
 import com.linkx.server.service.UserPreferenceService;
 import com.linkx.server.service.linkmate.LinkMateConstants;
 import com.linkx.server.service.AuditLogService;
@@ -109,6 +111,7 @@ public class ChatServiceImpl implements ChatService {
     private final AdminRiskEventService adminRiskEventService;
     private final ObjectProvider<AdminReviewService> adminReviewService;
     private final ObjectProvider<GroupAiAutomationService> groupAiAutomationService;
+    private final ObjectProvider<ShortVideoService> shortVideoServiceProvider;
     private final LinkxMetrics linkxMetrics;
 
     @Override
@@ -765,6 +768,91 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     @Transactional
+    public List<MessageVO> postShortVideoShareMessages(
+            Long senderId,
+            Long postId,
+            List<Long> conversationIds,
+            String leaveMessage) {
+        if (senderId == null || postId == null || conversationIds == null || conversationIds.isEmpty()) {
+            throw new CustomException(400, "分享参数不完整");
+        }
+        if (conversationIds.size() > 20) {
+            throw new CustomException(400, "一次最多分享至 20 个会话");
+        }
+        ShortVideoPostVO post = shortVideoServiceProvider.getObject().getPost(senderId, postId);
+        if (post == null) {
+            throw new CustomException(404, "作品不存在");
+        }
+        SysUser sender = sysUserMapper.selectOneById(senderId);
+        String senderName = resolveSenderNickname(sender);
+        String desc = post.getDescription() != null ? post.getDescription().trim() : "";
+        if (desc.isBlank()) {
+            desc = "短视频";
+        } else if (desc.length() > 80) {
+            desc = desc.substring(0, 80);
+        }
+        String cardText = (StringUtils.hasText(senderName) ? senderName : "用户") + "分享了一条短视频";
+        String leave = leaveMessage != null ? InputSanitizer.sanitizeText(leaveMessage.trim(), 500) : "";
+        List<MessageVO> result = new ArrayList<>();
+        Date now = new Date();
+        for (Long conversationId : conversationIds) {
+            if (conversationId == null) {
+                continue;
+            }
+            assertConversationMember(senderId, conversationId);
+            ImConversation conversation = conversationMapper.selectOneById(conversationId);
+            if (conversation == null) {
+                throw new CustomException(404, "会话不存在");
+            }
+            ImMessage card = ImMessage.builder()
+                    .conversationId(conversationId)
+                    .senderId(senderId)
+                    .type(ImMessage.TYPE_SHORT_VIDEO)
+                    .content(cardText)
+                    .fileName(desc)
+                    .fileUrl(String.valueOf(postId))
+                    .deliveryStatus("delivered")
+                    .readStatus(0)
+                    .createTime(now)
+                    .deleted(0)
+                    .build();
+            imMessageRepository.insert(card);
+            if (card.getCreateTime() == null) {
+                card.setCreateTime(now);
+            }
+            conversation.setLastMessageContent(buildPreview(card));
+            conversation.setLastMessageTime(card.getCreateTime());
+            conversationMapper.update(conversation);
+            result.add(toMessageVO(card, sender, senderId, loadLastReadMessageId(senderId, conversationId)));
+            if (!leave.isBlank()) {
+                ImMessage text = ImMessage.builder()
+                        .conversationId(conversationId)
+                        .senderId(senderId)
+                        .type(ImMessage.TYPE_TEXT)
+                        .content(leave)
+                        .deliveryStatus("delivered")
+                        .readStatus(0)
+                        .createTime(now)
+                        .deleted(0)
+                        .build();
+                imMessageRepository.insert(text);
+                if (text.getCreateTime() == null) {
+                    text.setCreateTime(now);
+                }
+                conversation.setLastMessageContent(buildPreview(text));
+                conversation.setLastMessageTime(text.getCreateTime());
+                conversationMapper.update(conversation);
+                result.add(toMessageVO(text, sender, senderId, loadLastReadMessageId(senderId, conversationId)));
+            }
+        }
+        if (result.isEmpty()) {
+            throw new CustomException(400, "未选择有效会话");
+        }
+        return result;
+    }
+
+    @Override
+    @Transactional
     public MessageVO updateCallTipMessage(Long conversationId, String callId, String content) {
         if (conversationId == null || !StringUtils.hasText(callId) || !StringUtils.hasText(content)) {
             return null;
@@ -836,6 +924,9 @@ public class ChatServiceImpl implements ChatService {
         if (ImMessage.TYPE_CONFERENCE.equals(message.getType())) {
             throw new CustomException(400, "会议邀请不支持文件下载");
         }
+        if (ImMessage.TYPE_SHORT_VIDEO.equals(message.getType())) {
+            throw new CustomException(400, "短视频卡片不支持文件下载");
+        }
         return fileStorageService.openObject(key);
     }
 
@@ -872,6 +963,9 @@ public class ChatServiceImpl implements ChatService {
         }
         if (ImMessage.TYPE_CONFERENCE.equals(message.getType())) {
             throw new CustomException(400, "会议邀请不支持媒体刷新");
+        }
+        if (ImMessage.TYPE_SHORT_VIDEO.equals(message.getType())) {
+            throw new CustomException(400, "短视频卡片不支持媒体刷新");
         }
         String signed = mediaUrlService.resolveFile(key);
         if (signed == null || signed.isBlank()) {
@@ -1578,7 +1672,8 @@ public class ChatServiceImpl implements ChatService {
         String fileUrl = message.getFileUrl();
         if (fileUrl != null
                 && !ImMessage.TYPE_RED_PACKET.equals(message.getType())
-                && !ImMessage.TYPE_CONFERENCE.equals(message.getType())) {
+                && !ImMessage.TYPE_CONFERENCE.equals(message.getType())
+                && !ImMessage.TYPE_SHORT_VIDEO.equals(message.getType())) {
             fileUrl = mediaUrlService.resolveFile(fileUrl);
         }
         String senderNickname = resolveSenderNickname(sender);
@@ -1774,6 +1869,7 @@ public class ChatServiceImpl implements ChatService {
             return ImMessage.TYPE_RED_PACKET;
         }
         if (ImMessage.TYPE_CONFERENCE.equalsIgnoreCase(raw)
+                || ImMessage.TYPE_SHORT_VIDEO.equalsIgnoreCase(raw)
                 || ImMessage.TYPE_SYSTEM.equalsIgnoreCase(raw)
                 || ImMessage.TYPE_RECALL.equalsIgnoreCase(raw)) {
             throw new CustomException(400, "不支持的消息类型");
@@ -1889,6 +1985,8 @@ public class ChatServiceImpl implements ChatService {
                 }
                 yield "[会议] " + (message.getFileName() != null ? message.getFileName() : "多人会议");
             }
+            case ImMessage.TYPE_SHORT_VIDEO ->
+                    "[短视频] " + (message.getFileName() != null ? message.getFileName() : "短视频");
             case ImMessage.TYPE_RECALL -> "撤回了一条消息";
             case ImMessage.TYPE_SYSTEM -> message.getContent() != null ? message.getContent() : "[系统消息]";
             default -> message.getContent();

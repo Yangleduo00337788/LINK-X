@@ -27,7 +27,8 @@ import {
   unlikeShortVideo,
   updateShortVideo,
   uploadShortVideoMedia,
-  type ShortVideoPost
+  type ShortVideoPost,
+  type ShortVideoComment
 } from '../api/shortVideo'
 import { useAppStore } from './app'
 import { useExtensionDockStore } from './extensionDock'
@@ -42,6 +43,7 @@ let ensurePanelReadyTask: Promise<void> | null = null
 let fetchFeedTask: Promise<void> | null = null
 const playedSessionKeys = new Set<string>()
 const sharedSessionKeys = new Set<string>()
+const LIST_PAGE_SIZE = 30
 
 function assertApiOk(res: { code?: number; message?: string }, fallback: string) {
   if (res.code !== 200) {
@@ -98,13 +100,21 @@ export const useShortVideoStore = defineStore('shortVideo', {
     activeTabId: '' as ShortVideoPanelTabId | '',
     myPosts: [] as ShortVideoPost[],
     myPostsLoading: false,
+    myPostsLoadingMore: false,
+    myPostsHasMore: true,
     authorPosts: [] as ShortVideoPost[],
     authorPostsLoading: false,
+    authorPostsLoadingMore: false,
+    authorPostsHasMore: true,
     authorProfile: null as { userId: string; nickname?: string; avatar?: string } | null,
     favoritePosts: [] as ShortVideoPost[],
     favoritePostsLoading: false,
+    favoritePostsLoadingMore: false,
+    favoritePostsHasMore: true,
     likedPosts: [] as ShortVideoPost[],
     likedPostsLoading: false,
+    likedPostsLoadingMore: false,
+    likedPostsHasMore: true,
     feedError: '' as string
   }),
 
@@ -389,93 +399,167 @@ export const useShortVideoStore = defineStore('shortVideo', {
       }
     },
 
-    async fetchMyPosts() {
+    async fetchMyPosts(reset = false) {
       await this.ensureAuthReady()
       const userId = String(useAppStore().userProfile.userId || '')
       if (!userId) {
         this.myPosts = []
+        this.myPostsHasMore = false
         return
       }
-      this.myPostsLoading = true
+      if (!reset && (!this.myPostsHasMore || this.myPostsLoadingMore)) return
+      if (reset) {
+        this.myPostsLoading = true
+        this.myPostsHasMore = true
+      } else {
+        this.myPostsLoadingMore = true
+      }
       try {
-        const res = await listUserShortVideos(userId, { limit: 50 })
+        const beforeId = reset ? undefined : this.myPosts[this.myPosts.length - 1]?.id
+        const res = await listUserShortVideos(userId, { beforeId, limit: LIST_PAGE_SIZE })
         if (res.code === 200) {
-          this.myPosts = normalizeShortVideoList(res.data)
-        } else {
+          const rows = normalizeShortVideoList(res.data)
+          if (reset) {
+            this.myPosts = rows
+          } else {
+            const existing = new Set(this.myPosts.map(p => p.id))
+            this.myPosts = [...this.myPosts, ...rows.filter(p => !existing.has(p.id))]
+          }
+          this.myPostsHasMore = rows.length >= LIST_PAGE_SIZE
+        } else if (reset) {
           this.myPosts = []
+          this.myPostsHasMore = false
         }
       } finally {
         this.myPostsLoading = false
+        this.myPostsLoadingMore = false
       }
     },
 
-    async fetchAuthorPosts(userId: string, profile?: { nickname?: string; avatar?: string }) {
+    async fetchAuthorPosts(userId: string, profile?: { nickname?: string; avatar?: string }, reset = true) {
       await this.ensureAuthReady()
       const id = String(userId || '').trim()
       if (!id) {
         this.authorPosts = []
         this.authorProfile = null
+        this.authorPostsHasMore = false
         return
       }
-      this.authorProfile = {
-        userId: id,
-        nickname: profile?.nickname,
-        avatar: profile?.avatar
+      if (!reset && (!this.authorPostsHasMore || this.authorPostsLoadingMore)) return
+      if (reset) {
+        this.authorProfile = {
+          userId: id,
+          nickname: profile?.nickname,
+          avatar: profile?.avatar
+        }
+        this.authorPostsLoading = true
+        this.authorPostsHasMore = true
+      } else {
+        this.authorPostsLoadingMore = true
       }
-      this.authorPostsLoading = true
       try {
-        const res = await listUserShortVideos(id, { limit: 50 })
+        const beforeId = reset ? undefined : this.authorPosts[this.authorPosts.length - 1]?.id
+        const res = await listUserShortVideos(id, { beforeId, limit: LIST_PAGE_SIZE })
         if (res.code === 200) {
-          this.authorPosts = normalizeShortVideoList(res.data)
+          const rows = normalizeShortVideoList(res.data)
+          if (reset) {
+            this.authorPosts = rows
+          } else {
+            const existing = new Set(this.authorPosts.map(p => p.id))
+            this.authorPosts = [...this.authorPosts, ...rows.filter(p => !existing.has(p.id))]
+          }
+          this.authorPostsHasMore = rows.length >= LIST_PAGE_SIZE
           const first = this.authorPosts[0]
-          if (first && !this.authorProfile.nickname) {
+          if (first && this.authorProfile && !this.authorProfile.nickname) {
             this.authorProfile = {
               userId: id,
               nickname: first.nickname,
               avatar: first.avatar
             }
           }
-        } else {
+        } else if (reset) {
           this.authorPosts = []
+          this.authorPostsHasMore = false
         }
       } finally {
         this.authorPostsLoading = false
+        this.authorPostsLoadingMore = false
       }
     },
 
     clearAuthorPosts() {
       this.authorPosts = []
       this.authorProfile = null
+      this.authorPostsHasMore = true
+      this.authorPostsLoadingMore = false
     },
 
-    async fetchFavoritePosts() {
+    async fetchFavoritePosts(reset = false) {
       await this.ensureAuthReady()
-      this.favoritePostsLoading = true
+      if (!reset && (!this.favoritePostsHasMore || this.favoritePostsLoadingMore)) return
+      if (reset) {
+        this.favoritePostsLoading = true
+        this.favoritePostsHasMore = true
+      } else {
+        this.favoritePostsLoadingMore = true
+      }
       try {
-        const res = await listFavoriteShortVideos({ limit: 50 })
+        const beforeId = reset ? undefined : this.favoritePosts[this.favoritePosts.length - 1]?.id
+        const res = await listFavoriteShortVideos({ beforeId, limit: LIST_PAGE_SIZE })
         if (res.code === 200) {
-          this.favoritePosts = normalizeShortVideoList(res.data)
-        } else {
+          const rows = normalizeShortVideoList(res.data)
+          if (reset) {
+            this.favoritePosts = rows
+          } else {
+            const existing = new Set(this.favoritePosts.map(p => p.id))
+            this.favoritePosts = [...this.favoritePosts, ...rows.filter(p => !existing.has(p.id))]
+          }
+          this.favoritePostsHasMore = rows.length >= LIST_PAGE_SIZE
+        } else if (reset) {
           this.favoritePosts = []
+          this.favoritePostsHasMore = false
         }
       } finally {
         this.favoritePostsLoading = false
+        this.favoritePostsLoadingMore = false
       }
     },
 
-    async fetchLikedPosts() {
+    async fetchLikedPosts(reset = false) {
       await this.ensureAuthReady()
-      this.likedPostsLoading = true
+      if (!reset && (!this.likedPostsHasMore || this.likedPostsLoadingMore)) return
+      if (reset) {
+        this.likedPostsLoading = true
+        this.likedPostsHasMore = true
+      } else {
+        this.likedPostsLoadingMore = true
+      }
       try {
-        const res = await listLikedShortVideos({ limit: 50 })
+        const beforeId = reset ? undefined : this.likedPosts[this.likedPosts.length - 1]?.id
+        const res = await listLikedShortVideos({ beforeId, limit: LIST_PAGE_SIZE })
         if (res.code === 200) {
-          this.likedPosts = normalizeShortVideoList(res.data)
-        } else {
+          const rows = normalizeShortVideoList(res.data)
+          if (reset) {
+            this.likedPosts = rows
+          } else {
+            const existing = new Set(this.likedPosts.map(p => p.id))
+            this.likedPosts = [...this.likedPosts, ...rows.filter(p => !existing.has(p.id))]
+          }
+          this.likedPostsHasMore = rows.length >= LIST_PAGE_SIZE
+        } else if (reset) {
           this.likedPosts = []
+          this.likedPostsHasMore = false
         }
       } finally {
         this.likedPostsLoading = false
+        this.likedPostsLoadingMore = false
       }
+    },
+
+    async loadMoreMineTab(tab: 'works' | 'favorites' | 'likes') {
+      if (tab === 'works') await this.fetchMyPosts(false)
+      else if (tab === 'favorites') await this.fetchFavoritePosts(false)
+      else await this.fetchLikedPosts(false)
     },
 
     async deletePost(postId: string) {
