@@ -1728,7 +1728,20 @@ export default {
     deleteCommentOk: 'Comment deleted',
     deleteCommentFail: 'Failed to delete comment',
     loadFail: 'Failed to load short videos. Please try again.',
-    retryLoad: 'Reload'
+    playFail: 'Playback failed: file missing on active storage or the original backend is unavailable.',
+    retryLoad: 'Reload',
+    likedYour: 'liked your short video',
+    commentedYour: 'commented on your short video',
+    notifyTitle: 'Short Video',
+    newNotif: 'New short video activity',
+    allInteractiveMessages: 'Activity',
+    clearAll: 'Clear all',
+    clearConfirm: 'Clear {n} short video notifications?',
+    clearedCount: 'Cleared {n} notifications',
+    noMsgToClear: 'No notifications to clear',
+    nothingToClear: 'Nothing to clear',
+    noMessages: 'No activity yet',
+    loadMoreComments: 'Load more comments'
   },
   moments: {
     title: 'Moments',

@@ -85,7 +85,7 @@ export interface SecuritySideSetting {
 }
 
 export interface StorageSideSetting {
-  provider?: 'minio' | 'oss' | 'local'
+  provider?: 'minio' | 'oss' | 'cos'
   minioEndpoint?: string
   minioBucketName?: string
   minioAccessKey?: string
@@ -95,7 +95,11 @@ export interface StorageSideSetting {
   ossAccessKeyId?: string
   ossAccessKeySecretConfigured?: boolean
   ossCnameDomain?: string
-  localStoragePath?: string
+  cosRegion?: string
+  cosBucketName?: string
+  cosSecretId?: string
+  cosSecretKeyConfigured?: boolean
+  cosCnameDomain?: string
   maxUploadBytes?: number
   presignAvatarSeconds?: number
   presignFileSeconds?: number
@@ -219,10 +223,14 @@ export type StorageUpdatePayload = Required<
     | 'ossBucketName'
     | 'ossAccessKeyId'
     | 'ossCnameDomain'
-    | 'localStoragePath'
+    | 'cosRegion'
+    | 'cosBucketName'
+    | 'cosSecretId'
+    | 'cosCnameDomain'
   > & {
     minioSecretKey?: string
     ossAccessKeySecret?: string
+    cosSecretKey?: string
   }
 
 export type TestStorageConnectionPayload = StorageUpdatePayload

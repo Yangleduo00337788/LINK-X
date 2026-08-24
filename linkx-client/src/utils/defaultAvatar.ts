@@ -14,6 +14,7 @@ function isExternalAvatarCdn(url: string): boolean {
   if (/[?&]X-Amz-/i.test(url)) return false
   if (/[?&]Expires=/i.test(url) && /[?&]Signature=/i.test(url)) return false
   if (/oss-.*\.aliyuncs\.com/i.test(url)) return false
+  if (/\.myqcloud\.com/i.test(url)) return false
   if (/:(9000)\//.test(url)) return false
   if (/\/media\//i.test(url)) return false
   return /^https?:\/\//i.test(url)

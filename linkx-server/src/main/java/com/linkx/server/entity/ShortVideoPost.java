@@ -39,6 +39,9 @@ public class ShortVideoPost implements Serializable {
 
     private String videoKey;
 
+    /** 上传时对象存储后端：minio | oss | cos */
+    private String storageProvider;
+
     private String coverKey;
 
     private Integer durationMs;

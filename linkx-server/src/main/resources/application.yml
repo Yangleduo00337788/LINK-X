@@ -163,8 +163,12 @@ linkx:
     access-key-secret: ${OSS_ACCESS_KEY_SECRET}
     cname-domain: ${OSS_CNAME_DOMAIN}
 
-  local:
-    base-path: ${LOCAL_STORAGE_PATH}
+  cos:
+    region: ${COS_REGION}
+    bucket-name: ${COS_BUCKET_NAME}
+    secret-id: ${COS_SECRET_ID}
+    secret-key: ${COS_SECRET_KEY}
+    cname-domain: ${COS_CNAME_DOMAIN}
 
   mail:
     host: ${MAIL_HOST}

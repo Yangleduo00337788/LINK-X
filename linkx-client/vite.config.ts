@@ -21,11 +21,20 @@ function copyPreloadCjs() {
 export default defineConfig(({ mode, command }) => {
   const isElectron = mode === 'electron'
   const env = loadEnv(mode, process.cwd(), '')
+  const envStr = (key: string) => JSON.stringify(env[key] || '')
   const electronEnvDefine = {
-    'process.env.VITE_API_BASE_URL': JSON.stringify(env.VITE_API_BASE_URL || ''),
-    'process.env.VITE_WS_BASE_URL': JSON.stringify(env.VITE_WS_BASE_URL || ''),
-    'process.env.VITE_MINIO_PUBLIC_ORIGIN': JSON.stringify(env.VITE_MINIO_PUBLIC_ORIGIN || ''),
-    'process.env.LINKX_MINIO_PUBLIC_ORIGIN': JSON.stringify(env.LINKX_MINIO_PUBLIC_ORIGIN || '')
+    'process.env.VITE_API_BASE_URL': envStr('VITE_API_BASE_URL'),
+    'process.env.VITE_WS_BASE_URL': envStr('VITE_WS_BASE_URL'),
+    'process.env.VITE_MINIO_PUBLIC_ORIGIN': envStr('VITE_MINIO_PUBLIC_ORIGIN'),
+    'process.env.LINKX_MINIO_PUBLIC_ORIGIN': envStr('LINKX_MINIO_PUBLIC_ORIGIN'),
+    'process.env.VITE_OSS_PUBLIC_ORIGIN': envStr('VITE_OSS_PUBLIC_ORIGIN'),
+    'process.env.LINKX_OSS_PUBLIC_ORIGIN': envStr('LINKX_OSS_PUBLIC_ORIGIN'),
+    'process.env.VITE_COS_PUBLIC_ORIGIN': envStr('VITE_COS_PUBLIC_ORIGIN'),
+    'process.env.LINKX_COS_PUBLIC_ORIGIN': envStr('LINKX_COS_PUBLIC_ORIGIN'),
+    'process.env.VITE_MEDIA_PUBLIC_ORIGIN': envStr('VITE_MEDIA_PUBLIC_ORIGIN'),
+    'process.env.LINKX_MEDIA_PUBLIC_ORIGIN': envStr('LINKX_MEDIA_PUBLIC_ORIGIN'),
+    'process.env.VITE_COS_REGION': envStr('VITE_COS_REGION'),
+    'process.env.VITE_COS_BUCKET_NAME': envStr('VITE_COS_BUCKET_NAME')
   }
 
   return {

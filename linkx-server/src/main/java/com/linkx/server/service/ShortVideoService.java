@@ -38,6 +38,8 @@ public interface ShortVideoService {
 
     ShortVideoCommentVO comment(Long userId, Long postId, CommentShortVideoDTO dto);
 
+    List<ShortVideoCommentVO> listComments(Long userId, Long postId, Long beforeId, Integer limit);
+
     void deleteComment(Long userId, Long commentId);
 
     void follow(Long userId, Long targetUserId);

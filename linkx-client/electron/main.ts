@@ -188,6 +188,31 @@ function collectLoopbackMinioOrigins(apiBase: string): string[] {
   }
 }
 
+function collectCosOriginsFromEnv(): string[] {
+  const origins: string[] = []
+  for (const raw of [
+    process.env.VITE_COS_PUBLIC_ORIGIN,
+    process.env.LINKX_COS_PUBLIC_ORIGIN
+  ]) {
+    if (!raw) continue
+    try {
+      const u = new URL(raw)
+      origins.push(`${u.protocol}//${u.host}`)
+    } catch {
+      // ignore invalid
+    }
+  }
+  const region = (process.env.VITE_COS_REGION || '').trim()
+  const bucket = (process.env.VITE_COS_BUCKET_NAME || '').trim()
+  if (region && bucket) {
+    origins.push(`https://${bucket}.cos.${region}.myqcloud.com`)
+    origins.push(`http://${bucket}.cos.${region}.myqcloud.com`)
+    origins.push(`https://cos.${region}.myqcloud.com`)
+    origins.push(`http://cos.${region}.myqcloud.com`)
+  }
+  return origins
+}
+
 function collectTrustedMediaOrigins(): string {
   const origins = new Set<string>()
   if (isDev) {
@@ -202,7 +227,12 @@ function collectTrustedMediaOrigins(): string {
   for (const raw of [
     process.env.VITE_API_BASE_URL,
     process.env.VITE_MINIO_PUBLIC_ORIGIN,
-    process.env.LINKX_MINIO_PUBLIC_ORIGIN
+    process.env.VITE_OSS_PUBLIC_ORIGIN,
+    process.env.VITE_COS_PUBLIC_ORIGIN,
+    process.env.VITE_MEDIA_PUBLIC_ORIGIN,
+    process.env.LINKX_MINIO_PUBLIC_ORIGIN,
+    process.env.LINKX_OSS_PUBLIC_ORIGIN,
+    process.env.LINKX_MEDIA_PUBLIC_ORIGIN
   ]) {
     if (!raw) continue
     try {
@@ -220,6 +250,11 @@ function collectTrustedMediaOrigins(): string {
   // 头像/附件预签名 URL 直连 MinIO（:9000），须写入 CSP img-src，否则 Electron 内裂图
   for (const origin of collectLoopbackMinioOrigins(apiBase)) {
     origins.add(origin)
+  }
+  for (const origin of collectCosOriginsFromEnv()) {
+    for (const expanded of expandLoopbackOrigins(origin)) {
+      origins.add(expanded)
+    }
   }
   return [...origins].join(' ')
 }
@@ -581,6 +616,76 @@ function registerCspHeaders(csp: string) {
         'Referrer-Policy': ['no-referrer']
       }
     })
+  })
+}
+
+function readSecureAccessToken(): string | null {
+  if (!safeStorage.isEncryptionAvailable()) return null
+  const file = secureFilePath('accessToken')
+  if (!fs.existsSync(file)) return null
+  try {
+    return safeStorage.decryptString(fs.readFileSync(file))
+  } catch {
+    return null
+  }
+}
+
+let apiMediaAuthRegistered = false
+
+/** video/img 标签无法带 Header：为短视频鉴权流注入 Bearer Token */
+function registerApiMediaAuthInjection() {
+  if (apiMediaAuthRegistered) return
+  apiMediaAuthRegistered = true
+  const apiOrigins = new Set<string>()
+  for (const origin of expandLoopbackOrigins(originFromBaseUrl(resolveApiBaseUrl(process.env.VITE_API_BASE_URL)))) {
+    apiOrigins.add(origin)
+  }
+  session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
+    const headers = { ...details.requestHeaders }
+    const url = details.url || ''
+    const isShortVideoMedia =
+      url.includes('/short-video/') &&
+      (url.includes('/video/content') || url.includes('/cover/content'))
+    if (!isShortVideoMedia) {
+      callback({ requestHeaders: headers })
+      return
+    }
+    let originOk = false
+    try {
+      const u = new URL(url)
+      const loopback =
+        u.hostname === 'localhost' || u.hostname === '127.0.0.1' || u.hostname === '[::1]'
+      originOk = apiOrigins.has(u.origin)
+      if (!originOk && loopback) {
+        for (const apiOrigin of apiOrigins) {
+          try {
+            const expected = new URL(apiOrigin)
+            const portMatch = expected.port === u.port || (!expected.port && !u.port)
+            const hostMatch =
+              expected.hostname === u.hostname ||
+              (expected.hostname === 'localhost' && u.hostname === '127.0.0.1') ||
+              (expected.hostname === '127.0.0.1' && u.hostname === 'localhost')
+            if (portMatch && hostMatch) {
+              originOk = true
+              break
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+    } catch {
+      originOk = false
+    }
+    if (!originOk) {
+      callback({ requestHeaders: headers })
+      return
+    }
+    const token = readSecureAccessToken()
+    if (token && !headers.Authorization && !headers.authorization) {
+      headers.Authorization = `Bearer ${token}`
+    }
+    callback({ requestHeaders: headers })
   })
 }
 
@@ -2613,6 +2718,7 @@ app.whenReady().then(() => {
   ].join(' ')
 
   registerCspHeaders(csp)
+  registerApiMediaAuthInjection()
 
   if (gotSingleInstanceLock) {
     app.on('second-instance', (_event, argv) => {

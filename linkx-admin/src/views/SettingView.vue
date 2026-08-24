@@ -259,7 +259,7 @@ const securityForm = reactive({
 })
 
 const storageForm = reactive({
-  provider: 'minio' as 'minio' | 'oss' | 'local',
+  provider: 'minio' as 'minio' | 'oss' | 'cos',
   minioEndpoint: '',
   minioBucketName: '',
   minioAccessKey: '',
@@ -271,7 +271,12 @@ const storageForm = reactive({
   ossAccessKeySecret: '',
   ossAccessKeySecretConfigured: false,
   ossCnameDomain: '',
-  localStoragePath: '',
+  cosRegion: '',
+  cosBucketName: '',
+  cosSecretId: '',
+  cosSecretKey: '',
+  cosSecretKeyConfigured: false,
+  cosCnameDomain: '',
   maxUploadMb: 100,
 })
 
@@ -300,7 +305,7 @@ const linkmateForm = reactive({
 const storageProviderOptions = computed(() => [
   { label: t('setting.storageProviderMinio'), value: 'minio' },
   { label: t('setting.storageProviderOss'), value: 'oss' },
-  { label: t('setting.storageProviderLocal'), value: 'local' },
+  { label: t('setting.storageProviderCos'), value: 'cos' },
 ])
 
 watch(
@@ -401,7 +406,7 @@ function applySettings(data: AdminSetting) {
   securityForm.disableFrontendDebug = data.security?.disableFrontendDebug === true
   securityStore.applyFromSettings(data.security)
 
-  storageForm.provider = (data.storage?.provider as 'minio' | 'oss' | 'local') || 'minio'
+  storageForm.provider = (data.storage?.provider as 'minio' | 'oss' | 'cos') || 'minio'
   storageForm.minioEndpoint = data.storage?.minioEndpoint || ''
   storageForm.minioBucketName = data.storage?.minioBucketName || ''
   storageForm.minioAccessKey = data.storage?.minioAccessKey || ''
@@ -413,7 +418,12 @@ function applySettings(data: AdminSetting) {
   storageForm.ossAccessKeySecret = ''
   storageForm.ossAccessKeySecretConfigured = data.storage?.ossAccessKeySecretConfigured === true
   storageForm.ossCnameDomain = data.storage?.ossCnameDomain || ''
-  storageForm.localStoragePath = data.storage?.localStoragePath || ''
+  storageForm.cosRegion = data.storage?.cosRegion || ''
+  storageForm.cosBucketName = data.storage?.cosBucketName || ''
+  storageForm.cosSecretId = data.storage?.cosSecretId || ''
+  storageForm.cosSecretKey = ''
+  storageForm.cosSecretKeyConfigured = data.storage?.cosSecretKeyConfigured === true
+  storageForm.cosCnameDomain = data.storage?.cosCnameDomain || ''
   storageForm.maxUploadMb = data.storage?.maxUploadBytes
     ? Math.round((data.storage.maxUploadBytes / (1024 * 1024)) * 10) / 10
     : clientForm.maxUploadMb
@@ -622,7 +632,11 @@ function buildStoragePayload() {
     ossAccessKeyId: storageForm.ossAccessKeyId.trim(),
     ossAccessKeySecret: storageForm.ossAccessKeySecret.trim() || undefined,
     ossCnameDomain: storageForm.ossCnameDomain.trim(),
-    localStoragePath: storageForm.localStoragePath.trim(),
+    cosRegion: storageForm.cosRegion.trim(),
+    cosBucketName: storageForm.cosBucketName.trim(),
+    cosSecretId: storageForm.cosSecretId.trim(),
+    cosSecretKey: storageForm.cosSecretKey.trim() || undefined,
+    cosCnameDomain: storageForm.cosCnameDomain.trim(),
     maxUploadBytes: Math.round(storageForm.maxUploadMb * 1024 * 1024),
   }
 }
@@ -1771,11 +1785,40 @@ onMounted(load)
                 </NFormItem>
               </template>
 
-              <template v-if="storageForm.provider === 'local'">
-                <NFormItem :label="t('setting.localStoragePath')">
+              <template v-if="storageForm.provider === 'cos'">
+                <NFormItem :label="t('setting.cosRegion')">
                   <NInput
-                    v-model:value="storageForm.localStoragePath"
-                    placeholder="./data/local-storage"
+                    v-model:value="storageForm.cosRegion"
+                    placeholder="ap-beijing"
+                    style="max-width: 240px"
+                  />
+                </NFormItem>
+                <NFormItem :label="t('setting.cosBucket')">
+                  <NInput v-model:value="storageForm.cosBucketName" style="max-width: 320px" />
+                </NFormItem>
+                <NFormItem :label="t('setting.cosSecretId')">
+                  <NInput v-model:value="storageForm.cosSecretId" style="max-width: 360px" />
+                </NFormItem>
+                <NFormItem :label="t('setting.cosSecretKey')">
+                  <div class="password-row">
+                    <NInput
+                      v-model:value="storageForm.cosSecretKey"
+                      type="password"
+                      show-password-on="click"
+                      :placeholder="t('setting.storageSecretPh')"
+                      style="max-width: 360px"
+                    />
+                    <span class="field-hint">{{
+                      storageForm.cosSecretKeyConfigured
+                        ? t('setting.mailPasswordConfigured')
+                        : t('setting.mailPasswordMissing')
+                    }}</span>
+                  </div>
+                </NFormItem>
+                <NFormItem :label="t('setting.cosCnameDomain')">
+                  <NInput
+                    v-model:value="storageForm.cosCnameDomain"
+                    placeholder="media.example.com"
                     style="max-width: 420px"
                   />
                 </NFormItem>

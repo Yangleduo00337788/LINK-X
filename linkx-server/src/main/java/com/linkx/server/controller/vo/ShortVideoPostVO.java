@@ -49,5 +49,7 @@ public class ShortVideoPostVO {
 
     private boolean followingAuthor;
 
+    private Integer commentCount;
+
     private List<ShortVideoCommentVO> comments;
 }

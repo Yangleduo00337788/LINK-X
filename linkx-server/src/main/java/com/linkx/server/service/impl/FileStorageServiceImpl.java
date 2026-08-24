@@ -350,7 +350,7 @@ public class FileStorageServiceImpl implements FileStorageService {
         }
 
         try {
-            objectStorageRouter.activeBackend().deleteObject(objectName);
+            objectStorageRouter.backendForKey(objectName).deleteObject(objectName);
             log.info("Deleted file from storage: {}", objectName);
 
         } catch (Exception e) {
@@ -415,7 +415,7 @@ public class FileStorageServiceImpl implements FileStorageService {
             return null;
         }
         int seconds = expiry > 0 ? expiry : DEFAULT_PRESIGN_EXPIRY_SECONDS;
-        return objectStorageRouter.activeBackend().presignGet(key, seconds);
+        return objectStorageRouter.backendForKey(key).presignGet(key, seconds);
     }
 
     /**
@@ -438,9 +438,31 @@ public class FileStorageServiceImpl implements FileStorageService {
             throw new IllegalArgumentException("非法对象 key");
         }
         try {
-            return objectStorageRouter.activeBackend().open(key);
+            return objectStorageRouter.openFromAnyBackend(key);
         } catch (Exception e) {
-            log.error("打开存储对象失败: key={}, err={}", key, e.getMessage());
+            log.error("打开存储对象失败: provider={}, key={}, err={}",
+                    objectStorageRouter.activeProvider(), key, e.getMessage());
+            throw new RuntimeException("读取文件失败");
+        }
+    }
+
+    @Override
+    public StoredObject openObjectOnProvider(String objectKeyOrUrl, String providerWire) {
+        if (objectKeyOrUrl == null || objectKeyOrUrl.isEmpty()) {
+            throw new IllegalArgumentException("对象 key 不能为空");
+        }
+        String key = extractObjectName(objectKeyOrUrl);
+        if (key.startsWith("/") || key.startsWith("data:") || key.startsWith("blob:")) {
+            throw new IllegalArgumentException("不支持的对象 key");
+        }
+        if (key.contains("..")) {
+            throw new IllegalArgumentException("非法对象 key");
+        }
+        try {
+            StorageProviderType type = StorageProviderType.fromWire(providerWire);
+            return objectStorageRouter.backendFor(type).open(key);
+        } catch (Exception e) {
+            log.error("打开存储对象失败: provider={}, key={}, err={}", providerWire, key, e.getMessage());
             throw new RuntimeException("读取文件失败");
         }
     }
@@ -633,7 +655,7 @@ public class FileStorageServiceImpl implements FileStorageService {
             return false;
         }
         try {
-            return objectStorageRouter.activeBackend().exists(key);
+            return objectStorageRouter.locateProviderForKey(key) != null;
         } catch (Exception e) {
             return false;
         }
@@ -671,8 +693,21 @@ public class FileStorageServiceImpl implements FileStorageService {
 
         String destKey = allocateObjectName(fileNameForAlloc);
         try {
-            objectStorageRouter.activeBackend().copyObject(sourceKey, destKey);
+            StorageProviderType sourceProvider = objectStorageRouter.locateProviderForKey(sourceKey);
+            if (sourceProvider == null) {
+                throw new IllegalArgumentException("源附件已不存在");
+            }
+            ObjectStorageBackend destBackend = objectStorageRouter.activeBackend();
+            if (sourceProvider == objectStorageRouter.activeProvider()) {
+                destBackend.copyObject(sourceKey, destKey);
+            } else {
+                try (StoredObject stored = objectStorageRouter.backendFor(sourceProvider).open(sourceKey)) {
+                    destBackend.putObject(destKey, stored.stream(), stored.size(), stored.contentType());
+                }
+            }
             return destKey;
+        } catch (IllegalArgumentException e) {
+            throw e;
         } catch (Exception e) {
             log.error("复制对象失败: src={}, dest={}, err={}", sourceKey, destKey, e.getMessage());
             throw new RuntimeException("复制附件失败");

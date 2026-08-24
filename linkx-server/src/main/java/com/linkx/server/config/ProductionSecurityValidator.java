@@ -124,9 +124,14 @@ public class ProductionSecurityValidator implements ApplicationRunner {
             if (ProductionSecretRules.isBlank(oss.getEndpoint()) || ProductionSecretRules.isBlank(oss.getBucketName())) {
                 errors.add("OSS_ENDPOINT / OSS_BUCKET_NAME 生产环境不能为空");
             }
-        } else if (provider == StorageProviderType.LOCAL) {
-            if (ProductionSecretRules.isBlank(linkxProperties.getLocal().getBasePath())) {
-                errors.add("LOCAL_STORAGE_PATH 生产环境不能为空");
+        } else if (provider == StorageProviderType.COS) {
+            LinkxProperties.Cos cos = linkxProperties.getCos();
+            if (ProductionSecretRules.isBlank(cos.getSecretId())
+                    || ProductionSecretRules.isWeakSecret(cos.getSecretKey(), MIN_MINIO_SECRET_LENGTH)) {
+                errors.add("COS_SECRET_ID / COS_SECRET_KEY 不能为空或弱密钥");
+            }
+            if (ProductionSecretRules.isBlank(cos.getRegion()) || ProductionSecretRules.isBlank(cos.getBucketName())) {
+                errors.add("COS_REGION / COS_BUCKET_NAME 生产环境不能为空");
             }
         }
 

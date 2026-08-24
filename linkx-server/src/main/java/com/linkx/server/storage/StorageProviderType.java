@@ -12,7 +12,7 @@ import org.springframework.util.StringUtils;
 public enum StorageProviderType {
     MINIO,
     OSS,
-    LOCAL;
+    COS;
 
     public static StorageProviderType fromWire(String wire) {
         if (!StringUtils.hasText(wire)) {
@@ -22,8 +22,11 @@ public enum StorageProviderType {
         switch (normalized) {
             case "oss":
                 return OSS;
+            case "cos":
+                return COS;
             case "local":
-                return LOCAL;
+                // 已移除本地存储，历史配置回退 MinIO
+                return MINIO;
             case "minio":
             default:
                 return MINIO;

@@ -21,7 +21,6 @@ public class AppDownloadUrlResolver {
     private static final int ADMIN_PREVIEW_EXPIRY_SECONDS = 3600;
 
     private final MediaUrlService mediaUrlService;
-    private final StoredMediaProxyService storedMediaProxyService;
 
     public String resolveForClient(String downloadUrlOrKey) {
         return resolve(downloadUrlOrKey, INSTALLER_PROXY_EXPIRY_SECONDS);
@@ -48,11 +47,7 @@ public class AppDownloadUrlResolver {
         if (value.startsWith("/")) {
             return value;
         }
-        String proxy = storedMediaProxyService.wrapObjectKey(value, proxyExpirySeconds);
-        if (StringUtils.hasText(proxy)) {
-            return proxy;
-        }
-        return mediaUrlService.resolveFile(value);
+        return mediaUrlService.resolve(value, proxyExpirySeconds);
     }
 
     public boolean isStoredObjectKey(String downloadUrlOrKey) {

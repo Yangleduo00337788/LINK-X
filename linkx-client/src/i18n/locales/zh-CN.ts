@@ -1728,7 +1728,20 @@ export default {
     deleteCommentOk: '评论已删除',
     deleteCommentFail: '删除评论失败',
     loadFail: '加载短视频失败，请稍后重试',
-    retryLoad: '重新加载'
+    playFail: '视频无法播放：文件不在当前存储或对应云服务不可用（无需迁移，请确认原桶内文件可访问）',
+    retryLoad: '重新加载',
+    likedYour: '赞了你的短视频',
+    commentedYour: '评论了你的短视频',
+    notifyTitle: '短视频',
+    newNotif: '新的短视频互动',
+    allInteractiveMessages: '互动消息',
+    clearAll: '清空全部',
+    clearConfirm: '确定清空 {n} 条短视频互动通知？',
+    clearedCount: '已清空 {n} 条通知',
+    noMsgToClear: '没有可清空的通知',
+    nothingToClear: '暂无通知可清空',
+    noMessages: '暂无互动消息',
+    loadMoreComments: '加载更多评论'
   },
   moments: {
     title: '友链',

@@ -14,7 +14,7 @@ import lombok.Data;
 public class StorageSettingUpdateDTO {
 
     @NotBlank
-    @Schema(description = "存储提供商：minio | oss | local")
+    @Schema(description = "存储提供商：minio | oss | cos")
     private String provider;
 
     @Schema(description = "MinIO Endpoint")
@@ -44,8 +44,20 @@ public class StorageSettingUpdateDTO {
     @Schema(description = "OSS CNAME 域名")
     private String ossCnameDomain;
 
-    @Schema(description = "本地存储根目录")
-    private String localStoragePath;
+    @Schema(description = "COS 地域，如 ap-beijing")
+    private String cosRegion;
+
+    @Schema(description = "COS 桶名")
+    private String cosBucketName;
+
+    @Schema(description = "COS SecretId")
+    private String cosSecretId;
+
+    @Schema(description = "COS SecretKey；留空表示不修改")
+    private String cosSecretKey;
+
+    @Schema(description = "COS CNAME 域名")
+    private String cosCnameDomain;
 
     @NotNull
     @Schema(description = "单文件上传上限（字节）")

@@ -145,6 +145,13 @@ public class MediaUrlService {
                 return true;
             }
         }
+        LinkxProperties.Cos cos = linkxProperties.getCos();
+        if (StringUtils.hasText(cos.getBucketName())) {
+            String bucket = cos.getBucketName().trim();
+            if (url.contains(bucket + ".cos.") || url.contains(".myqcloud.com/" + bucket + "/")) {
+                return true;
+            }
+        }
         return false;
     }
 }

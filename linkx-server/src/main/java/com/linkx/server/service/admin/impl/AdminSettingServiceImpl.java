@@ -599,7 +599,15 @@ public class AdminSettingServiceImpl implements AdminSettingService {
             row.setOssAccessKeySecret(nullToEmpty(linkxProperties.getOss().getAccessKeySecret()));
         }
         row.setOssCnameDomain(nullToEmpty(dto.getOssCnameDomain()));
-        row.setLocalStoragePath(nullToEmpty(dto.getLocalStoragePath()));
+        row.setCosRegion(nullToEmpty(dto.getCosRegion()));
+        row.setCosBucketName(nullToEmpty(dto.getCosBucketName()));
+        row.setCosSecretId(nullToEmpty(dto.getCosSecretId()));
+        if (StringUtils.hasText(dto.getCosSecretKey())) {
+            row.setCosSecretKey(dto.getCosSecretKey().trim());
+        } else if (row.getCosSecretKey() == null) {
+            row.setCosSecretKey(nullToEmpty(linkxProperties.getCos().getSecretKey()));
+        }
+        row.setCosCnameDomain(nullToEmpty(dto.getCosCnameDomain()));
         row.setMaxUploadBytes(dto.getMaxUploadBytes());
         row.setUpdateBy(operatorId);
         persist(row);
@@ -664,9 +672,22 @@ public class AdminSettingServiceImpl implements AdminSettingService {
             if (dto.getOssCnameDomain() != null) {
                 oss.setCnameDomain(nullToEmpty(dto.getOssCnameDomain()));
             }
-        } else {
-            if (StringUtils.hasText(dto.getLocalStoragePath())) {
-                linkxProperties.getLocal().setBasePath(dto.getLocalStoragePath().trim());
+        } else if (provider == StorageProviderType.COS) {
+            LinkxProperties.Cos cos = linkxProperties.getCos();
+            if (StringUtils.hasText(dto.getCosRegion())) {
+                cos.setRegion(dto.getCosRegion().trim());
+            }
+            if (StringUtils.hasText(dto.getCosBucketName())) {
+                cos.setBucketName(dto.getCosBucketName().trim());
+            }
+            if (StringUtils.hasText(dto.getCosSecretId())) {
+                cos.setSecretId(dto.getCosSecretId().trim());
+            }
+            if (StringUtils.hasText(dto.getCosSecretKey())) {
+                cos.setSecretKey(dto.getCosSecretKey().trim());
+            }
+            if (dto.getCosCnameDomain() != null) {
+                cos.setCnameDomain(nullToEmpty(dto.getCosCnameDomain()));
             }
         }
     }
@@ -674,7 +695,7 @@ public class AdminSettingServiceImpl implements AdminSettingService {
     private AdminSettingVO.StorageSide buildStorageSide() {
         LinkxProperties.Minio minio = linkxProperties.getMinio();
         LinkxProperties.Oss oss = linkxProperties.getOss();
-        LinkxProperties.Local local = linkxProperties.getLocal();
+        LinkxProperties.Cos cos = linkxProperties.getCos();
         return AdminSettingVO.StorageSide.builder()
                 .provider(objectStorageRouter.activeProvider().toWire())
                 .minioEndpoint(minio.getEndpoint())
@@ -686,7 +707,11 @@ public class AdminSettingServiceImpl implements AdminSettingService {
                 .ossAccessKeyId(oss.getAccessKeyId())
                 .ossAccessKeySecretConfigured(StringUtils.hasText(oss.getAccessKeySecret()))
                 .ossCnameDomain(oss.getCnameDomain())
-                .localStoragePath(local.getBasePath())
+                .cosRegion(cos.getRegion())
+                .cosBucketName(cos.getBucketName())
+                .cosSecretId(cos.getSecretId())
+                .cosSecretKeyConfigured(StringUtils.hasText(cos.getSecretKey()))
+                .cosCnameDomain(cos.getCnameDomain())
                 .maxUploadBytes(minio.getMaxFileSize())
                 .presignAvatarSeconds(minio.getPresignExpiry().getAvatarSeconds())
                 .presignFileSeconds(minio.getPresignExpiry().getFileSeconds())
@@ -737,7 +762,11 @@ public class AdminSettingServiceImpl implements AdminSettingService {
                 .ossAccessKeyId(nullToEmpty(linkxProperties.getOss().getAccessKeyId()))
                 .ossAccessKeySecret(nullToEmpty(linkxProperties.getOss().getAccessKeySecret()))
                 .ossCnameDomain(nullToEmpty(linkxProperties.getOss().getCnameDomain()))
-                .localStoragePath(linkxProperties.getLocal().getBasePath())
+                .cosRegion(nullToEmpty(linkxProperties.getCos().getRegion()))
+                .cosBucketName(nullToEmpty(linkxProperties.getCos().getBucketName()))
+                .cosSecretId(nullToEmpty(linkxProperties.getCos().getSecretId()))
+                .cosSecretKey(nullToEmpty(linkxProperties.getCos().getSecretKey()))
+                .cosCnameDomain(nullToEmpty(linkxProperties.getCos().getCnameDomain()))
                 .sensitiveFilterEnabled(app == null || !Boolean.FALSE.equals(app.getSensitiveFilterEnabled()))
                 .supportEmail(app != null ? nullToEmpty(app.getSupportEmail()) : "")
                 .supportPhone(app != null ? nullToEmpty(app.getSupportPhone()) : "")
@@ -1096,14 +1125,27 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         if (row.getOssCnameDomain() != null) {
             oss.setCnameDomain(nullToEmpty(row.getOssCnameDomain()));
         }
-        if (row.getLocalStoragePath() != null) {
-            linkxProperties.getLocal().setBasePath(nullToEmpty(row.getLocalStoragePath()));
+        LinkxProperties.Cos cos = linkxProperties.getCos();
+        if (row.getCosRegion() != null) {
+            cos.setRegion(nullToEmpty(row.getCosRegion()));
         }
-        log.info("Applied storage settings: provider={}, minioEndpoint={}, ossEndpoint={}, localPath={}",
+        if (row.getCosBucketName() != null) {
+            cos.setBucketName(nullToEmpty(row.getCosBucketName()));
+        }
+        if (row.getCosSecretId() != null) {
+            cos.setSecretId(nullToEmpty(row.getCosSecretId()));
+        }
+        if (row.getCosSecretKey() != null) {
+            cos.setSecretKey(row.getCosSecretKey());
+        }
+        if (row.getCosCnameDomain() != null) {
+            cos.setCnameDomain(nullToEmpty(row.getCosCnameDomain()));
+        }
+        log.info("Applied storage settings: provider={}, minioEndpoint={}, ossEndpoint={}, cosRegion={}",
                 linkxProperties.getStorage().getProvider(),
                 minio.getEndpoint(),
                 oss.getEndpoint(),
-                linkxProperties.getLocal().getBasePath());
+                cos.getRegion());
     }
 
     private AdminSettingVO.LinkMateSide buildLinkMateSide() {

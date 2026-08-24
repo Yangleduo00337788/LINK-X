@@ -19,6 +19,7 @@ export interface ShortVideoPost {
   likes: number
   liked: boolean
   followingAuthor?: boolean
+  commentCount?: number
   comments: ShortVideoComment[]
 }
 
@@ -60,24 +61,40 @@ export interface ListShortVideoParams {
   q?: string
 }
 
+const SHORT_VIDEO_READ_TIMEOUT = 30000
+
 export function listShortVideos(params?: ListShortVideoParams) {
-  return apiClient.get<never, ApiResult<ShortVideoPost[]>>('/short-video', { params })
+  return apiClient.get<never, ApiResult<ShortVideoPost[]>>('/short-video', {
+    params,
+    timeout: SHORT_VIDEO_READ_TIMEOUT
+  })
 }
 
 export function listFollowingShortVideos(params?: Omit<ListShortVideoParams, 'q'>) {
-  return apiClient.get<never, ApiResult<ShortVideoPost[]>>('/short-video/following', { params })
+  return apiClient.get<never, ApiResult<ShortVideoPost[]>>('/short-video/following', {
+    params,
+    timeout: SHORT_VIDEO_READ_TIMEOUT
+  })
 }
 
 export function listFriendsShortVideos(params?: Omit<ListShortVideoParams, 'q'>) {
-  return apiClient.get<never, ApiResult<ShortVideoPost[]>>('/short-video/friends', { params })
+  return apiClient.get<never, ApiResult<ShortVideoPost[]>>('/short-video/friends', {
+    params,
+    timeout: SHORT_VIDEO_READ_TIMEOUT
+  })
 }
 
 export function listUserShortVideos(userId: string, params?: Omit<ListShortVideoParams, 'q'>) {
-  return apiClient.get<never, ApiResult<ShortVideoPost[]>>(`/short-video/user/${userId}`, { params })
+  return apiClient.get<never, ApiResult<ShortVideoPost[]>>(`/short-video/user/${userId}`, {
+    params,
+    timeout: SHORT_VIDEO_READ_TIMEOUT
+  })
 }
 
 export function getShortVideo(postId: string) {
-  return apiClient.get<never, ApiResult<ShortVideoPost>>(`/short-video/${postId}`)
+  return apiClient.get<never, ApiResult<ShortVideoPost>>(`/short-video/${postId}`, {
+    timeout: SHORT_VIDEO_READ_TIMEOUT
+  })
 }
 
 export function publishShortVideo(payload: PublishShortVideoPayload) {
@@ -102,6 +119,10 @@ export function unlikeShortVideo(postId: string) {
 
 export function commentShortVideo(postId: string, payload: CommentShortVideoPayload) {
   return apiClient.post<never, ApiResult<ShortVideoComment>>(`/short-video/${postId}/comment`, payload)
+}
+
+export function listShortVideoComments(postId: string, params?: { beforeId?: string; limit?: number }) {
+  return apiClient.get<never, ApiResult<ShortVideoComment[]>>(`/short-video/${postId}/comments`, { params })
 }
 
 export function deleteShortVideoComment(commentId: string) {

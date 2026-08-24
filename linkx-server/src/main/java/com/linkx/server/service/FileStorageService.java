@@ -85,6 +85,11 @@ public interface FileStorageService {
     StoredObject openObject(String objectKeyOrUrl);
 
     /**
+     * 从指定存储后端打开对象（与上传时 storage_provider 一致，不跨后端探测）。
+     */
+    StoredObject openObjectOnProvider(String objectKeyOrUrl, String providerWire);
+
+    /**
      * MinIO 对象只读视图
      */
     record StoredObject(InputStream stream, String contentType, long size, String objectKey) implements AutoCloseable {

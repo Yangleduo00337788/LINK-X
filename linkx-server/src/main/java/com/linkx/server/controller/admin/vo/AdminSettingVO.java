@@ -218,7 +218,7 @@ public class AdminSettingVO {
     @Builder
     @Schema(description = "对象存储配置")
     public static class StorageSide {
-        @Schema(description = "minio | oss | local")
+        @Schema(description = "minio | oss | cos")
         private String provider;
         private String minioEndpoint;
         private String minioBucketName;
@@ -231,7 +231,12 @@ public class AdminSettingVO {
         @Schema(description = "OSS Secret 是否已配置")
         private Boolean ossAccessKeySecretConfigured;
         private String ossCnameDomain;
-        private String localStoragePath;
+        private String cosRegion;
+        private String cosBucketName;
+        private String cosSecretId;
+        @Schema(description = "COS SecretKey 是否已配置")
+        private Boolean cosSecretKeyConfigured;
+        private String cosCnameDomain;
         private Long maxUploadBytes;
         private Integer presignAvatarSeconds;
         private Integer presignFileSeconds;

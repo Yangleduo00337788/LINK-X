@@ -5,24 +5,35 @@ package com.linkx.server.storage;
  * 作者：yangleduo
  */
 import com.linkx.server.config.LinkxProperties;
-import com.linkx.server.storage.impl.LocalObjectStorageBackend;
+import com.linkx.server.storage.impl.CosObjectStorageBackend;
 import com.linkx.server.storage.impl.MinioObjectStorageBackend;
 import com.linkx.server.storage.impl.OssObjectStorageBackend;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import com.linkx.server.service.FileStorageService;
+
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 @Service
 @RequiredArgsConstructor
 public class ObjectStorageRouter {
 
+    /** 非活跃后端探测超时：避免 MinIO/OSS 宕机时 exists/open 长时间阻塞 */
+    private static final long PROBE_TIMEOUT_SECONDS = 4;
+
     private final LinkxProperties linkxProperties;
     private final MinioObjectStorageBackend minioBackend;
     private final OssObjectStorageBackend ossBackend;
-    private final LocalObjectStorageBackend localBackend;
+    private final CosObjectStorageBackend cosBackend;
 
     public StorageProviderType activeProvider() {
         return StorageProviderType.fromWire(linkxProperties.getStorage().getProvider());
@@ -36,8 +47,8 @@ public class ObjectStorageRouter {
         switch (type) {
             case OSS:
                 return ossBackend;
-            case LOCAL:
-                return localBackend;
+            case COS:
+                return cosBackend;
             case MINIO:
             default:
                 return minioBackend;
@@ -51,6 +62,140 @@ public class ObjectStorageRouter {
     public void reloadClients() {
         minioBackend.reloadClient();
         ossBackend.reloadClient();
+        cosBackend.reloadClient();
+    }
+
+    /** 该存储后端是否已配置凭证（未配置则跳过探测，避免无意义连接） */
+    public boolean isProviderConfigured(StorageProviderType type) {
+        switch (type) {
+            case OSS: {
+                LinkxProperties.Oss oss = linkxProperties.getOss();
+                return StringUtils.hasText(oss.getAccessKeyId())
+                        && StringUtils.hasText(oss.getAccessKeySecret())
+                        && StringUtils.hasText(oss.getEndpoint())
+                        && StringUtils.hasText(oss.getBucketName());
+            }
+            case COS: {
+                LinkxProperties.Cos cos = linkxProperties.getCos();
+                return StringUtils.hasText(cos.getSecretId())
+                        && StringUtils.hasText(cos.getSecretKey())
+                        && StringUtils.hasText(cos.getRegion())
+                        && StringUtils.hasText(cos.getBucketName());
+            }
+            case MINIO:
+            default: {
+                LinkxProperties.Minio minio = linkxProperties.getMinio();
+                return StringUtils.hasText(minio.getAccessKey()) && StringUtils.hasText(minio.getSecretKey());
+            }
+        }
+    }
+
+    /**
+     * 在已配置后端中定位对象（活跃后端优先）。
+     * 上传走全局 active；历史文件留在原 MinIO/OSS/COS，读取时自动探测，无需迁移。
+     */
+    public StorageProviderType locateProviderForKey(String objectKey) {
+        if (!StringUtils.hasText(objectKey)) {
+            return null;
+        }
+        for (StorageProviderType type : probeOrder(activeProvider())) {
+            if (!isProviderConfigured(type)) {
+                continue;
+            }
+            if (existsWithTimeout(backendFor(type), objectKey)) {
+                return type;
+            }
+        }
+        return null;
+    }
+
+    public ObjectStorageBackend backendForKey(String objectKey) {
+        StorageProviderType located = locateProviderForKey(objectKey);
+        return located != null ? backendFor(located) : activeBackend();
+    }
+
+    /**
+     * 读取对象：先尝试全局活跃后端，再限时探测其它已配置后端（历史文件无需迁移）。
+     */
+    public FileStorageService.StoredObject openFromAnyBackend(String objectKey) throws Exception {
+        if (!StringUtils.hasText(objectKey)) {
+            throw new IllegalArgumentException("对象 key 不能为空");
+        }
+        StorageProviderType active = activeProvider();
+        Exception lastFailure = null;
+        if (isProviderConfigured(active)) {
+            try {
+                return backendFor(active).open(objectKey);
+            } catch (Exception e) {
+                lastFailure = e;
+            }
+        }
+        for (StorageProviderType type : probeOrder(active)) {
+            if (type == active || !isProviderConfigured(type)) {
+                continue;
+            }
+            try {
+                return openWithTimeout(backendFor(type), objectKey);
+            } catch (Exception e) {
+                lastFailure = e;
+            }
+        }
+        if (lastFailure != null) {
+            throw lastFailure;
+        }
+        throw new java.io.FileNotFoundException("对象不存在: " + objectKey);
+    }
+
+    private boolean existsWithTimeout(ObjectStorageBackend backend, String objectKey) {
+        try {
+            return CompletableFuture.supplyAsync(() -> backend.exists(objectKey))
+                    .orTimeout(PROBE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                    .get();
+        } catch (ExecutionException e) {
+            return false;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
+    private FileStorageService.StoredObject openWithTimeout(ObjectStorageBackend backend, String objectKey)
+            throws Exception {
+        try {
+            return CompletableFuture.supplyAsync(() -> {
+                try {
+                    return backend.open(objectKey);
+                } catch (Exception e) {
+                    throw new CompletionException(e);
+                }
+            }).orTimeout(PROBE_TIMEOUT_SECONDS, TimeUnit.SECONDS).get();
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof TimeoutException) {
+                throw new java.io.IOException("存储后端响应超时: " + backend.providerType());
+            }
+            if (cause instanceof CompletionException && cause.getCause() != null) {
+                cause = cause.getCause();
+            }
+            if (cause instanceof Exception ex) {
+                throw ex;
+            }
+            throw e;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw e;
+        }
+    }
+
+    private List<StorageProviderType> probeOrder(StorageProviderType preferred) {
+        List<StorageProviderType> order = new ArrayList<>(EnumSet.allOf(StorageProviderType.class).size());
+        order.add(preferred);
+        for (StorageProviderType type : StorageProviderType.values()) {
+            if (type != preferred) {
+                order.add(type);
+            }
+        }
+        return order;
     }
 
     /** CSP img-src / media-src / connect-src 允许的媒体源 */
@@ -87,6 +232,20 @@ public class ObjectStorageRouter {
             if (StringUtils.hasText(oss.getCnameDomain())) {
                 origins.add("https://" + bucket + "." + oss.getCnameDomain().trim());
             }
+        }
+        LinkxProperties.Cos cos = linkxProperties.getCos();
+        if (StringUtils.hasText(cos.getRegion()) && StringUtils.hasText(cos.getBucketName())) {
+            String region = cos.getRegion().trim();
+            String bucket = cos.getBucketName().trim();
+            origins.add("https://" + bucket + ".cos." + region + ".myqcloud.com");
+            origins.add("http://" + bucket + ".cos." + region + ".myqcloud.com");
+            origins.add("https://cos." + region + ".myqcloud.com");
+            origins.add("http://cos." + region + ".myqcloud.com");
+        }
+        if (StringUtils.hasText(cos.getCnameDomain())) {
+            String cname = cos.getCnameDomain().trim();
+            origins.add("https://" + cname);
+            origins.add("http://" + cname);
         }
         return origins;
     }

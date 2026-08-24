@@ -452,6 +452,7 @@ export const useNotificationsStore = defineStore('notifications', {
       }
       if (
         type.startsWith('moments_') ||
+        type.startsWith('short_video_') ||
         type === 'calendar_remind' ||
         type === 'group_join_request' ||
         type.startsWith('feedback_') ||
@@ -484,6 +485,10 @@ export const useNotificationsStore = defineStore('notifications', {
       if (type.startsWith('moments_')) {
         const { notifyMomentsEvent } = await import('../utils/messageNotify')
         notifyMomentsEvent(type)
+      }
+      if (type.startsWith('short_video_')) {
+        const { notifyShortVideoEvent } = await import('../utils/messageNotify')
+        notifyShortVideoEvent(type)
       }
       if (type === 'calendar_remind') {
         const { notifyCalendarRemind } = await import('../utils/messageNotify')

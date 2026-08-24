@@ -11,6 +11,7 @@ import {
   likeShortVideo,
   listFollowingShortVideos,
   listFriendsShortVideos,
+  listShortVideoComments,
   listShortVideos,
   listUserShortVideos,
   publishShortVideo,
@@ -25,6 +26,7 @@ import { useAppStore } from './app'
 import { useExtensionDockStore } from './extensionDock'
 import { t } from '../i18n'
 import { isEncryptedShortVideoText } from '../utils/shortVideoText'
+import { captureVideoCover } from '../utils/shortVideoCover'
 
 export type ShortVideoFeedTab = 'live' | 'following' | 'friends' | 'recommend'
 export type ShortVideoPanelTabId = 'main'
@@ -33,7 +35,19 @@ let ensurePanelReadyTask: Promise<void> | null = null
 let fetchFeedTask: Promise<void> | null = null
 
 function normalizeShortVideoList(data: unknown): ShortVideoPost[] {
-  return Array.isArray(data) ? data : []
+  if (!Array.isArray(data)) return []
+  return data.map(item => {
+    const post = item as ShortVideoPost
+    return {
+      ...post,
+      comments: Array.isArray(post.comments) ? post.comments : []
+    }
+  })
+}
+
+function normalizeCommentCount(post: ShortVideoPost): number {
+  if (typeof post.commentCount === 'number') return post.commentCount
+  return Array.isArray(post.comments) ? post.comments.length : 0
 }
 
 export const useShortVideoStore = defineStore('shortVideo', {
@@ -164,7 +178,8 @@ export const useShortVideoStore = defineStore('shortVideo', {
     },
 
     setFeedTab(tab: ShortVideoFeedTab) {
-      this.feedTab = tab
+      const nextTab = tab === 'live' ? 'recommend' : tab
+      this.feedTab = nextTab
       this.posts = []
       this.activeIndex = 0
       this.hasMore = true
@@ -236,6 +251,17 @@ export const useShortVideoStore = defineStore('shortVideo', {
           throw new Error(uploadRes.message || 'upload failed')
         }
         const videoKey = uploadRes.data
+        let coverKey: string | undefined
+        try {
+          const coverBlob = await captureVideoCover(file)
+          const coverFile = new File([coverBlob], 'cover.jpg', { type: 'image/jpeg' })
+          const coverRes = await uploadShortVideoMedia(coverFile)
+          if (coverRes.code === 200 && coverRes.data) {
+            coverKey = coverRes.data
+          }
+        } catch {
+          /* optional */
+        }
         let durationMs: number | undefined
         try {
           const ms = await readVideoDuration(file)
@@ -248,6 +274,7 @@ export const useShortVideoStore = defineStore('shortVideo', {
         const res = await publishShortVideo({
           description: description.trim(),
           videoKey,
+          coverKey,
           durationMs,
           visibility
         })
@@ -335,7 +362,7 @@ export const useShortVideoStore = defineStore('shortVideo', {
       if (res.code !== 200 || !res.data) {
         throw new Error(res.message || 'post not found')
       }
-      const post = res.data
+      const post = normalizeShortVideoList([res.data])[0]
       const existingIdx = this.posts.findIndex(p => p.id === postId)
       if (existingIdx >= 0) {
         this.posts[existingIdx] = post
@@ -367,14 +394,37 @@ export const useShortVideoStore = defineStore('shortVideo', {
       return updated
     },
 
+    async fetchComments(postId: string, reset = false) {
+      const post = this.posts.find(p => p.id === postId)
+      if (!post) return []
+      const beforeId = reset ? undefined : post.comments[0]?.id
+      const res = await listShortVideoComments(postId, { beforeId, limit: 20 })
+      if (res.code !== 200) {
+        throw new Error(res.message || 'fetch comments failed')
+      }
+      const rows = Array.isArray(res.data) ? res.data : []
+      if (reset) {
+        post.comments = rows
+      } else if (rows.length > 0) {
+        const existing = new Set(post.comments.map(c => c.id))
+        const older = rows.filter(c => !existing.has(c.id))
+        post.comments = [...older, ...post.comments]
+      }
+      if (typeof post.commentCount !== 'number') {
+        post.commentCount = normalizeCommentCount(post)
+      }
+      return post.comments
+    },
+
     async addComment(postId: string, content: string, parentId?: string) {
       const res = await commentShortVideo(postId, { content, parentId })
       const post = this.posts.find(p => p.id === postId)
       if (post && res.data) {
         if (isEncryptedShortVideoText(res.data.content)) {
-          await this.fetchFeed(true)
+          await this.fetchComments(postId, true)
         } else {
           post.comments = [...post.comments, res.data]
+          post.commentCount = (post.commentCount ?? post.comments.length - 1) + 1
         }
       }
       return res.data
@@ -384,8 +434,16 @@ export const useShortVideoStore = defineStore('shortVideo', {
       await deleteShortVideoComment(commentId)
       const post = this.posts.find(p => p.id === postId)
       if (post) {
+        const before = post.comments.length
         post.comments = post.comments.filter(c => c.id !== commentId)
+        if (post.comments.length < before) {
+          post.commentCount = Math.max(0, normalizeCommentCount(post) - 1)
+        }
       }
+    },
+
+    commentCount(post: ShortVideoPost) {
+      return normalizeCommentCount(post)
     },
 
     async markPlayed(postId: string) {

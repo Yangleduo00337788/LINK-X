@@ -17,6 +17,7 @@ import com.linkx.server.entity.admin.SysReviewTask;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.im.ImMessagePushService;
 import com.linkx.server.mapper.*;
+import com.linkx.server.mapper.row.ShortVideoCommentCountRow;
 import com.linkx.server.security.crypto.MessageContentCipher;
 import com.linkx.server.service.FileStorageService;
 import com.linkx.server.service.MediaUrlService;
@@ -24,6 +25,7 @@ import com.linkx.server.service.MessageNotificationService;
 import com.linkx.server.service.ObjectKeyOwnershipService;
 import com.linkx.server.service.SensitiveWordService;
 import com.linkx.server.service.ShortVideoService;
+import com.linkx.server.storage.ObjectStorageRouter;
 import com.linkx.server.service.admin.AdminReviewService;
 import com.mybatisflex.core.logicdelete.LogicDeleteManager;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -31,10 +33,13 @@ import com.mybatisflex.core.update.UpdateChain;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.Duration;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -46,10 +51,14 @@ import java.util.stream.Collectors;
 public class ShortVideoServiceImpl implements ShortVideoService {
 
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+    private static final String PLAY_DEDUP_KEY_PREFIX = "sv:play:";
+    private static final Duration PLAY_DEDUP_TTL = Duration.ofHours(24);
+    private static final int COMMENT_PAGE_SIZE = 20;
 
     private final ShortVideoPostMapper postMapper;
     private final ShortVideoLikeMapper likeMapper;
     private final ShortVideoCommentMapper commentMapper;
+    private final ShortVideoCommentSqlMapper commentSqlMapper;
     private final ShortVideoFollowMapper followMapper;
     private final SysUserMapper userMapper;
     private final SysUserRelationMapper sysUserRelationMapper;
@@ -62,6 +71,8 @@ public class ShortVideoServiceImpl implements ShortVideoService {
     private final SensitiveWordService sensitiveWordService;
     private final ObjectProvider<AdminReviewService> adminReviewService;
     private final MessageContentCipher messageContentCipher;
+    private final StringRedisTemplate redisTemplate;
+    private final ObjectStorageRouter objectStorageRouter;
 
     @Override
     @Transactional
@@ -79,6 +90,7 @@ public class ShortVideoServiceImpl implements ShortVideoService {
                 .userId(userId)
                 .description(hit.text())
                 .videoKey(videoKey)
+                .storageProvider(objectStorageRouter.activeProvider().toWire())
                 .coverKey(coverKey)
                 .durationMs(dto.getDurationMs())
                 .visibility(visibility)
@@ -87,7 +99,7 @@ public class ShortVideoServiceImpl implements ShortVideoService {
         preparePostForStorage(post);
         postMapper.insert(post);
         enqueueSensitiveAfterPersist(userId, SysReviewTask.TARGET_SHORT_VIDEO, String.valueOf(post.getId()), hit);
-        return toPostVO(post, user, Collections.emptyList(), Collections.emptyList(), userId, false);
+        return toPostVO(post, user, Collections.emptyList(), Collections.emptyList(), userId, false, 0);
     }
 
     @Override
@@ -109,7 +121,9 @@ public class ShortVideoServiceImpl implements ShortVideoService {
         preparePostForStorage(post);
         postMapper.update(post);
         SysUser user = requireUser(userId);
-        return toPostVO(post, user, loadLikes(postId), loadComments(postId), userId, false);
+        int commentCount = countComments(postId);
+        List<ShortVideoComment> comments = loadCommentPage(postId, null, COMMENT_PAGE_SIZE);
+        return toPostVO(post, user, loadLikes(postId), comments, userId, false, commentCount);
     }
 
     @Override
@@ -117,10 +131,11 @@ public class ShortVideoServiceImpl implements ShortVideoService {
         ShortVideoPost post = assertCanView(viewerId, postId);
         SysUser author = requireUser(post.getUserId());
         List<ShortVideoLike> likes = loadLikes(postId);
-        List<ShortVideoComment> comments = loadComments(postId);
+        int commentCount = countComments(postId);
+        List<ShortVideoComment> comments = loadCommentPage(postId, null, COMMENT_PAGE_SIZE);
         boolean followingAuthor = loadFollowingSet(viewerId, Set.of(post.getUserId()))
                 .contains(post.getUserId());
-        return toPostVO(post, author, likes, comments, viewerId, followingAuthor);
+        return toPostVO(post, author, likes, comments, viewerId, followingAuthor, commentCount);
     }
 
     @Override
@@ -149,6 +164,7 @@ public class ShortVideoServiceImpl implements ShortVideoService {
                 .orderBy("create_time", false)
                 .orderBy("id", false)
                 .limit(pageSize);
+        applyActiveStorageProvider(qw);
         if (beforeId != null) {
             qw.and("id < ?", beforeId);
         }
@@ -169,6 +185,7 @@ public class ShortVideoServiceImpl implements ShortVideoService {
                 .orderBy("create_time", false)
                 .orderBy("id", false)
                 .limit(pageSize);
+        applyActiveStorageProvider(qw);
         if (beforeId != null) {
             qw.and("id < ?", beforeId);
         }
@@ -192,6 +209,7 @@ public class ShortVideoServiceImpl implements ShortVideoService {
                 .orderBy("create_time", false)
                 .orderBy("id", false)
                 .limit(pageSize);
+        applyActiveStorageProvider(qw);
         if (beforeId != null) {
             qw.and("id < ?", beforeId);
         }
@@ -207,6 +225,7 @@ public class ShortVideoServiceImpl implements ShortVideoService {
         QueryWrapper qw = QueryWrapper.create()
                 .eq("user_id", targetUserId)
                 .eq("deleted", 0);
+        applyActiveStorageProvider(qw);
         if (!self) {
             if (friend) {
                 qw.and("IFNULL(visibility, 0) <> 2");
@@ -289,6 +308,14 @@ public class ShortVideoServiceImpl implements ShortVideoService {
     }
 
     @Override
+    public List<ShortVideoCommentVO> listComments(Long userId, Long postId, Long beforeId, Integer limit) {
+        assertCanView(userId, postId);
+        int pageSize = normalizeLimit(limit);
+        List<ShortVideoComment> comments = loadCommentPage(postId, beforeId, pageSize);
+        return buildCommentVOs(comments);
+    }
+
+    @Override
     @Transactional
     public void deleteComment(Long userId, Long commentId) {
         ShortVideoComment comment = commentMapper.selectOneByQuery(
@@ -340,6 +367,11 @@ public class ShortVideoServiceImpl implements ShortVideoService {
     @Transactional
     public void recordPlay(Long userId, Long postId) {
         assertCanView(userId, postId);
+        String dedupKey = PLAY_DEDUP_KEY_PREFIX + userId + ":" + postId;
+        Boolean firstPlay = redisTemplate.opsForValue().setIfAbsent(dedupKey, "1", PLAY_DEDUP_TTL);
+        if (!Boolean.TRUE.equals(firstPlay)) {
+            return;
+        }
         ShortVideoPost current = postMapper.selectOneById(postId);
         long next = (current != null && current.getPlayCount() != null ? current.getPlayCount() : 0L) + 1L;
         UpdateChain.of(ShortVideoPost.class)
@@ -377,7 +409,7 @@ public class ShortVideoServiceImpl implements ShortVideoService {
     @Override
     public FileStorageService.StoredObject openVideoContent(Long userId, Long postId) {
         ShortVideoPost post = assertCanView(userId, postId);
-        return fileStorageService.openObject(post.getVideoKey());
+        return fileStorageService.openObjectOnProvider(post.getVideoKey(), post.getStorageProvider());
     }
 
     @Override
@@ -386,7 +418,7 @@ public class ShortVideoServiceImpl implements ShortVideoService {
         if (post.getCoverKey() == null || post.getCoverKey().isBlank()) {
             throw new CustomException(404, "封面不存在");
         }
-        return fileStorageService.openObject(post.getCoverKey());
+        return fileStorageService.openObjectOnProvider(post.getCoverKey(), post.getStorageProvider());
     }
 
     @Override
@@ -411,14 +443,15 @@ public class ShortVideoServiceImpl implements ShortVideoService {
         decryptPosts(posts);
         Set<Long> postIds = posts.stream().map(ShortVideoPost::getId).collect(Collectors.toSet());
         Map<Long, List<ShortVideoLike>> likesMap = loadLikesMap(postIds);
-        Map<Long, List<ShortVideoComment>> commentsMap = loadCommentsMap(postIds);
+        Map<Long, Integer> commentCountMap = loadCommentCountMap(postIds);
         Set<Long> authorIds = posts.stream().map(ShortVideoPost::getUserId).collect(Collectors.toSet());
         Map<Long, SysUser> users = loadUsers(authorIds);
         Set<Long> following = loadFollowingSet(viewerId, authorIds);
+        Set<Long> friendIds = getFriendIds(viewerId);
 
         List<ShortVideoPostVO> result = new ArrayList<>();
         for (ShortVideoPost post : posts) {
-            if (!canViewPost(post, viewerId)) {
+            if (!canViewPost(post, viewerId, friendIds)) {
                 continue;
             }
             SysUser author = users.get(post.getUserId());
@@ -427,11 +460,23 @@ public class ShortVideoServiceImpl implements ShortVideoService {
                     post,
                     author,
                     likesMap.getOrDefault(post.getId(), Collections.emptyList()),
-                    commentsMap.getOrDefault(post.getId(), Collections.emptyList()),
+                    Collections.emptyList(),
                     viewerId,
-                    followingAuthor));
+                    followingAuthor,
+                    commentCountMap.getOrDefault(post.getId(), 0)));
         }
         return result;
+    }
+
+    /** 列表/详情下发鉴权流式地址，避免批量 COS 预签名导致接口超时 */
+    private static String shortVideoMediaApiPath(Long postId, String kind) {
+        if (postId == null) {
+            return null;
+        }
+        if ("cover".equals(kind)) {
+            return "/short-video/" + postId + "/cover/content";
+        }
+        return "/short-video/" + postId + "/video/content";
     }
 
     private ShortVideoPostVO toPostVO(
@@ -440,7 +485,8 @@ public class ShortVideoServiceImpl implements ShortVideoService {
             List<ShortVideoLike> likes,
             List<ShortVideoComment> comments,
             Long viewerId,
-            boolean followingAuthor) {
+            boolean followingAuthor,
+            int commentCount) {
         decryptPost(post);
         boolean liked = likes.stream().anyMatch(l -> Objects.equals(l.getUserId(), viewerId));
         List<ShortVideoCommentVO> commentVOs = buildCommentVOs(comments);
@@ -450,8 +496,8 @@ public class ShortVideoServiceImpl implements ShortVideoService {
                 .nickname(author != null ? author.getNickname() : null)
                 .avatar(author != null ? mediaUrlService.resolveUserAvatar(author.getId(), author.getAvatar()) : null)
                 .description(post.getDescription())
-                .videoUrl(mediaUrlService.resolve(post.getVideoKey()))
-                .coverUrl(post.getCoverKey() != null ? mediaUrlService.resolve(post.getCoverKey()) : null)
+                .videoUrl(shortVideoMediaApiPath(post.getId(), "video"))
+                .coverUrl(post.getCoverKey() != null ? shortVideoMediaApiPath(post.getId(), "cover") : null)
                 .durationMs(post.getDurationMs())
                 .visibility(post.getVisibility())
                 .playCount(post.getPlayCount() != null ? post.getPlayCount() : 0L)
@@ -459,6 +505,7 @@ public class ShortVideoServiceImpl implements ShortVideoService {
                 .likes(likes.size())
                 .liked(liked)
                 .followingAuthor(followingAuthor)
+                .commentCount(commentCount)
                 .comments(commentVOs)
                 .build();
     }
@@ -526,6 +573,7 @@ public class ShortVideoServiceImpl implements ShortVideoService {
         if (post == null) {
             throw new CustomException(404, "作品不存在");
         }
+        assertMatchesActiveStorage(post);
         decryptPost(post);
         if (!canViewPost(post, userId)) {
             throw new CustomException(403, "无权查看该作品");
@@ -533,7 +581,7 @@ public class ShortVideoServiceImpl implements ShortVideoService {
         return post;
     }
 
-    private boolean canViewPost(ShortVideoPost post, Long viewerId) {
+    private boolean canViewPost(ShortVideoPost post, Long viewerId, Set<Long> friendIds) {
         if (post == null || viewerId == null) {
             return false;
         }
@@ -545,9 +593,13 @@ public class ShortVideoServiceImpl implements ShortVideoService {
             return false;
         }
         if (visibility == 1) {
-            return getFriendIds(viewerId).contains(post.getUserId());
+            return friendIds != null && friendIds.contains(post.getUserId());
         }
         return true;
+    }
+
+    private boolean canViewPost(ShortVideoPost post, Long viewerId) {
+        return canViewPost(post, viewerId, getFriendIds(viewerId));
     }
 
     private void preparePostForStorage(ShortVideoPost post) {
@@ -657,23 +709,48 @@ public class ShortVideoServiceImpl implements ShortVideoService {
         return likes.stream().collect(Collectors.groupingBy(ShortVideoLike::getPostId));
     }
 
-    private Map<Long, List<ShortVideoComment>> loadCommentsMap(Set<Long> postIds) {
-        List<ShortVideoComment> comments = commentMapper.selectListByQuery(
-                QueryWrapper.create()
-                        .in("post_id", new ArrayList<>(postIds))
-                        .eq("deleted", 0)
-                        .orderBy("create_time", true));
-        return comments.stream().collect(Collectors.groupingBy(ShortVideoComment::getPostId));
+    private Map<Long, Integer> loadCommentCountMap(Set<Long> postIds) {
+        if (postIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<ShortVideoCommentCountRow> rows = commentSqlMapper.countByPostIds(new ArrayList<>(postIds));
+        Map<Long, Integer> counts = new HashMap<>();
+        for (ShortVideoCommentCountRow row : rows) {
+            if (row.getPostId() != null && row.getCount() != null) {
+                counts.put(row.getPostId(), row.getCount().intValue());
+            }
+        }
+        return counts;
+    }
+
+    private int countComments(Long postId) {
+        Long count = commentMapper.selectCountByQuery(
+                QueryWrapper.create().eq("post_id", postId).eq("deleted", 0));
+        return count != null ? count.intValue() : 0;
+    }
+
+    private List<ShortVideoComment> loadCommentPage(Long postId, Long beforeId, int limit) {
+        QueryWrapper qw = QueryWrapper.create()
+                .eq("post_id", postId)
+                .eq("deleted", 0)
+                .orderBy("create_time", false)
+                .orderBy("id", false)
+                .limit(limit);
+        if (beforeId != null) {
+            qw.and("id < ?", beforeId);
+        }
+        List<ShortVideoComment> comments = commentMapper.selectListByQuery(qw);
+        if (comments.isEmpty()) {
+            return comments;
+        }
+        List<ShortVideoComment> chronological = new ArrayList<>(comments);
+        Collections.reverse(chronological);
+        return chronological;
     }
 
     private List<ShortVideoLike> loadLikes(Long postId) {
         return likeMapper.selectListByQuery(
                 QueryWrapper.create().eq("post_id", postId).eq("deleted", 0));
-    }
-
-    private List<ShortVideoComment> loadComments(Long postId) {
-        return commentMapper.selectListByQuery(
-                QueryWrapper.create().eq("post_id", postId).eq("deleted", 0).orderBy("create_time", true));
     }
 
     private void applySearch(QueryWrapper qw, String q) {
@@ -693,6 +770,21 @@ public class ShortVideoServiceImpl implements ShortVideoService {
             return 20;
         }
         return Math.min(limit, 50);
+    }
+
+    /** 列表仅展示当前全局 storage_provider 下的作品（各云存储内容互不影响展示）。 */
+    private void applyActiveStorageProvider(QueryWrapper qw) {
+        qw.eq("storage_provider", objectStorageRouter.activeProvider().toWire());
+    }
+
+    private void assertMatchesActiveStorage(ShortVideoPost post) {
+        if (post == null || !StringUtils.hasText(post.getStorageProvider())) {
+            throw new CustomException(404, "作品不存在");
+        }
+        String active = objectStorageRouter.activeProvider().toWire();
+        if (!active.equalsIgnoreCase(post.getStorageProvider().trim())) {
+            throw new CustomException(404, "作品不存在");
+        }
     }
 
     private SysUser requireUser(Long userId) {

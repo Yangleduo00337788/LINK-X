@@ -19,6 +19,7 @@ import {
   Play,
   SearchOutline,
   ShareSocialOutline,
+  NotificationsOutline,
   VideocamOutline,
   VolumeHighOutline,
   VolumeMuteOutline
@@ -27,11 +28,13 @@ import { storeToRefs } from 'pinia'
 import { LxButton } from './ui'
 import { useShortVideoStore, type ShortVideoFeedTab } from '../stores/shortVideo'
 import { useAppStore } from '../stores/app'
+import { useNotificationsStore } from '../stores/notifications'
 import { useI18n } from '../i18n'
 import { resolveApiErrorMessage } from '../api/client'
 import Avatar from './Avatar.vue'
+import ShortVideoNotificationsPage from './ShortVideoNotificationsPage.vue'
 import { resolveUserAvatarUrl } from '../utils/defaultAvatar'
-import { resolveShortVideoDisplaySrc } from '../utils/shortVideoMediaAccess'
+import { resolveShortVideoDisplaySrc, buildShortVideoMediaApiUrl } from '../utils/shortVideoMediaAccess'
 import { readableShortVideoText } from '../utils/shortVideoText'
 import { copyText } from '../utils/clipboard'
 import type { ShortVideoComment, ShortVideoPost } from '../api/shortVideo'
@@ -43,7 +46,15 @@ const route = useRoute()
 const router = useRouter()
 const store = useShortVideoStore()
 const appStore = useAppStore()
+const notificationsStore = useNotificationsStore()
 const { feedTab, posts, loading, publishing, activeIndex, myPosts, myPostsLoading, feedError } = storeToRefs(store)
+const { messageNotifs } = storeToRefs(notificationsStore)
+
+const shortVideoUnreadCount = computed(() =>
+  messageNotifs.value.filter(
+    n => n.readStatus === 0 && typeof n.type === 'string' && n.type.startsWith('short_video_')
+  ).length
+)
 
 const feedRef = ref<HTMLElement | null>(null)
 const videoRefs = ref<Record<string, HTMLVideoElement | null>>({})
@@ -68,11 +79,15 @@ const editDesc = ref('')
 const editVisibility = ref(0)
 const replyToComment = ref<ShortVideoComment | null>(null)
 const mediaSyncToken = ref(0)
+const playErrorToastShown = ref(false)
 const playbackRate = ref(1)
+const showNotifications = ref(false)
+const bellAnchorRef = ref<HTMLElement | null>(null)
+const commentLoadingFor = ref<string | null>(null)
+const commentLoadingMoreFor = ref<string | null>(null)
 const PLAYBACK_RATES = [1, 1.5, 2, 0.75]
 
 const feedTabs: Array<{ id: ShortVideoFeedTab; label: string }> = [
-  { id: 'live', label: t('shortVideo.live') },
   { id: 'following', label: t('shortVideo.following') },
   { id: 'friends', label: t('shortVideo.friends') },
   { id: 'recommend', label: t('shortVideo.recommend') }
@@ -168,6 +183,7 @@ watch(
 )
 
 watch(activeIndex, () => {
+  playErrorToastShown.value = false
   playActiveVideo()
 })
 
@@ -191,25 +207,14 @@ async function syncMediaSources() {
   const token = ++mediaSyncToken.value
   revokeBlobUrls()
   const next: Record<string, string> = {}
-  const revokes: string[] = []
   for (const post of posts.value) {
-    const { src, blobUrlToRevoke } = await resolveShortVideoDisplaySrc(post.id, 'video', post.videoUrl)
+    const { src } = await resolveShortVideoDisplaySrc(post.id, 'video', post.videoUrl)
     if (token !== mediaSyncToken.value) return
     if (src) next[post.id] = src
-    if (blobUrlToRevoke) revokes.push(blobUrlToRevoke)
   }
-  if (token !== mediaSyncToken.value) {
-    for (const url of revokes) {
-      try {
-        URL.revokeObjectURL(url)
-      } catch {
-        /* ignore */
-      }
-    }
-    return
-  }
+  if (token !== mediaSyncToken.value) return
   videoSrcMap.value = next
-  blobRevokeList.value = revokes
+  blobRevokeList.value = []
   await nextTick()
   playActiveVideo()
 }
@@ -274,6 +279,14 @@ function playActiveVideo() {
   }
 }
 
+function onVideoError(postId: string) {
+  pausedMap.value[postId] = true
+  const current = activePost.value
+  if (!current || current.id !== postId || playErrorToastShown.value) return
+  playErrorToastShown.value = true
+  message.error(t('shortVideo.playFail'))
+}
+
 function togglePlay(post: ShortVideoPost) {
   const video = videoRefs.value[post.id]
   if (!video) return
@@ -326,6 +339,63 @@ function formatCount(n: number) {
   if (n >= 100000) return '10万+'
   if (n >= 10000) return `${Math.floor(n / 10000)}万+`
   return String(n)
+}
+
+function displayCommentCount(post: ShortVideoPost) {
+  return store.commentCount(post)
+}
+
+function canLoadMoreComments(post: ShortVideoPost) {
+  return post.comments.length < displayCommentCount(post)
+}
+
+async function openComments(post: ShortVideoPost) {
+  if (commentOpenFor.value === post.id) {
+    commentOpenFor.value = null
+    replyToComment.value = null
+    return
+  }
+  commentOpenFor.value = post.id
+  commentText.value = ''
+  replyToComment.value = null
+  commentLoadingFor.value = post.id
+  try {
+    await store.fetchComments(post.id, true)
+  } catch (e) {
+    message.error(resolveApiErrorMessage(e, t('shortVideo.commentFail')))
+  } finally {
+    commentLoadingFor.value = null
+  }
+}
+
+async function loadMoreComments(post: ShortVideoPost) {
+  if (!canLoadMoreComments(post) || commentLoadingMoreFor.value === post.id) return
+  commentLoadingMoreFor.value = post.id
+  try {
+    await store.fetchComments(post.id, false)
+  } catch (e) {
+    message.error(resolveApiErrorMessage(e, t('shortVideo.commentFail')))
+  } finally {
+    commentLoadingMoreFor.value = null
+  }
+}
+
+async function handleNotificationSelect(notif: { relatedId?: string; type: string }) {
+  if (!notif.relatedId) return
+  if (notif.type !== 'short_video_like' && notif.type !== 'short_video_comment') return
+  showNotifications.value = false
+  try {
+    await store.openPostById(String(notif.relatedId))
+    await syncMediaSources()
+    await nextTick()
+    scrollToIndex(store.activeIndex)
+    const post = posts.value[store.activeIndex]
+    if (post) {
+      await openComments(post)
+    }
+  } catch {
+    message.error(t('shortVideo.postNotFound'))
+  }
 }
 
 function openPublish() {
@@ -472,12 +542,6 @@ async function toggleFollow(post: ShortVideoPost) {
   }
 }
 
-function openComments(post: ShortVideoPost) {
-  commentOpenFor.value = post.id
-  commentText.value = ''
-  replyToComment.value = null
-}
-
 function startReply(comment: ShortVideoComment) {
   replyToComment.value = comment
   commentText.value = ''
@@ -532,8 +596,12 @@ function avatarUrl(post: ShortVideoPost) {
   return resolveUserAvatarUrl(post.avatar, post.userId)
 }
 
+function coverPoster(post: ShortVideoPost) {
+  return buildShortVideoMediaApiUrl(post.id, 'cover')
+}
+
 function videoSrc(post: ShortVideoPost) {
-  return videoSrcMap.value[post.id] || ''
+  return videoSrcMap.value[post.id] || buildShortVideoMediaApiUrl(post.id, 'video')
 }
 </script>
 
@@ -580,7 +648,7 @@ function videoSrc(post: ShortVideoPost) {
             :ref="el => setVideoRef(post.id, el as HTMLVideoElement | null)"
             class="short-video-player"
             :src="videoSrc(post)"
-            :poster="post.coverUrl || undefined"
+            :poster="coverPoster(post)"
             playsinline
             loop
             :muted="muted"
@@ -589,6 +657,7 @@ function videoSrc(post: ShortVideoPost) {
             @timeupdate="onTimeUpdate(post.id, $event)"
             @play="onVideoPlay(post.id)"
             @pause="onVideoPause(post.id)"
+            @error="onVideoError(post.id)"
           />
           <div v-else class="short-video-player short-video-player--loading">
             {{ t('common.loading') }}
@@ -664,7 +733,7 @@ function videoSrc(post: ShortVideoPost) {
                 </button>
                 <button type="button" class="short-video-action" @click="openComments(post)">
                   <NIcon :component="ChatbubbleOutline" :size="32" />
-                  <span>{{ formatCount(post.comments.length) }}</span>
+                  <span>{{ formatCount(displayCommentCount(post)) }}</span>
                 </button>
                 <button type="button" class="short-video-action" :title="t('shortVideo.playCount', { n: post.playCount || 0 })">
                   <NIcon :component="EyeOutline" :size="32" />
@@ -708,7 +777,20 @@ function videoSrc(post: ShortVideoPost) {
 
           <div v-if="commentOpenFor === post.id" class="short-video-comment-panel">
             <div class="short-video-comment-list">
-              <div v-for="c in post.comments" :key="c.id" class="short-video-comment-item">
+              <p v-if="commentLoadingFor === post.id" class="short-video-comment-empty">
+                {{ t('common.loading') }}
+              </p>
+              <template v-else>
+                <button
+                  v-if="canLoadMoreComments(post)"
+                  type="button"
+                  class="short-video-comment-load-more"
+                  :disabled="commentLoadingMoreFor === post.id"
+                  @click="loadMoreComments(post)"
+                >
+                  {{ commentLoadingMoreFor === post.id ? t('common.loading') : t('shortVideo.loadMoreComments') }}
+                </button>
+                <div v-for="c in post.comments" :key="c.id" class="short-video-comment-item">
                 <div class="short-video-comment-body">
                   <strong>{{ c.nickname || t('shortVideo.author') }}</strong>
                   <span v-if="c.replyToNickname" class="short-video-comment-reply">
@@ -730,9 +812,10 @@ function videoSrc(post: ShortVideoPost) {
                   </button>
                 </div>
               </div>
-              <p v-if="post.comments.length === 0" class="short-video-comment-empty">
+              <p v-if="post.comments.length === 0 && commentLoadingFor !== post.id" class="short-video-comment-empty">
                 {{ t('shortVideo.noComments') }}
               </p>
+              </template>
             </div>
             <div v-if="replyToComment" class="short-video-reply-hint">
               <span>{{ t('moments.replyTo', { name: replyToComment.nickname || t('shortVideo.author') }) }}</span>
@@ -776,6 +859,18 @@ function videoSrc(post: ShortVideoPost) {
         </nav>
 
         <div class="short-video-topbar__side short-video-topbar__side--right">
+          <button
+            ref="bellAnchorRef"
+            type="button"
+            class="short-video-topbar__icon short-video-topbar__icon--bell"
+            :title="t('shortVideo.allInteractiveMessages')"
+            @click="showNotifications = !showNotifications"
+          >
+            <NIcon :component="NotificationsOutline" :size="22" />
+            <span v-if="shortVideoUnreadCount > 0" class="short-video-bell-badge">
+              {{ shortVideoUnreadCount > 99 ? '99+' : shortVideoUnreadCount }}
+            </span>
+          </button>
           <button type="button" class="short-video-topbar__icon" :title="t('shortVideo.search')" @click="searchOpen = true">
             <NIcon :component="SearchOutline" :size="22" />
           </button>
@@ -907,6 +1002,19 @@ function videoSrc(post: ShortVideoPost) {
       class="hidden-input"
       @change="onFileChange"
     />
+
+    <div
+      v-if="showNotifications"
+      class="notif-dismiss-layer"
+      @click="showNotifications = false"
+    />
+
+    <ShortVideoNotificationsPage
+      :visible="showNotifications"
+      :anchor-el="bellAnchorRef"
+      @close="showNotifications = false"
+      @select="handleNotificationSelect"
+    />
   </div>
 </template>
 
@@ -992,6 +1100,26 @@ function videoSrc(post: ShortVideoPost) {
 
 .short-video-topbar__icon:hover {
   background: rgba(255, 255, 255, 0.12);
+}
+
+.short-video-topbar__icon--bell {
+  position: relative;
+}
+
+.short-video-bell-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--lx-danger);
+  color: #fff;
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+  pointer-events: none;
 }
 
 .short-video-topbar__tabs {
@@ -1341,6 +1469,31 @@ function videoSrc(post: ShortVideoPost) {
 .short-video-comment-empty {
   font-size: 12px;
   opacity: 0.8;
+}
+
+.short-video-comment-load-more {
+  display: block;
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 6px 0;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.short-video-comment-load-more:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.notif-dismiss-layer {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--lx-z-critical) - 1);
+  background: transparent;
+  cursor: default;
 }
 
 .short-video-comment-input {

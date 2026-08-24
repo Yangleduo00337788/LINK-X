@@ -231,6 +231,32 @@ export function notifyMomentsEvent(type: string): void {
   void showChatDesktopNotification(title, body, !settings.notifySound, { kind: 'moments' })
 }
 
+const SHORT_VIDEO_NOTIFY_TYPES = new Set(['short_video_like', 'short_video_comment'])
+
+/** 短视频点赞 / 评论：复用友链提醒偏好。 */
+export function notifyShortVideoEvent(type: string): void {
+  if (!SHORT_VIDEO_NOTIFY_TYPES.has(type)) return
+  const settings = useAppSettingsStore()
+  if (settings.notifyMoments === false) return
+  if (isQuietNow(settings)) return
+
+  if (settings.soundNotify) {
+    playTone((settings.notifyTone || 'default') as ToneId)
+  }
+
+  if (!isWindowInBackground()) return
+
+  const bodyByType: Record<string, string> = {
+    short_video_like: t('shortVideo.likedYour'),
+    short_video_comment: t('shortVideo.commentedYour')
+  }
+  const title = t('shortVideo.notifyTitle')
+  const body = settings.messageDetail
+    ? bodyByType[type] || t('shortVideo.newNotif')
+    : t('shortVideo.newNotif')
+  void showChatDesktopNotification(title, body, !settings.notifySound, { kind: 'moments' })
+}
+
 /** LinkX 官方反馈进度：声音 + 后台桌面通知 */
 export async function notifyOfficialFeedback(type: string, content?: string): Promise<void> {
   const settings = useAppSettingsStore()

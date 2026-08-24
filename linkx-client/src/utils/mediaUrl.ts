@@ -52,6 +52,10 @@ export function isEphemeralMediaUrl(url?: string | null): boolean {
   const v = url.trim()
   if (!v) return false
   if (/[?&]X-Amz-/i.test(v)) return true
+  // 腾讯云 COS 预签名（q-sign-*）
+  if (/[?&]q-sign-algorithm=/i.test(v)) return true
+  if (/[?&]q-signature=/i.test(v)) return true
+  if (/[?&]q-ak=/i.test(v) && /\.myqcloud\.com/i.test(v)) return true
   if (/:\/\/(localhost|127\.0\.0\.1|\[::1\]):9000\//i.test(v)) return true
   if (/\/media\/external(?:\?|$)/i.test(v)) return true
   if (/\/media\/stored(?:\?|$)/i.test(v)) return true
@@ -71,7 +75,8 @@ function absolutizeApiMediaPath(url: string): string {
   const v = url.trim()
   if (!v.startsWith('/')) return v
   // 本地存储等：/media/stored?k=... → {API_BASE}/media/stored?...
-  if (v.startsWith('/media/')) {
+  // 短视频鉴权流：/short-video/{id}/video/content
+  if (v.startsWith('/media/') || v.startsWith('/short-video/')) {
     return `${API_BASE_URL}${v}`
   }
   // 兼容少数直接带 context-path 的相对路径
@@ -90,8 +95,8 @@ export function normalizeMediaUrl(url?: string | null): string {
   if (!url) return ''
   let trimmed = absolutizeApiMediaPath(url)
   if (!isDisplayableMediaUrl(trimmed)) return ''
-  // 预签名：Host 不可改
-  if (/[?&]X-Amz-/i.test(trimmed)) {
+  // 预签名：Host 不可改（MinIO / OSS / COS）
+  if (/[?&]X-Amz-/i.test(trimmed) || /[?&]q-sign-algorithm=/i.test(trimmed)) {
     return trimmed
   }
   return trimmed

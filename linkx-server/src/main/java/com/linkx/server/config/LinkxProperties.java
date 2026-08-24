@@ -24,7 +24,7 @@ public class LinkxProperties {
     private final Minio minio = new Minio();
     private final Storage storage = new Storage();
     private final Oss oss = new Oss();
-    private final Local local = new Local();
+    private final Cos cos = new Cos();
     private final Im im = new Im();
     private final Proxy proxy = new Proxy();
     private final Mail mail = new Mail();
@@ -134,7 +134,7 @@ public class LinkxProperties {
 
     @Data
     public static class Storage {
-        /** minio | oss | local */
+        /** minio | oss | cos */
         private String provider = "minio";
     }
 
@@ -162,8 +162,14 @@ public class LinkxProperties {
     }
 
     @Data
-    public static class Local {
-        private String basePath = "./data/local-storage";
+    public static class Cos {
+        /** 地域，如 ap-beijing */
+        private String region = "";
+        private String bucketName = "";
+        private String secretId = "";
+        private String secretKey = "";
+        /** 可选自定义 CNAME 域名 */
+        private String cnameDomain = "";
     }
 
     /**

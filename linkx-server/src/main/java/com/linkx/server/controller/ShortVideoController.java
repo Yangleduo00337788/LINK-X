@@ -151,6 +151,19 @@ public class ShortVideoController {
         return Result.success(shortVideoService.comment(userId, parseId(postId), dto));
     }
 
+    @Operation(summary = "短视频评论列表")
+    @GetMapping("/{postId}/comments")
+    @RateLimit(scope = "short-video:comments", value = 60, window = 60)
+    public Result<List<ShortVideoCommentVO>> listComments(
+            @PathVariable String postId,
+            @RequestParam(required = false) String beforeId,
+            @RequestParam(required = false) @Min(1) @Max(50) Integer limit,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(shortVideoService.listComments(
+                userId, parseId(postId), parseOptionalId(beforeId), limit));
+    }
+
     @Operation(summary = "删除评论")
     @DeleteMapping("/comment/{commentId}")
     public Result<Void> deleteComment(@PathVariable String commentId, HttpServletRequest request) {
