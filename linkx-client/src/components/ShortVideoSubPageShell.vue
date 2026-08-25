@@ -10,10 +10,13 @@ const props = withDefaults(
     subtitle?: string
     navClass?: string
     bodyClass?: string
+    /** 叠在其它子页之上（如从「我的」进入的关注列表） */
+    elevated?: boolean
   }>(),
   {
     navClass: '',
-    bodyClass: ''
+    bodyClass: '',
+    elevated: false
   }
 )
 
@@ -25,7 +28,7 @@ const { t } = useI18n()
 </script>
 
 <template>
-  <div class="sv-subpage">
+  <div class="sv-subpage" :class="{ 'sv-subpage--elevated': props.elevated }">
     <header class="sv-subpage__nav" :class="navClass">
       <slot name="nav">
         <button type="button" class="sv-subpage__back" :aria-label="t('common.back')" @click="emit('close')">
