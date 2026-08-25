@@ -38,17 +38,18 @@ import { useNotificationsStore } from '../stores/notifications'
 import { useContactsStore } from '../stores/contacts'
 import { useI18n } from '../i18n'
 import { resolveApiErrorMessage } from '../api/client'
-import { submitFeedback } from '../api/feedback'
 import Avatar from './Avatar.vue'
 import ShortVideoNotificationsPage from './ShortVideoNotificationsPage.vue'
 import ShortVideoTopicPlaza from './ShortVideoTopicPlaza.vue'
+import ShortVideoTopicDetail from './ShortVideoTopicDetail.vue'
+import ShortVideoFollowingList from './ShortVideoFollowingList.vue'
 import ShortVideoSearchPage from './ShortVideoSearchPage.vue'
 import ShortVideoSearchNav from './ShortVideoSearchNav.vue'
 import ShortVideoSubPageShell from './ShortVideoSubPageShell.vue'
 import ForwardPickerModal from './chat/ForwardPickerModal.vue'
 import { CHAT_EMOJIS } from '../constants/emojis'
 import { buildShortVideoCommentTree } from '../utils/shortVideoComments'
-import { uploadShortVideoMedia, shareShortVideoToChat, listHotShortVideoTopics, listHotShortVideos } from '../api/shortVideo'
+import { uploadShortVideoMedia, shareShortVideoToChat, listHotShortVideoTopics, listHotShortVideos, countFollowingShortVideoUsers, reportShortVideo } from '../api/shortVideo'
 import { resolveUserAvatarUrl } from '../utils/defaultAvatar'
 import { resolveShortVideoDisplaySrc, buildShortVideoMediaApiUrl } from '../utils/shortVideoMediaAccess'
 import { readableShortVideoText } from '../utils/shortVideoText'
@@ -60,7 +61,7 @@ import {
 } from '../utils/shortVideoSearchHistory'
 import { readVideoDurationMs } from '../utils/shortVideoCover'
 import { copyText } from '../utils/clipboard'
-import type { ShortVideoComment, ShortVideoPost, ShortVideoTopic } from '../api/shortVideo'
+import type { ShortVideoComment, ShortVideoPost, ShortVideoTopic, ShortVideoFollowingUser } from '../api/shortVideo'
 
 const { t } = useI18n()
 const message = useMessage()
@@ -139,6 +140,10 @@ const fileInputRef = ref<HTMLInputElement | null>(null)
 const pendingFile = ref<File | null>(null)
 const searchOpen = ref(false)
 const topicPlazaOpen = ref(false)
+const topicDetailOpen = ref(false)
+const topicDetailName = ref('')
+const followingListOpen = ref(false)
+const followingCount = ref(0)
 const searchText = ref('')
 const searchHistory = ref<string[]>([])
 const hotTopics = ref<ShortVideoTopic[]>([])
@@ -166,6 +171,7 @@ const bellAnchorRef = ref<HTMLElement | null>(null)
 const commentLoadingFor = ref<string | null>(null)
 const commentLoadingMoreFor = ref<string | null>(null)
 const authorOpen = ref(false)
+const authorFollowLoading = ref(false)
 const authorCoverFailed = ref<Record<string, boolean>>({})
 const mineCoverFailed = ref<Record<string, boolean>>({})
 const favoriteCoverFailed = ref<Record<string, boolean>>({})
@@ -210,6 +216,11 @@ const canSubmitComment = computed(() => {
 })
 const showFeed = computed(() => posts.value.length > 0)
 const currentUserId = computed(() => String(appStore.userProfile.userId || ''))
+
+const isAuthorSelf = computed(() => {
+  const id = authorProfile.value?.userId
+  return Boolean(id && id === currentUserId.value)
+})
 
 const visibilityOptions = computed(() => [
   { value: 0, label: t('moments.public'), desc: t('moments.publicDesc') },
@@ -638,10 +649,18 @@ async function handleNotificationSelect(notif: { relatedId?: string; extraId?: s
 
 async function openAuthorProfile(post: ShortVideoPost) {
   if (!post.userId) return
+  await openAuthorProfileByUser(post.userId, { nickname: post.nickname, avatar: post.avatar })
+}
+
+async function openAuthorProfileByUser(
+  userId: string,
+  profile?: { nickname?: string; avatar?: string }
+) {
   authorCoverFailed.value = {}
   authorOpen.value = true
   mineOpen.value = false
-  await store.fetchAuthorPosts(post.userId, { nickname: post.nickname, avatar: post.avatar })
+  followingListOpen.value = false
+  await store.fetchAuthorPosts(userId, profile)
 }
 
 async function openAuthorVideo(item: ShortVideoPost) {
@@ -656,9 +675,69 @@ async function openAuthorVideo(item: ShortVideoPost) {
   }
 }
 
+function openFollowingList() {
+  followingListOpen.value = true
+}
+
+function closeFollowingList() {
+  followingListOpen.value = false
+}
+
+async function loadFollowingCount() {
+  try {
+    const res = await countFollowingShortVideoUsers()
+    followingCount.value = res.code === 200 && typeof res.data === 'number' ? res.data : 0
+  } catch {
+    followingCount.value = 0
+  }
+}
+
+function onFollowingUserSelect(user: ShortVideoFollowingUser) {
+  void openAuthorProfileByUser(user.userId, { nickname: user.nickname, avatar: user.avatar })
+}
+
+async function onFollowingUnfollow(userId: string) {
+  try {
+    await store.toggleFollowAuthor(userId, true)
+    if (followingCount.value > 0) {
+      followingCount.value -= 1
+    }
+  } catch {
+    message.error(t('shortVideo.followFail'))
+  }
+}
+
 function closeAuthorProfile() {
   authorOpen.value = false
   store.clearAuthorPosts()
+}
+
+async function toggleAuthorFollow() {
+  const profile = authorProfile.value
+  if (!profile?.userId || isAuthorSelf.value) return
+  authorFollowLoading.value = true
+  try {
+    await store.toggleFollowAuthor(profile.userId, profile.followingAuthor)
+  } catch {
+    message.error(t('shortVideo.followFail'))
+  } finally {
+    authorFollowLoading.value = false
+  }
+}
+
+async function messageAuthor() {
+  const profile = authorProfile.value
+  if (!profile?.userId || isAuthorSelf.value) return
+  try {
+    await appStore.openPrivateChat(
+      profile.userId,
+      profile.nickname || t('shortVideo.author'),
+      resolveUserAvatarUrl(profile.avatar, profile.userId)
+    )
+    closeAuthorProfile()
+  } catch (e) {
+    message.error(resolveApiErrorMessage(e, t('modals.openSessionFail')))
+  }
 }
 
 function openReport(post: ShortVideoPost) {
@@ -668,23 +747,57 @@ function openReport(post: ShortVideoPost) {
   reportOpen.value = true
 }
 
+function confirmNotInterested(post: ShortVideoPost) {
+  dialog.info({
+    title: t('shortVideo.notInterested'),
+    content: t('shortVideo.notInterestedHint'),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      try {
+        await store.markNotInterested(post.id)
+        message.success(t('shortVideo.notInterestedOk'))
+        await syncMediaSources()
+        await nextTick()
+        scrollToIndex(store.activeIndex)
+      } catch (e) {
+        message.error(resolveApiErrorMessage(e, t('shortVideo.notInterestedFail')))
+      }
+    }
+  })
+}
+
+function confirmBlockAuthor(post: ShortVideoPost) {
+  if (!post.userId) return
+  dialog.warning({
+    title: t('shortVideo.blockAuthor'),
+    content: t('shortVideo.blockAuthorConfirm'),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      try {
+        await store.blockAuthor(post.userId!)
+        message.success(t('shortVideo.blockAuthorOk'))
+        await syncMediaSources()
+        await nextTick()
+        scrollToIndex(store.activeIndex)
+      } catch (e) {
+        message.error(resolveApiErrorMessage(e, t('shortVideo.blockAuthorFail')))
+      }
+    }
+  })
+}
+
 async function submitReport() {
   const post = reportTarget.value
   if (!post) return
-  const reasonLabel =
-    reportReasonOptions.value.find(o => o.value === reportReason.value)?.label || reportReason.value
-  const detail = reportDetail.value.trim() || '-'
-  const lines = [
-    '[举报短视频]',
-    `作品ID: ${post.id}`,
-    `作者ID: ${post.userId || '-'}`,
-    `作者: ${post.nickname || '-'}`,
-    `原因: ${reasonLabel}`,
-    `说明: ${detail}`
-  ]
+  const detail = reportDetail.value.trim()
   reportSubmitting.value = true
   try {
-    const res = await submitFeedback({ type: 'other', content: lines.join('\n') })
+    const res = await reportShortVideo(post.id, {
+      reason: reportReason.value,
+      detail: detail || undefined
+    })
     if (res.code === 200) {
       message.success(t('shortVideo.reportOk'))
       reportOpen.value = false
@@ -716,7 +829,8 @@ async function openMine() {
   await Promise.all([
     store.fetchMyPosts(true),
     store.fetchFavoritePosts(true),
-    store.fetchLikedPosts(true)
+    store.fetchLikedPosts(true),
+    loadFollowingCount()
   ])
 }
 
@@ -807,6 +921,8 @@ function moreOptions(post: ShortVideoPost): DropdownOption[] {
     { label: t('viewer.copyLink'), key: 'copy' }
   ]
   if (!isOwnPost(post)) {
+    options.push({ label: t('shortVideo.notInterested'), key: 'not-interested' })
+    options.push({ label: t('shortVideo.blockAuthor'), key: 'block-author' })
     options.push({ label: t('shortVideo.report'), key: 'report' })
   }
   if (isOwnPost(post)) {
@@ -824,6 +940,14 @@ function onMoreSelect(key: string, post: ShortVideoPost) {
   }
   if (key === 'report') {
     openReport(post)
+    return
+  }
+  if (key === 'not-interested') {
+    confirmNotInterested(post)
+    return
+  }
+  if (key === 'block-author') {
+    confirmBlockAuthor(post)
     return
   }
   if (key === 'edit') {
@@ -1187,12 +1311,16 @@ async function submitSearch() {
   try {
     if (!q) {
       await store.clearSearch()
+    } else if (q.startsWith('#') || q.startsWith('＃')) {
+      saveShortVideoSearchQuery(q)
+      refreshSearchHistory()
+      await openTopicDetail(q.slice(1))
     } else {
       saveShortVideoSearchQuery(q)
       refreshSearchHistory()
       await store.searchFeed(q, true)
+      await syncMediaSources()
     }
-    await syncMediaSources()
   } catch (e) {
     message.error(resolveApiErrorMessage(e, t('shortVideo.loadFail')))
   }
@@ -1203,18 +1331,54 @@ async function pickSearchHistory(query: string) {
   await submitSearch()
 }
 
-async function searchHashtag(tag: string) {
-  const q = tag.startsWith('#') ? tag : `#${tag}`
-  searchText.value = q
+async function openTopicDetail(name: string) {
+  const normalized = name.replace(/^[#＃]/, '').trim()
+  if (!normalized) return
+  topicPlazaOpen.value = false
   searchOpen.value = false
+  topicDetailName.value = normalized
+  topicDetailOpen.value = true
+}
+
+function closeTopicDetail() {
+  topicDetailOpen.value = false
+  topicDetailName.value = ''
+}
+
+async function playTopicVideo(post: ShortVideoPost) {
+  const name = topicDetailName.value
+  topicDetailOpen.value = false
+  if (!name) return
+  const q = `#${name}`
   try {
     saveShortVideoSearchQuery(q)
     refreshSearchHistory()
+    searchText.value = q
     await store.searchFeed(q, true)
+    let idx = store.posts.findIndex(p => p.id === post.id)
+    if (idx < 0) {
+      await store.openPostById(post.id)
+      store.searchMode = true
+      store.searchQuery = q
+      idx = store.posts.findIndex(p => p.id === post.id)
+    }
+    if (idx >= 0) {
+      store.setActiveIndex(idx)
+    }
     await syncMediaSources()
+    await nextTick()
+    scrollToIndex(store.activeIndex)
   } catch (e) {
     message.error(resolveApiErrorMessage(e, t('shortVideo.loadFail')))
   }
+}
+
+async function searchHashtag(tag: string) {
+  const q = tag.startsWith('#') ? tag : `#${tag}`
+  searchText.value = q
+  saveShortVideoSearchQuery(q)
+  refreshSearchHistory()
+  await openTopicDetail(tag)
 }
 
 async function loadHotTopics() {
@@ -1252,8 +1416,7 @@ async function openHotVideo(post: ShortVideoPost) {
 }
 
 async function onTopicPlazaSelect(tag: string) {
-  topicPlazaOpen.value = false
-  await searchHashtag(tag)
+  await openTopicDetail(tag)
 }
 
 watch(searchOpen, open => {
@@ -1726,6 +1889,12 @@ function videoPreload(index: number) {
     </div>
 
     <ShortVideoTopicPlaza :open="topicPlazaOpen" @close="topicPlazaOpen = false" @select="onTopicPlazaSelect" />
+    <ShortVideoTopicDetail
+      :open="topicDetailOpen"
+      :topic-name="topicDetailName"
+      @close="closeTopicDetail"
+      @play="playTopicVideo"
+    />
 
     <ShortVideoSearchPage
       :open="searchOpen"
@@ -1763,7 +1932,30 @@ function videoPreload(index: number) {
             <span class="sv-profile-header__name">
               {{ authorProfile?.nickname || t('shortVideo.author') }}
             </span>
+            <div class="sv-profile-stats">
+              <div class="sv-profile-stat">
+                <span class="sv-profile-stat__value">{{ authorProfile?.postCount ?? authorPosts.length }}</span>
+                <span class="sv-profile-stat__label">{{ t('shortVideo.authorVideos') }}</span>
+              </div>
+              <div class="sv-profile-stat">
+                <span class="sv-profile-stat__value">{{ authorProfile?.followerCount ?? 0 }}</span>
+                <span class="sv-profile-stat__label">{{ t('shortVideo.authorFollowers') }}</span>
+              </div>
+            </div>
           </div>
+        </div>
+        <div v-if="!isAuthorSelf" class="sv-profile-actions">
+          <LxButton
+            size="small"
+            :variant="authorProfile?.followingAuthor ? 'block' : 'modal-primary'"
+            :loading="authorFollowLoading"
+            @click="toggleAuthorFollow"
+          >
+            {{ authorProfile?.followingAuthor ? t('shortVideo.followed') : t('shortVideo.follow') }}
+          </LxButton>
+          <LxButton size="small" variant="block" @click="messageAuthor">
+            {{ t('shortVideo.messageAuthor') }}
+          </LxButton>
         </div>
       </div>
       <h4 class="sv-profile-section-title">{{ t('shortVideo.authorVideos') }}</h4>
@@ -1854,6 +2046,12 @@ function videoPreload(index: number) {
               <NIcon :component="VideocamOutline" :size="16" />
               {{ t('shortVideo.publish') }}
             </button>
+            <div class="sv-profile-stats">
+              <button type="button" class="sv-profile-stat sv-profile-stat--link" @click="openFollowingList">
+                <span class="sv-profile-stat__value">{{ followingCount }}</span>
+                <span class="sv-profile-stat__label">{{ t('shortVideo.following') }}</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -1933,6 +2131,13 @@ function videoPreload(index: number) {
       </div>
     </ShortVideoSubPageShell>
 
+    <ShortVideoFollowingList
+      :open="followingListOpen"
+      @close="closeFollowingList"
+      @select="onFollowingUserSelect"
+      @unfollow="onFollowingUnfollow"
+    />
+
     <div v-if="sharePostTarget" class="short-video-share-sheet" @click.self="closeShareSheet">
       <div class="short-video-share-panel" @click.stop>
         <div class="short-video-share-panel__header">
@@ -1966,21 +2171,26 @@ function videoPreload(index: number) {
       @confirm="confirmShareToChat"
     />
 
-    <div v-if="publishOpen" class="short-video-modal">
+    <div v-if="publishOpen" class="short-video-modal" @click.self="!publishing && (publishOpen = false)">
       <div class="short-video-modal-card">
         <h3>{{ t('shortVideo.publishTitle') }}</h3>
         <p class="short-video-publish-hint">{{ pendingFile?.name || t('shortVideo.pickVideo') }}</p>
         <p class="short-video-publish-limit">{{ t('shortVideo.uploadLimitHint', { size: '100MB', seconds: 60 }) }}</p>
-        <LxButton size="small" @click="pickVideo">{{ t('shortVideo.pickVideo') }}</LxButton>
-        <div v-if="publishing && publishProgress > 0" class="short-video-publish-progress">
-          <div class="short-video-publish-progress__bar" :style="{ width: `${publishProgress}%` }" />
-          <span class="short-video-publish-progress__text">{{ publishProgress }}%</span>
+        <LxButton size="small" :disabled="publishing" @click="pickVideo">{{ t('shortVideo.pickVideo') }}</LxButton>
+        <div v-if="publishing" class="short-video-publish-progress-wrap">
+          <span class="short-video-publish-progress__text">
+            {{ t('shortVideo.uploadingProgress', { n: publishProgress }) }}
+          </span>
+          <div class="short-video-publish-progress">
+            <div class="short-video-publish-progress__bar" :style="{ width: `${publishProgress}%` }" />
+          </div>
         </div>
         <NInput
           v-model:value="publishDesc"
           type="textarea"
           :placeholder="t('shortVideo.descPh')"
           :autosize="{ minRows: 3, maxRows: 6 }"
+          :disabled="publishing"
         />
         <div class="short-video-visibility">
           <span class="short-video-visibility__label">{{ t('moments.whoCanSee') }}</span>
@@ -1992,8 +2202,8 @@ function videoPreload(index: number) {
           </n-radio-group>
         </div>
         <div class="short-video-modal-actions">
-          <LxButton @click="publishOpen = false">{{ t('common.cancel') }}</LxButton>
-          <LxButton variant="modal-primary" :loading="publishing" @click="submitPublish">
+          <LxButton :disabled="publishing" @click="publishOpen = false">{{ t('common.cancel') }}</LxButton>
+          <LxButton variant="modal-primary" :loading="publishing" :disabled="publishing" @click="submitPublish">
             {{ t('shortVideo.publish') }}
           </LxButton>
         </div>
@@ -3164,10 +3374,13 @@ function videoPreload(index: number) {
   color: var(--lx-text-secondary);
 }
 
+.short-video-publish-progress-wrap {
+  margin: 10px 0 8px;
+}
+
 .short-video-publish-progress {
   position: relative;
   height: 8px;
-  margin: 10px 0 4px;
   background: var(--lx-bg-panel);
   border-radius: var(--lx-radius-xs);
   overflow: hidden;
@@ -3181,10 +3394,9 @@ function videoPreload(index: number) {
 
 .short-video-publish-progress__text {
   display: block;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   font-size: 12px;
   color: var(--lx-text-secondary);
-  text-align: center;
 }
 
 .short-video-visibility {
