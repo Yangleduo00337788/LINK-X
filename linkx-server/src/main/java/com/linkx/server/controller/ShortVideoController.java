@@ -17,8 +17,10 @@ import com.linkx.server.controller.dto.ShareShortVideoChatDTO;
 import com.linkx.server.controller.dto.UpdateShortVideoDTO;
 import com.linkx.server.controller.vo.MessageVO;
 import com.linkx.server.controller.vo.ShortVideoAuthorVO;
+import com.linkx.server.controller.vo.ShortVideoBlockedUserVO;
 import com.linkx.server.controller.vo.ShortVideoCommentVO;
 import com.linkx.server.controller.vo.ShortVideoFollowingUserVO;
+import com.linkx.server.controller.vo.ShortVideoFollowerUserVO;
 import com.linkx.server.controller.vo.ShortVideoPostVO;
 import com.linkx.server.controller.vo.ShortVideoTopicVO;
 import com.linkx.server.im.ImMessagePushService;
@@ -208,6 +210,19 @@ public class ShortVideoController {
         return Result.success(shortVideoService.getAuthorProfile(currentUserId, parseId(userId)));
     }
 
+    @Operation(summary = "创作者粉丝列表")
+    @GetMapping("/user/{userId}/followers/users")
+    @RateLimit(scope = "short-video:follower-users", value = 60, window = 60)
+    public Result<List<ShortVideoFollowerUserVO>> listFollowerUsers(
+            @PathVariable String userId,
+            @RequestParam(required = false) String beforeId,
+            @RequestParam(required = false) @Min(1) @Max(50) Integer limit,
+            HttpServletRequest request) {
+        Long currentUserId = AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(shortVideoService.listFollowerUsers(
+                currentUserId, parseId(userId), parseOptionalId(beforeId), limit));
+    }
+
     @Operation(summary = "更新短视频")
     @PutMapping("/{postId}")
     @RateLimit(scope = "short-video:update", value = 20, window = 60)
@@ -310,6 +325,17 @@ public class ShortVideoController {
         return Result.success(null);
     }
 
+    @Operation(summary = "举报短视频评论")
+    @PostMapping("/comment/{commentId}/report")
+    @RateLimit(scope = "short-video:comment-report", value = 20, window = 60)
+    public Result<Void> reportComment(@PathVariable String commentId,
+                                      @Valid @RequestBody ReportShortVideoDTO dto,
+                                      HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        shortVideoService.reportComment(userId, parseId(commentId), dto);
+        return Result.success(null);
+    }
+
     @Operation(summary = "关注创作者")
     @PostMapping("/follow/{userId}")
     public Result<Void> follow(@PathVariable String userId, HttpServletRequest request) {
@@ -342,6 +368,34 @@ public class ShortVideoController {
         Long currentUserId = AuthUtils.requireUserId(request, jwtUtils);
         shortVideoService.blockAuthor(currentUserId, parseId(userId));
         return Result.success(null);
+    }
+
+    @Operation(summary = "取消屏蔽创作者")
+    @DeleteMapping("/block/{userId}")
+    @RateLimit(scope = "short-video:unblock-author", value = 20, window = 60)
+    public Result<Void> unblockAuthor(@PathVariable String userId, HttpServletRequest request) {
+        Long currentUserId = AuthUtils.requireUserId(request, jwtUtils);
+        shortVideoService.unblockAuthor(currentUserId, parseId(userId));
+        return Result.success(null);
+    }
+
+    @Operation(summary = "屏蔽创作者列表")
+    @GetMapping("/block/users")
+    @RateLimit(scope = "short-video:block-users", value = 60, window = 60)
+    public Result<List<ShortVideoBlockedUserVO>> listBlockedAuthors(
+            @RequestParam(required = false) String beforeId,
+            @RequestParam(required = false) @Min(1) @Max(50) Integer limit,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(shortVideoService.listBlockedAuthors(userId, parseOptionalId(beforeId), limit));
+    }
+
+    @Operation(summary = "屏蔽创作者数量")
+    @GetMapping("/block/count")
+    @RateLimit(scope = "short-video:block-count", value = 60, window = 60)
+    public Result<Integer> countBlockedAuthors(HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(shortVideoService.countBlockedAuthors(userId));
     }
 
     @Operation(summary = "举报短视频")

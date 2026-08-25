@@ -46,6 +46,7 @@ export interface ShortVideoAuthorProfile {
   nickname?: string
   avatar?: string
   postCount?: number
+  followingCount?: number
   followerCount?: number
   followingAuthor?: boolean
 }
@@ -162,6 +163,28 @@ export function countFollowingShortVideoUsers() {
   })
 }
 
+export interface ShortVideoFollowerUser {
+  followId: string
+  userId: string
+  nickname?: string
+  avatar?: string
+  postCount?: number
+  followingAuthor?: boolean
+}
+
+export function listShortVideoFollowerUsers(
+  userId: string,
+  params?: { beforeId?: string; limit?: number }
+) {
+  return apiClient.get<never, ApiResult<ShortVideoFollowerUser[]>>(
+    `/short-video/user/${userId}/followers/users`,
+    {
+      params,
+      timeout: SHORT_VIDEO_READ_TIMEOUT
+    }
+  )
+}
+
 export function listFriendsShortVideos(params?: Omit<ListShortVideoParams, 'q'>) {
   return apiClient.get<never, ApiResult<ShortVideoPost[]>>('/short-video/friends', {
     params,
@@ -266,6 +289,31 @@ export function blockShortVideoAuthor(userId: string) {
   return apiClient.post<never, ApiResult<null>>(`/short-video/block/${userId}`)
 }
 
+export function unblockShortVideoAuthor(userId: string) {
+  return apiClient.delete<never, ApiResult<null>>(`/short-video/block/${userId}`)
+}
+
+export interface ShortVideoBlockedUser {
+  blockId: string
+  userId: string
+  nickname?: string
+  avatar?: string
+  postCount?: number
+}
+
+export function listBlockedShortVideoAuthors(params?: { beforeId?: string; limit?: number }) {
+  return apiClient.get<never, ApiResult<ShortVideoBlockedUser[]>>('/short-video/block/users', {
+    params,
+    timeout: SHORT_VIDEO_READ_TIMEOUT
+  })
+}
+
+export function countBlockedShortVideoAuthors() {
+  return apiClient.get<never, ApiResult<number>>('/short-video/block/count', {
+    timeout: SHORT_VIDEO_READ_TIMEOUT
+  })
+}
+
 export interface ReportShortVideoPayload {
   reason: string
   detail?: string
@@ -274,6 +322,13 @@ export interface ReportShortVideoPayload {
 
 export function reportShortVideo(postId: string, payload: ReportShortVideoPayload) {
   return apiClient.post<ReportShortVideoPayload, ApiResult<null>>(`/short-video/${postId}/report`, payload)
+}
+
+export function reportShortVideoComment(commentId: string, payload: ReportShortVideoPayload) {
+  return apiClient.post<ReportShortVideoPayload, ApiResult<null>>(
+    `/short-video/comment/${commentId}/report`,
+    payload
+  )
 }
 
 export function recordShortVideoPlay(postId: string) {

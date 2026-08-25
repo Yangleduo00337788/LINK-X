@@ -127,6 +127,7 @@ export const useShortVideoStore = defineStore('shortVideo', {
       nickname?: string
       avatar?: string
       postCount?: number
+      followingCount?: number
       followerCount?: number
       followingAuthor?: boolean
     } | null,
@@ -610,6 +611,7 @@ export const useShortVideoStore = defineStore('shortVideo', {
               nickname: data.nickname ?? profile?.nickname,
               avatar: data.avatar ?? profile?.avatar,
               postCount: data.postCount,
+              followingCount: data.followingCount,
               followerCount: data.followerCount,
               followingAuthor: Boolean(data.followingAuthor)
             }
@@ -785,7 +787,7 @@ export const useShortVideoStore = defineStore('shortVideo', {
     },
 
     async fetchComments(postId: string, reset = false) {
-      const post = this.posts.find(p => p.id === postId)
+      const post = this.posts.find(p => String(p.id) === String(postId))
       if (!post) return []
       const beforeId = reset ? undefined : post.comments[0]?.id
       const res = await listShortVideoComments(postId, { beforeId, limit: 50 })

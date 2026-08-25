@@ -74,6 +74,7 @@ public class AdminReviewServiceImpl implements AdminReviewService {
     private static final Pattern GROUP_ID_LINE = Pattern.compile("(?m)^群ID:\\s*(.+)$");
     private static final Pattern USER_ID_LINE = Pattern.compile("(?m)^用户ID:\\s*(.+)$");
     private static final Pattern POST_ID_LINE = Pattern.compile("(?m)^作品ID:\\s*(.+)$");
+    private static final Pattern COMMENT_ID_LINE = Pattern.compile("(?m)^评论ID:\\s*(.+)$");
     private static final Pattern AUTHOR_ID_LINE = Pattern.compile("(?m)^作者ID:\\s*(.+)$");
     private static final Pattern EVIDENCE_KEY_LINE = Pattern.compile(
             "(?m)^\\d+\\.\\s*([\\w./-]+\\.(?:png|jpe?g|gif|webp|bmp))$",
@@ -380,6 +381,72 @@ public class AdminReviewServiceImpl implements AdminReviewService {
                 .reporterUserId(reporterId)
                 .reporterUsername(reporterUsername)
                 .title("举报短视频")
+                .contentSnapshot(content)
+                .riskLevel(riskLevel)
+                .status(SysReviewTask.STATUS_PENDING)
+                .escalationCount(0)
+                .createTime(now)
+                .updateTime(now)
+                .build();
+        reviewTaskMapper.insert(task);
+        afterReviewCreated(task);
+    }
+
+    @Override
+    @Transactional
+    public void createFromShortVideoCommentReport(Long reporterId,
+                                                  String reporterUsername,
+                                                  Long postId,
+                                                  Long commentId,
+                                                  Long authorId,
+                                                  String authorNickname,
+                                                  String reason,
+                                                  String detail,
+                                                  List<String> imageKeys) {
+        if (reporterId == null || commentId == null) {
+            return;
+        }
+        String commentIdStr = String.valueOf(commentId);
+        SysReviewTask existing = reviewTaskMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .where(SysReviewTask::getSourceType).eq(SysReviewTask.SOURCE_REPORT)
+                        .and(SysReviewTask::getTargetType).eq(SysReviewTask.TARGET_SHORT_VIDEO_COMMENT)
+                        .and(SysReviewTask::getTargetId).eq(commentIdStr)
+                        .and(SysReviewTask::getReporterUserId).eq(reporterId)
+                        .and(SysReviewTask::getStatus).eq(SysReviewTask.STATUS_PENDING));
+        if (existing != null) {
+            return;
+        }
+        String reasonLabel = resolveShortVideoReportReasonLabel(reason);
+        String detailText = StringUtils.hasText(detail) ? detail.trim() : "-";
+        StringBuilder sb = new StringBuilder();
+        sb.append("[举报短视频评论]\n");
+        sb.append("作品ID: ").append(postId != null ? postId : "-").append('\n');
+        sb.append("评论ID: ").append(commentId).append('\n');
+        sb.append("作者ID: ").append(authorId != null ? authorId : "-").append('\n');
+        sb.append("作者: ").append(StringUtils.hasText(authorNickname) ? authorNickname.trim() : "-").append('\n');
+        sb.append("原因: ").append(reasonLabel).append('\n');
+        sb.append("说明: ").append(detailText).append('\n');
+        if (imageKeys != null && !imageKeys.isEmpty()) {
+            sb.append("证据:\n");
+            for (int i = 0; i < imageKeys.size(); i++) {
+                sb.append(i + 1).append(". ").append(imageKeys.get(i).trim()).append('\n');
+            }
+        } else {
+            sb.append("证据: 无\n");
+        }
+        String content = sb.toString();
+        Date now = new Date();
+        Long subjectUserId = authorId != null ? authorId
+                : shortVideoService.findCommentAuthorId(commentId);
+        String riskLevel = reviewRiskScoringService.elevateLevel("medium", subjectUserId);
+        SysReviewTask task = SysReviewTask.builder()
+                .sourceType(SysReviewTask.SOURCE_REPORT)
+                .targetType(SysReviewTask.TARGET_SHORT_VIDEO_COMMENT)
+                .targetId(commentIdStr)
+                .reporterUserId(reporterId)
+                .reporterUsername(reporterUsername)
+                .title("举报短视频评论")
                 .contentSnapshot(content)
                 .riskLevel(riskLevel)
                 .status(SysReviewTask.STATUS_PENDING)
@@ -886,7 +953,13 @@ public class AdminReviewServiceImpl implements AdminReviewService {
         String reportKind = prefix.find() ? prefix.group(1) : "内容";
         String targetType;
         String targetId = null;
-        if (reportKind.contains("短视频")) {
+        if (reportKind.contains("短视频评论")) {
+            targetType = SysReviewTask.TARGET_SHORT_VIDEO_COMMENT;
+            Matcher commentLine = COMMENT_ID_LINE.matcher(content);
+            if (commentLine.find()) {
+                targetId = commentLine.group(1).trim();
+            }
+        } else if (reportKind.contains("短视频")) {
             targetType = SysReviewTask.TARGET_SHORT_VIDEO;
             Matcher postLine = POST_ID_LINE.matcher(content);
             if (postLine.find()) {
@@ -1051,6 +1124,11 @@ public class AdminReviewServiceImpl implements AdminReviewService {
                     }
                 } else if (SysReviewTask.TARGET_SHORT_VIDEO.equals(task.getTargetType())) {
                     Long authorId = shortVideoService.findPostAuthorId(tid);
+                    if (authorId != null) {
+                        return authorId;
+                    }
+                } else if (SysReviewTask.TARGET_SHORT_VIDEO_COMMENT.equals(task.getTargetType())) {
+                    Long authorId = shortVideoService.findCommentAuthorId(tid);
                     if (authorId != null) {
                         return authorId;
                     }

@@ -15,7 +15,10 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ShortVideoAuthorVO {
+public class ShortVideoBlockedUserVO {
+
+    @JsonSerialize(using = ToStringSerializer.class)
+    private Long blockId;
 
     @JsonSerialize(using = ToStringSerializer.class)
     private Long userId;
@@ -25,10 +28,4 @@ public class ShortVideoAuthorVO {
     private String avatar;
 
     private Integer postCount;
-
-    private Integer followingCount;
-
-    private Integer followerCount;
-
-    private boolean followingAuthor;
 }

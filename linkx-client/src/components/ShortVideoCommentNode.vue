@@ -26,6 +26,7 @@ const emit = defineEmits<{
   reply: [comment: ShortVideoComment]
   delete: [comment: ShortVideoComment]
   like: [comment: ShortVideoComment]
+  report: [comment: ShortVideoComment]
 }>()
 
 const { t } = useI18n()
@@ -127,6 +128,14 @@ function formatLikeCount(n?: number) {
             {{ t('moments.reply') }}
           </button>
           <button
+            v-if="!isOwnComment(node)"
+            type="button"
+            class="sv-comment-node__btn"
+            @click="emit('report', node)"
+          >
+            {{ t('shortVideo.report') }}
+          </button>
+          <button
             v-if="isOwnComment(node)"
             type="button"
             class="sv-comment-node__btn sv-comment-node__btn--danger"
@@ -167,6 +176,7 @@ function formatLikeCount(n?: number) {
           @reply="emit('reply', $event)"
           @delete="emit('delete', $event)"
           @like="emit('like', $event)"
+          @report="emit('report', $event)"
         />
       </div>
     </template>

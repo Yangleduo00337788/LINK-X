@@ -29,38 +29,44 @@ function resolveRootId(
   }
 }
 
+function normalizeCommentId(value: unknown): string | undefined {
+  if (value == null) return undefined
+  const id = String(value).trim()
+  return id || undefined
+}
+
 /** 抖音式两层：一级评论 + 其下所有回复（扁平，不继续嵌套折叠） */
 export function buildShortVideoCommentTree(comments: ShortVideoComment[]): ShortVideoCommentNode[] {
   if (!Array.isArray(comments) || comments.length === 0) return []
 
   const parentById = new Map<string, string | undefined>()
   for (const comment of comments) {
-    const parentId = comment.parentId?.trim()
-    parentById.set(comment.id, parentId || undefined)
+    parentById.set(String(comment.id), normalizeCommentId(comment.parentId))
   }
 
   const nodes = new Map<string, ShortVideoCommentNode>()
   for (const comment of comments) {
-    nodes.set(comment.id, { ...comment, replies: [] })
+    nodes.set(String(comment.id), { ...comment, id: String(comment.id), replies: [] })
   }
 
   const roots: ShortVideoCommentNode[] = []
   const rootIndex = new Map<string, ShortVideoCommentNode>()
 
   for (const comment of comments) {
-    const node = nodes.get(comment.id)
+    const commentId = String(comment.id)
+    const node = nodes.get(commentId)
     if (!node) continue
-    const parentId = comment.parentId?.trim()
+    const parentId = normalizeCommentId(comment.parentId)
     if (!parentId) {
       roots.push(node)
-      rootIndex.set(comment.id, node)
+      rootIndex.set(commentId, node)
       continue
     }
-    const rootId = resolveRootId(comment.id, parentById)
+    const rootId = resolveRootId(commentId, parentById)
     const rootNode = nodes.get(rootId)
-    if (!rootNode || rootId === comment.id) {
+    if (!rootNode || rootId === commentId) {
       roots.push(node)
-      rootIndex.set(comment.id, node)
+      rootIndex.set(commentId, node)
       continue
     }
     if (!rootIndex.has(rootId)) {

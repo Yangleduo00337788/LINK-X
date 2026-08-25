@@ -10,8 +10,10 @@ import com.linkx.server.controller.dto.PublishShortVideoDTO;
 import com.linkx.server.controller.dto.ReportShortVideoDTO;
 import com.linkx.server.controller.dto.UpdateShortVideoDTO;
 import com.linkx.server.controller.vo.ShortVideoAuthorVO;
+import com.linkx.server.controller.vo.ShortVideoBlockedUserVO;
 import com.linkx.server.controller.vo.ShortVideoCommentVO;
 import com.linkx.server.controller.vo.ShortVideoFollowingUserVO;
+import com.linkx.server.controller.vo.ShortVideoFollowerUserVO;
 import com.linkx.server.controller.vo.ShortVideoPostVO;
 import com.linkx.server.controller.vo.ShortVideoTopicVO;
 import com.linkx.server.service.FileStorageService;
@@ -46,6 +48,8 @@ public interface ShortVideoService {
     List<ShortVideoFollowingUserVO> listFollowingUsers(Long userId, Long beforeId, Integer limit);
 
     int countFollowingUsers(Long userId);
+
+    List<ShortVideoFollowerUserVO> listFollowerUsers(Long viewerId, Long targetUserId, Long beforeId, Integer limit);
 
     List<ShortVideoPostVO> listByUser(Long userId, Long targetUserId, Long beforeId, Integer limit);
 
@@ -85,9 +89,19 @@ public interface ShortVideoService {
 
     void blockAuthor(Long userId, Long authorId);
 
+    void unblockAuthor(Long userId, Long authorId);
+
+    List<ShortVideoBlockedUserVO> listBlockedAuthors(Long userId, Long beforeId, Integer limit);
+
+    int countBlockedAuthors(Long userId);
+
     void reportPost(Long reporterId, Long postId, ReportShortVideoDTO dto);
 
+    void reportComment(Long reporterId, Long commentId, ReportShortVideoDTO dto);
+
     Long findPostAuthorId(Long postId);
+
+    Long findCommentAuthorId(Long commentId);
 
     String uploadMedia(Long userId, MultipartFile file);
 
