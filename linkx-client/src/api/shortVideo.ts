@@ -41,6 +41,15 @@ export interface ShortVideoTopicPage {
   total: number
 }
 
+export interface ShortVideoAuthorProfile {
+  userId: string
+  nickname?: string
+  avatar?: string
+  postCount?: number
+  followerCount?: number
+  followingAuthor?: boolean
+}
+
 export function shortVideoTopicLabel(topic: Pick<ShortVideoTopic, 'name' | 'displayName'>) {
   const label = topic.displayName?.trim()
   return label || topic.name
@@ -118,9 +127,37 @@ export function listShortVideoTopics(params?: { page?: number; limit?: number })
   })
 }
 
+export function getShortVideoTopic(name: string) {
+  const encoded = encodeURIComponent(name.replace(/^[#＃]/, '').trim())
+  return apiClient.get<never, ApiResult<ShortVideoTopic>>(`/short-video/topics/${encoded}`, {
+    timeout: SHORT_VIDEO_READ_TIMEOUT
+  })
+}
+
 export function listFollowingShortVideos(params?: Omit<ListShortVideoParams, 'q'>) {
   return apiClient.get<never, ApiResult<ShortVideoPost[]>>('/short-video/following', {
     params,
+    timeout: SHORT_VIDEO_READ_TIMEOUT
+  })
+}
+
+export interface ShortVideoFollowingUser {
+  followId: string
+  userId: string
+  nickname?: string
+  avatar?: string
+  postCount?: number
+}
+
+export function listFollowingShortVideoUsers(params?: { beforeId?: string; limit?: number }) {
+  return apiClient.get<never, ApiResult<ShortVideoFollowingUser[]>>('/short-video/following/users', {
+    params,
+    timeout: SHORT_VIDEO_READ_TIMEOUT
+  })
+}
+
+export function countFollowingShortVideoUsers() {
+  return apiClient.get<never, ApiResult<number>>('/short-video/following/count', {
     timeout: SHORT_VIDEO_READ_TIMEOUT
   })
 }
@@ -149,6 +186,12 @@ export function listLikedShortVideos(params?: Omit<ListShortVideoParams, 'q'>) {
 export function listUserShortVideos(userId: string, params?: Omit<ListShortVideoParams, 'q'>) {
   return apiClient.get<never, ApiResult<ShortVideoPost[]>>(`/short-video/user/${userId}`, {
     params,
+    timeout: SHORT_VIDEO_READ_TIMEOUT
+  })
+}
+
+export function getShortVideoAuthorProfile(userId: string) {
+  return apiClient.get<never, ApiResult<ShortVideoAuthorProfile>>(`/short-video/user/${userId}/profile`, {
     timeout: SHORT_VIDEO_READ_TIMEOUT
   })
 }
@@ -213,6 +256,24 @@ export function followShortVideoAuthor(userId: string) {
 
 export function unfollowShortVideoAuthor(userId: string) {
   return apiClient.delete<never, ApiResult<null>>(`/short-video/follow/${userId}`)
+}
+
+export function markShortVideoNotInterested(postId: string) {
+  return apiClient.post<never, ApiResult<null>>(`/short-video/${postId}/not-interested`)
+}
+
+export function blockShortVideoAuthor(userId: string) {
+  return apiClient.post<never, ApiResult<null>>(`/short-video/block/${userId}`)
+}
+
+export interface ReportShortVideoPayload {
+  reason: string
+  detail?: string
+  imageKeys?: string[]
+}
+
+export function reportShortVideo(postId: string, payload: ReportShortVideoPayload) {
+  return apiClient.post<ReportShortVideoPayload, ApiResult<null>>(`/short-video/${postId}/report`, payload)
 }
 
 export function recordShortVideoPlay(postId: string) {

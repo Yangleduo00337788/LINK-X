@@ -10,6 +10,7 @@ import {
   unlikeShortVideoComment,
   followShortVideoAuthor,
   getShortVideo,
+  getShortVideoAuthorProfile,
   likeShortVideo,
   favoriteShortVideo,
   unfavoriteShortVideo,
@@ -27,6 +28,8 @@ import {
   unlikeShortVideo,
   updateShortVideo,
   uploadShortVideoMedia,
+  markShortVideoNotInterested,
+  blockShortVideoAuthor,
   type ShortVideoPost,
   type ShortVideoComment
 } from '../api/shortVideo'
@@ -41,6 +44,16 @@ export type ShortVideoPanelTabId = 'main'
 
 export const SHORT_VIDEO_MAX_BYTES = 100 * 1024 * 1024
 export const SHORT_VIDEO_MAX_DURATION_MS = 60_000
+
+/** 发布进度权重：视频上传 / 封面上传 / 提交发布 */
+const PUBLISH_PROGRESS_VIDEO_WEIGHT = 88
+const PUBLISH_PROGRESS_COVER_WEIGHT = 8
+const PUBLISH_PROGRESS_SUBMIT_WEIGHT = 4
+
+function mapUploadProgress(pct: number, weight: number, offset = 0) {
+  const clamped = Math.max(0, Math.min(100, pct))
+  return offset + Math.round((clamped * weight) / 100)
+}
 
 let ensurePanelReadyTask: Promise<void> | null = null
 let fetchFeedTask: Promise<void> | null = null
@@ -109,7 +122,14 @@ export const useShortVideoStore = defineStore('shortVideo', {
     authorPostsLoading: false,
     authorPostsLoadingMore: false,
     authorPostsHasMore: true,
-    authorProfile: null as { userId: string; nickname?: string; avatar?: string } | null,
+    authorProfile: null as {
+      userId: string
+      nickname?: string
+      avatar?: string
+      postCount?: number
+      followerCount?: number
+      followingAuthor?: boolean
+    } | null,
     favoritePosts: [] as ShortVideoPost[],
     favoritePostsLoading: false,
     favoritePostsLoadingMore: false,
@@ -297,26 +317,41 @@ export const useShortVideoStore = defineStore('shortVideo', {
 
     async publish(file: File, description: string, visibility = 0) {
       this.publishing = true
-      this.publishProgress = 0
+      this.publishProgress = 1
       try {
         const uploadRes = await uploadShortVideoMedia(file, pct => {
-          this.publishProgress = pct
+          this.publishProgress = Math.max(
+            1,
+            mapUploadProgress(pct, PUBLISH_PROGRESS_VIDEO_WEIGHT)
+          )
         })
         if (uploadRes.code !== 200 || !uploadRes.data) {
           throw new Error(uploadRes.message || 'upload failed')
         }
         const videoKey = uploadRes.data
+        this.publishProgress = PUBLISH_PROGRESS_VIDEO_WEIGHT
         let coverKey: string | undefined
         try {
           const coverBlob = await captureVideoCover(file)
           const coverFile = new File([coverBlob], 'cover.jpg', { type: 'image/jpeg' })
-          const coverRes = await uploadShortVideoMedia(coverFile)
+          const coverRes = await uploadShortVideoMedia(coverFile, pct => {
+            this.publishProgress = Math.max(
+              PUBLISH_PROGRESS_VIDEO_WEIGHT,
+              mapUploadProgress(
+                pct,
+                PUBLISH_PROGRESS_COVER_WEIGHT,
+                PUBLISH_PROGRESS_VIDEO_WEIGHT
+              )
+            )
+          })
           if (coverRes.code === 200 && coverRes.data) {
             coverKey = coverRes.data
           }
         } catch {
           /* optional */
         }
+        this.publishProgress =
+          PUBLISH_PROGRESS_VIDEO_WEIGHT + PUBLISH_PROGRESS_COVER_WEIGHT
         let durationMs: number | undefined
         try {
           const ms = await readVideoDurationMs(file)
@@ -329,6 +364,11 @@ export const useShortVideoStore = defineStore('shortVideo', {
         if (durationMs != null && durationMs > SHORT_VIDEO_MAX_DURATION_MS) {
           throw new Error('video too long')
         }
+        this.publishProgress =
+          PUBLISH_PROGRESS_VIDEO_WEIGHT +
+          PUBLISH_PROGRESS_COVER_WEIGHT +
+          PUBLISH_PROGRESS_SUBMIT_WEIGHT -
+          1
         const res = await publishShortVideo({
           description: description.trim(),
           videoKey,
@@ -336,6 +376,7 @@ export const useShortVideoStore = defineStore('shortVideo', {
           durationMs,
           visibility
         })
+        this.publishProgress = 100
         if (res.code !== 200) {
           throw new Error(res.message || 'publish failed')
         }
@@ -405,14 +446,103 @@ export const useShortVideoStore = defineStore('shortVideo', {
     async toggleFollow(post: ShortVideoPost) {
       const me = String(useAppStore().userProfile.userId || '')
       if (!post.userId || post.userId === me) return
-      if (post.followingAuthor) {
-        const res = await unfollowShortVideoAuthor(post.userId)
+      await this.toggleFollowAuthor(post.userId, post.followingAuthor)
+    },
+
+    async toggleFollowAuthor(userId: string, currentlyFollowing?: boolean) {
+      const me = String(useAppStore().userProfile.userId || '')
+      const id = String(userId || '').trim()
+      if (!id || id === me) return
+      const following =
+        typeof currentlyFollowing === 'boolean'
+          ? currentlyFollowing
+          : Boolean(this.authorProfile?.userId === id && this.authorProfile.followingAuthor)
+      if (following) {
+        const res = await unfollowShortVideoAuthor(id)
         assertApiOk(res, 'unfollow failed')
-        post.followingAuthor = false
       } else {
-        const res = await followShortVideoAuthor(post.userId)
+        const res = await followShortVideoAuthor(id)
         assertApiOk(res, 'follow failed')
-        post.followingAuthor = true
+      }
+      const nextFollowing = !following
+      if (this.authorProfile?.userId === id) {
+        this.authorProfile = { ...this.authorProfile, followingAuthor: nextFollowing }
+      }
+      const lists = [this.posts, this.myPosts, this.authorPosts, this.likedPosts, this.favoritePosts]
+      for (const list of lists) {
+        for (const post of list) {
+          if (post.userId === id) {
+            post.followingAuthor = nextFollowing
+          }
+        }
+      }
+    },
+
+    removePostFromFeed(postId: string) {
+      const id = String(postId)
+      const idx = this.posts.findIndex(p => p.id === id)
+      if (idx >= 0) {
+        this.posts.splice(idx, 1)
+        if (this.posts.length === 0) {
+          this.activeIndex = 0
+        } else if (idx < this.activeIndex) {
+          this.activeIndex -= 1
+        } else if (idx === this.activeIndex && this.activeIndex >= this.posts.length) {
+          this.activeIndex = this.posts.length - 1
+        }
+      }
+      for (const list of [this.likedPosts, this.favoritePosts, this.authorPosts]) {
+        const i = list.findIndex(p => p.id === id)
+        if (i >= 0) list.splice(i, 1)
+      }
+    },
+
+    removePostsByAuthor(userId: string) {
+      const uid = String(userId)
+      const indicesToRemove: number[] = []
+      this.posts.forEach((post, index) => {
+        if (post.userId === uid) indicesToRemove.push(index)
+      })
+      for (let i = indicesToRemove.length - 1; i >= 0; i--) {
+        const idx = indicesToRemove[i]
+        this.posts.splice(idx, 1)
+        if (idx < this.activeIndex) {
+          this.activeIndex -= 1
+        } else if (idx === this.activeIndex) {
+          if (this.activeIndex >= this.posts.length) {
+            this.activeIndex = Math.max(0, this.posts.length - 1)
+          }
+        }
+      }
+      for (const list of [this.likedPosts, this.favoritePosts, this.authorPosts]) {
+        for (let i = list.length - 1; i >= 0; i--) {
+          if (list[i].userId === uid) list.splice(i, 1)
+        }
+      }
+    },
+
+    async markNotInterested(postId: string) {
+      const res = await markShortVideoNotInterested(postId)
+      assertApiOk(res, 'not interested failed')
+      this.removePostFromFeed(postId)
+    },
+
+    async blockAuthor(userId: string) {
+      const id = String(userId || '').trim()
+      if (!id) return
+      const res = await blockShortVideoAuthor(id)
+      assertApiOk(res, 'block author failed')
+      this.removePostsByAuthor(id)
+      if (this.authorProfile?.userId === id) {
+        this.clearAuthorPosts()
+      }
+      const lists = [this.posts, this.myPosts, this.authorPosts, this.likedPosts, this.favoritePosts]
+      for (const list of lists) {
+        for (const post of list) {
+          if (post.userId === id) {
+            post.followingAuthor = false
+          }
+        }
       }
     },
 
@@ -471,6 +601,22 @@ export const useShortVideoStore = defineStore('shortVideo', {
         }
         this.authorPostsLoading = true
         this.authorPostsHasMore = true
+        try {
+          const profileRes = await getShortVideoAuthorProfile(id)
+          if (profileRes.code === 200 && profileRes.data) {
+            const data = profileRes.data
+            this.authorProfile = {
+              userId: String(data.userId || id),
+              nickname: data.nickname ?? profile?.nickname,
+              avatar: data.avatar ?? profile?.avatar,
+              postCount: data.postCount,
+              followerCount: data.followerCount,
+              followingAuthor: Boolean(data.followingAuthor)
+            }
+          }
+        } catch {
+          /* profile optional; posts list still loads */
+        }
       } else {
         this.authorPostsLoadingMore = true
       }
