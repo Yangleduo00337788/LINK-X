@@ -4,15 +4,22 @@ package com.linkx.server.service.admin.impl;
 /**
  * 作者：yangleduo
  */
+import com.linkx.server.common.ShortVideoHashtagSupport;
+import com.linkx.server.common.ShortVideoTopicHotScore;
 import com.linkx.server.common.admin.AdminKeywordQuery;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.controller.admin.dto.AdminShortVideoCommentQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminShortVideoPostQueryDTO;
+import com.linkx.server.controller.admin.dto.AdminShortVideoTopicCreateDTO;
+import com.linkx.server.controller.admin.dto.AdminShortVideoTopicQueryDTO;
+import com.linkx.server.controller.admin.dto.AdminShortVideoTopicUpdateDTO;
 import com.linkx.server.controller.admin.vo.AdminShortVideoCommentVO;
 import com.linkx.server.controller.admin.vo.AdminShortVideoPostVO;
+import com.linkx.server.controller.admin.vo.AdminShortVideoTopicVO;
 import com.linkx.server.entity.ShortVideoComment;
 import com.linkx.server.entity.ShortVideoCommentLike;
 import com.linkx.server.entity.ShortVideoPost;
+import com.linkx.server.entity.ShortVideoTopic;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.ShortVideoCommentLikeMapper;
@@ -20,6 +27,8 @@ import com.linkx.server.mapper.ShortVideoCommentMapper;
 import com.linkx.server.mapper.ShortVideoCommentSqlMapper;
 import com.linkx.server.mapper.ShortVideoInteractionSqlMapper;
 import com.linkx.server.mapper.ShortVideoPostMapper;
+import com.linkx.server.mapper.ShortVideoTopicMapper;
+import com.linkx.server.mapper.ShortVideoTopicSqlMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.mapper.row.ShortVideoCommentCountRow;
 import com.linkx.server.security.crypto.MessageContentCipher;
@@ -27,7 +36,9 @@ import com.linkx.server.service.FileStorageService;
 import com.linkx.server.service.ShortVideoService;
 import com.linkx.server.service.ShortVideoTranscodeService;
 import com.linkx.server.service.admin.AdminShortVideoService;
+import com.linkx.server.task.ShortVideoTranscodeAsyncTrigger;
 import com.mybatisflex.core.query.QueryWrapper;
+import com.mybatisflex.core.update.UpdateChain;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -50,6 +61,8 @@ public class AdminShortVideoServiceImpl implements AdminShortVideoService {
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     private final ShortVideoPostMapper postMapper;
+    private final ShortVideoTopicMapper topicMapper;
+    private final ShortVideoTopicSqlMapper topicSqlMapper;
     private final ShortVideoCommentMapper commentMapper;
     private final ShortVideoCommentLikeMapper commentLikeMapper;
     private final ShortVideoCommentSqlMapper commentSqlMapper;
@@ -57,6 +70,7 @@ public class AdminShortVideoServiceImpl implements AdminShortVideoService {
     private final SysUserMapper userMapper;
     private final ShortVideoService shortVideoService;
     private final ShortVideoTranscodeService shortVideoTranscodeService;
+    private final ShortVideoTranscodeAsyncTrigger transcodeAsyncTrigger;
     private final FileStorageService fileStorageService;
     private final MessageContentCipher messageContentCipher;
 
@@ -125,6 +139,75 @@ public class AdminShortVideoServiceImpl implements AdminShortVideoService {
     public void enqueueRetranscode(Long postId) {
         requirePost(postId);
         shortVideoTranscodeService.enqueueRetranscode(postId);
+        transcodeAsyncTrigger.trigger(postId);
+    }
+
+    @Override
+    public PageResultVO<AdminShortVideoTopicVO> listTopics(AdminShortVideoTopicQueryDTO query) {
+        int page = normalizePage(query.getPage());
+        int size = normalizeSize(query.getSize());
+        QueryWrapper qw = buildTopicQuery(query);
+        long total = topicMapper.selectCountByQuery(qw);
+        qw.limit((page - 1L) * size, size);
+        List<ShortVideoTopic> rows = topicMapper.selectListByQuery(qw);
+        return PageResultVO.of(toTopicVOs(rows), page, size, total);
+    }
+
+    @Override
+    public AdminShortVideoTopicVO createTopic(AdminShortVideoTopicCreateDTO dto) {
+        String name = ShortVideoHashtagSupport.normalize(dto.getName());
+        if (name.isBlank()) {
+            throw new CustomException(400, "话题名无效");
+        }
+        ShortVideoTopic existing = topicMapper.selectOneByQuery(QueryWrapper.create().eq("name", name));
+        if (existing != null) {
+            throw new CustomException(409, "话题已存在");
+        }
+        boolean pinned = Boolean.TRUE.equals(dto.getPinned());
+        int pinOrder = dto.getPinOrder() != null ? dto.getPinOrder() : 0;
+        if (pinned && pinOrder <= 0) {
+            pinOrder = nextPinOrder();
+        }
+        String displayName = normalizeDisplayName(dto.getDisplayName());
+        ShortVideoTopic topic = ShortVideoTopic.builder()
+                .name(name)
+                .displayName(displayName)
+                .postCount(0)
+                .pinned(pinned ? 1 : 0)
+                .pinOrder(pinOrder)
+                .status(1)
+                .hotScore(0D)
+                .build();
+        topicMapper.insert(topic);
+        return toTopicVO(topic);
+    }
+
+    @Override
+    public AdminShortVideoTopicVO updateTopic(Long topicId, AdminShortVideoTopicUpdateDTO dto) {
+        ShortVideoTopic topic = requireTopic(topicId);
+        if (dto.getDisplayName() != null) {
+            topic.setDisplayName(normalizeDisplayName(dto.getDisplayName()));
+        }
+        if (dto.getPinned() != null) {
+            topic.setPinned(dto.getPinned() ? 1 : 0);
+            if (!dto.getPinned()) {
+                topic.setPinOrder(0);
+            } else if (dto.getPinOrder() == null && (topic.getPinOrder() == null || topic.getPinOrder() <= 0)) {
+                topic.setPinOrder(nextPinOrder());
+            }
+        }
+        if (dto.getPinOrder() != null) {
+            topic.setPinOrder(Math.max(0, dto.getPinOrder()));
+        }
+        if (dto.getStatus() != null) {
+            if (dto.getStatus() != 0 && dto.getStatus() != 1) {
+                throw new CustomException(400, "状态无效");
+            }
+            topic.setStatus(dto.getStatus());
+        }
+        topicMapper.update(topic);
+        refreshTopicRanking(topicId);
+        return toTopicVO(requireTopic(topicId));
     }
 
     private QueryWrapper buildPostQuery(AdminShortVideoPostQueryDTO query) {
@@ -149,6 +232,99 @@ public class AdminShortVideoServiceImpl implements AdminShortVideoService {
             qw.and(ShortVideoPost::getCreateTime).le(new Date(query.getEndTime()));
         }
         return qw;
+    }
+
+    private QueryWrapper buildTopicQuery(AdminShortVideoTopicQueryDTO query) {
+        QueryWrapper qw = QueryWrapper.create();
+        String kw = AdminKeywordQuery.forLike(query.getKeyword());
+        if (kw != null) {
+            qw.and("(name LIKE ? OR display_name LIKE ?)", "%" + kw + "%", "%" + kw + "%");
+        }
+        if (query.getPinned() != null) {
+            qw.and(ShortVideoTopic::getPinned).eq(query.getPinned() ? 1 : 0);
+        }
+        if (query.getStatus() != null) {
+            qw.and(ShortVideoTopic::getStatus).eq(query.getStatus());
+        }
+        qw.orderBy(ShortVideoTopic::getPinned, false)
+                .orderBy(ShortVideoTopic::getPinOrder, false)
+                .orderBy(ShortVideoTopic::getHotScore, false)
+                .orderBy(ShortVideoTopic::getId, false);
+        return qw;
+    }
+
+    private List<AdminShortVideoTopicVO> toTopicVOs(List<ShortVideoTopic> rows) {
+        if (rows.isEmpty()) {
+            return List.of();
+        }
+        List<AdminShortVideoTopicVO> result = new ArrayList<>();
+        for (ShortVideoTopic row : rows) {
+            result.add(toTopicVO(row));
+        }
+        return result;
+    }
+
+    private AdminShortVideoTopicVO toTopicVO(ShortVideoTopic row) {
+        return AdminShortVideoTopicVO.builder()
+                .id(row.getId())
+                .name(row.getName())
+                .displayName(blankToNull(row.getDisplayName()))
+                .postCount(row.getPostCount())
+                .pinned(row.getPinned() != null && row.getPinned() == 1)
+                .pinOrder(row.getPinOrder())
+                .status(row.getStatus())
+                .hotScore(row.getHotScore())
+                .lastPostAt(formatTime(row.getLastPostAt()))
+                .createTime(formatTime(row.getCreateTime()))
+                .build();
+    }
+
+    private ShortVideoTopic requireTopic(Long topicId) {
+        ShortVideoTopic topic = topicMapper.selectOneById(topicId);
+        if (topic == null) {
+            throw new CustomException(404, "话题不存在");
+        }
+        return topic;
+    }
+
+    private int nextPinOrder() {
+        ShortVideoTopic top = topicMapper.selectOneByQuery(
+                QueryWrapper.create().orderBy(ShortVideoTopic::getPinOrder, false).limit(1));
+        int current = top != null && top.getPinOrder() != null ? top.getPinOrder() : 0;
+        return current + 10;
+    }
+
+    private void refreshTopicRanking(Long topicId) {
+        ShortVideoTopic topic = topicMapper.selectOneById(topicId);
+        if (topic == null) {
+            return;
+        }
+        Date lastPostAt = topicSqlMapper.findLastPostAt(topicId);
+        int postCount = topic.getPostCount() != null ? topic.getPostCount() : 0;
+        double hotScore = ShortVideoTopicHotScore.compute(postCount, lastPostAt);
+        UpdateChain.of(ShortVideoTopic.class)
+                .set(ShortVideoTopic::getLastPostAt, lastPostAt)
+                .set(ShortVideoTopic::getHotScore, hotScore)
+                .where(ShortVideoTopic::getId).eq(topicId)
+                .update();
+    }
+
+    private static String normalizeDisplayName(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String trimmed = raw.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        return trimmed.length() <= 64 ? trimmed : trimmed.substring(0, 64);
+    }
+
+    private static String blankToNull(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value;
     }
 
     private QueryWrapper buildCommentQuery(AdminShortVideoCommentQueryDTO query) {
@@ -203,6 +379,7 @@ public class AdminShortVideoServiceImpl implements AdminShortVideoService {
                     .commentCount(commentCounts.getOrDefault(post.getId(), 0))
                     .durationMs(post.getDurationMs())
                     .transcodeStatus(post.getTranscodeStatus())
+                    .transcodeError(post.getTranscodeError())
                     .videoUrl(adminVideoUrl(post.getId()))
                     .coverUrl(post.getCoverKey() != null && !post.getCoverKey().isBlank()
                             ? adminCoverUrl(post.getId()) : null)

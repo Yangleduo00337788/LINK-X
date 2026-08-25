@@ -7,8 +7,12 @@ package com.linkx.server.service.admin;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.controller.admin.dto.AdminShortVideoCommentQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminShortVideoPostQueryDTO;
+import com.linkx.server.controller.admin.dto.AdminShortVideoTopicCreateDTO;
+import com.linkx.server.controller.admin.dto.AdminShortVideoTopicQueryDTO;
+import com.linkx.server.controller.admin.dto.AdminShortVideoTopicUpdateDTO;
 import com.linkx.server.controller.admin.vo.AdminShortVideoCommentVO;
 import com.linkx.server.controller.admin.vo.AdminShortVideoPostVO;
+import com.linkx.server.controller.admin.vo.AdminShortVideoTopicVO;
 import com.linkx.server.service.FileStorageService;
 
 public interface AdminShortVideoService {
@@ -28,4 +32,10 @@ public interface AdminShortVideoService {
     FileStorageService.StoredObject openCoverContent(Long postId);
 
     void enqueueRetranscode(Long postId);
+
+    PageResultVO<AdminShortVideoTopicVO> listTopics(AdminShortVideoTopicQueryDTO query);
+
+    AdminShortVideoTopicVO createTopic(AdminShortVideoTopicCreateDTO dto);
+
+    AdminShortVideoTopicVO updateTopic(Long topicId, AdminShortVideoTopicUpdateDTO dto);
 }

@@ -4,11 +4,13 @@ package com.linkx.server.service;
 /**
  * 作者：yangleduo
  */
+import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.controller.dto.CommentShortVideoDTO;
 import com.linkx.server.controller.dto.PublishShortVideoDTO;
 import com.linkx.server.controller.dto.UpdateShortVideoDTO;
 import com.linkx.server.controller.vo.ShortVideoCommentVO;
 import com.linkx.server.controller.vo.ShortVideoPostVO;
+import com.linkx.server.controller.vo.ShortVideoTopicVO;
 import com.linkx.server.service.FileStorageService;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -25,6 +27,12 @@ public interface ShortVideoService {
     ShortVideoPostVO getPost(Long userId, Long postId);
 
     List<ShortVideoPostVO> listDiscover(Long userId, Long beforeId, Integer limit, String q);
+
+    List<ShortVideoTopicVO> listHotTopics(Integer limit);
+
+    List<ShortVideoPostVO> listHotVideos(Long userId, Integer limit);
+
+    PageResultVO<ShortVideoTopicVO> listTopicPlaza(Integer page, Integer limit);
 
     List<ShortVideoPostVO> listFriends(Long userId, Long beforeId, Integer limit);
 

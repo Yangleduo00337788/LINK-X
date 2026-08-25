@@ -7,12 +7,16 @@ package com.linkx.server.service.impl;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linkx.server.common.SearchTextSupport;
+import com.linkx.server.common.ShortVideoHashtagSupport;
+import com.linkx.server.common.ShortVideoTopicHotScore;
+import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.controller.dto.CommentShortVideoDTO;
 import com.linkx.server.controller.dto.PublishShortVideoDTO;
 import com.linkx.server.controller.dto.UpdateShortVideoDTO;
 import com.linkx.server.controller.vo.ShortVideoCommentVO;
 import com.linkx.server.controller.vo.ShortVideoPostVO;
+import com.linkx.server.controller.vo.ShortVideoTopicVO;
 import com.linkx.server.entity.*;
 import com.linkx.server.entity.admin.SysReviewTask;
 import com.linkx.server.exception.CustomException;
@@ -28,6 +32,7 @@ import com.linkx.server.service.SensitiveWordService;
 import com.linkx.server.service.ShortVideoService;
 import com.linkx.server.storage.ObjectStorageRouter;
 import com.linkx.server.service.admin.AdminReviewService;
+import com.linkx.server.task.ShortVideoTranscodeAsyncTrigger;
 import com.mybatisflex.core.logicdelete.LogicDeleteManager;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.core.update.UpdateChain;
@@ -37,6 +42,8 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -65,6 +72,15 @@ public class ShortVideoServiceImpl implements ShortVideoService {
     private static final int DISCOVER_MAX_CANDIDATES = 100;
     private static final double DISCOVER_FOLLOWING_BOOST = 1.5D;
     private static final double DISCOVER_FRIEND_BOOST = 1.2D;
+    private static final double DISCOVER_FRESH_BOOST = 1.25D;
+    private static final double DISCOVER_SEEN_PENALTY = 0.12D;
+    private static final int DISCOVER_FRESH_HOURS = 6;
+    private static final int HOT_TOPIC_DEFAULT_LIMIT = 10;
+    private static final int HOT_TOPIC_MAX_LIMIT = 30;
+    private static final int HOT_VIDEO_DEFAULT_LIMIT = 10;
+    private static final int HOT_VIDEO_MAX_LIMIT = 30;
+    private static final int HOT_VIDEO_CANDIDATE_MULTIPLIER = 8;
+    private static final int HOT_VIDEO_MAX_CANDIDATES = 120;
     private static final PostInteractionStats EMPTY_INTERACTION = new PostInteractionStats(0, 0, false, false);
 
     private record PostInteractionStats(int likeCount, int favoriteCount, boolean liked, boolean favorited) {
@@ -78,6 +94,9 @@ public class ShortVideoServiceImpl implements ShortVideoService {
     private final ShortVideoCommentSqlMapper commentSqlMapper;
     private final ShortVideoInteractionSqlMapper interactionSqlMapper;
     private final ShortVideoFollowMapper followMapper;
+    private final ShortVideoTopicMapper topicMapper;
+    private final ShortVideoPostTopicMapper postTopicMapper;
+    private final ShortVideoTopicSqlMapper topicSqlMapper;
     private final SysUserMapper userMapper;
     private final SysUserRelationMapper sysUserRelationMapper;
     private final FileStorageService fileStorageService;
@@ -92,6 +111,7 @@ public class ShortVideoServiceImpl implements ShortVideoService {
     private final StringRedisTemplate redisTemplate;
     private final ObjectStorageRouter objectStorageRouter;
     private final LinkxProperties linkxProperties;
+    private final ShortVideoTranscodeAsyncTrigger transcodeAsyncTrigger;
 
     @Override
     @Transactional
@@ -122,8 +142,13 @@ public class ShortVideoServiceImpl implements ShortVideoService {
                 .build();
         preparePostForStorage(post);
         postMapper.insert(post);
+        syncPostTopics(post.getId(), hit.text());
         enqueueSensitiveAfterPersist(userId, SysReviewTask.TARGET_SHORT_VIDEO, String.valueOf(post.getId()), hit);
-        return toPostVO(post, user, EMPTY_INTERACTION, Collections.emptyList(), userId, false, 0);
+        if ("pending".equals(post.getTranscodeStatus())) {
+            scheduleTranscodeAfterCommit(post.getId());
+        }
+        return toPostVO(post, user, EMPTY_INTERACTION, Collections.emptyList(), userId, false, 0,
+                ShortVideoHashtagSupport.extract(hit.text()));
     }
 
     @Override
@@ -135,6 +160,7 @@ public class ShortVideoServiceImpl implements ShortVideoService {
                     userId, dto.getDescription().trim(), SysReviewTask.TARGET_SHORT_VIDEO, String.valueOf(postId));
             post.setDescription(hit.text());
             enqueueSensitiveAfterPersist(userId, SysReviewTask.TARGET_SHORT_VIDEO, String.valueOf(postId), hit);
+            syncPostTopics(postId, hit.text());
         }
         if (dto.getCoverKey() != null && !dto.getCoverKey().isBlank()) {
             post.setCoverKey(authorizeObjectKey(userId, dto.getCoverKey()));
@@ -148,7 +174,8 @@ public class ShortVideoServiceImpl implements ShortVideoService {
         int commentCount = countComments(postId);
         List<ShortVideoComment> comments = loadCommentPage(postId, null, COMMENT_PAGE_SIZE);
         PostInteractionStats interaction = loadInteractionStats(postId, userId);
-        return toPostVO(post, user, interaction, comments, userId, false, commentCount);
+        return toPostVO(post, user, interaction, comments, userId, false, commentCount,
+                loadTopicsForPost(postId));
     }
 
     @Override
@@ -160,7 +187,8 @@ public class ShortVideoServiceImpl implements ShortVideoService {
         List<ShortVideoComment> comments = loadCommentPage(postId, null, COMMENT_PAGE_SIZE);
         boolean followingAuthor = loadFollowingSet(viewerId, Set.of(post.getUserId()))
                 .contains(post.getUserId());
-        return toPostVO(post, author, interaction, comments, viewerId, followingAuthor, commentCount);
+        return toPostVO(post, author, interaction, comments, viewerId, followingAuthor, commentCount,
+                loadTopicsForPost(postId));
     }
 
     @Override
@@ -200,6 +228,57 @@ public class ShortVideoServiceImpl implements ShortVideoService {
         return listDiscoverRanked(userId, beforeId, pageSize);
     }
 
+    @Override
+    public List<ShortVideoTopicVO> listHotTopics(Integer limit) {
+        int size = normalizeHotTopicLimit(limit);
+        List<ShortVideoTopic> rows = topicMapper.selectListByQuery(
+                buildPublicTopicQueryWrapper()
+                        .limit(size));
+        return toTopicVOs(rows);
+    }
+
+    @Override
+    public List<ShortVideoPostVO> listHotVideos(Long userId, Integer limit) {
+        int size = normalizeHotVideoLimit(limit);
+        int candidateSize = Math.min(size * HOT_VIDEO_CANDIDATE_MULTIPLIER, HOT_VIDEO_MAX_CANDIDATES);
+        QueryWrapper qw = QueryWrapper.create()
+                .eq("deleted", 0)
+                .and("(IFNULL(visibility, 0) <> 2 OR user_id = ?)", userId)
+                .orderBy("id", false)
+                .limit(candidateSize);
+        applyActiveStorageProvider(qw);
+        List<ShortVideoPost> candidates = postMapper.selectListByQuery(qw);
+        if (candidates.isEmpty()) {
+            return Collections.emptyList();
+        }
+        decryptPosts(candidates);
+        Set<Long> postIds = candidates.stream().map(ShortVideoPost::getId).collect(Collectors.toSet());
+        Map<Long, Integer> commentCountMap = loadCommentCountMap(postIds);
+        Map<Long, PostInteractionStats> interactionMap = loadInteractionStatsMap(postIds, userId);
+        List<ShortVideoPost> ranked = candidates.stream()
+                .sorted(Comparator
+                        .comparingDouble((ShortVideoPost post) -> hotScore(
+                                post,
+                                interactionMap.getOrDefault(post.getId(), EMPTY_INTERACTION),
+                                commentCountMap.getOrDefault(post.getId(), 0)))
+                        .reversed()
+                        .thenComparing(ShortVideoPost::getId, Comparator.reverseOrder()))
+                .limit(size)
+                .collect(Collectors.toCollection(ArrayList::new));
+        return buildPostList(ranked, userId);
+    }
+
+    @Override
+    public PageResultVO<ShortVideoTopicVO> listTopicPlaza(Integer page, Integer limit) {
+        int pageNo = normalizePage(page);
+        int size = normalizeTopicPlazaLimit(limit);
+        QueryWrapper qw = buildPublicTopicQueryWrapper();
+        long total = topicMapper.selectCountByQuery(qw);
+        qw.limit((pageNo - 1L) * size, size);
+        List<ShortVideoTopic> rows = topicMapper.selectListByQuery(qw);
+        return PageResultVO.of(toTopicVOs(rows), pageNo, size, total);
+    }
+
     private List<ShortVideoPostVO> listDiscoverRanked(Long userId, Long beforeId, int pageSize) {
         int candidateSize = Math.min(pageSize * DISCOVER_CANDIDATE_MULTIPLIER, DISCOVER_MAX_CANDIDATES);
         QueryWrapper qw = QueryWrapper.create()
@@ -230,7 +309,8 @@ public class ShortVideoServiceImpl implements ShortVideoService {
                                 interactionMap.getOrDefault(post.getId(), EMPTY_INTERACTION),
                                 commentCountMap.getOrDefault(post.getId(), 0),
                                 following.contains(post.getUserId()),
-                                friendIds.contains(post.getUserId())))
+                                friendIds.contains(post.getUserId()),
+                                userId))
                         .reversed()
                         .thenComparing(ShortVideoPost::getId, Comparator.reverseOrder()))
                 .limit(pageSize)
@@ -239,12 +319,28 @@ public class ShortVideoServiceImpl implements ShortVideoService {
         return buildPostList(ranked, userId);
     }
 
+    private double hotScore(ShortVideoPost post, PostInteractionStats interaction, int commentCount) {
+        long plays = post.getPlayCount() != null ? post.getPlayCount() : 0L;
+        long shares = post.getShareCount() != null ? post.getShareCount() : 0L;
+        double engagement = plays
+                + interaction.likeCount() * 3D
+                + shares * 5D
+                + commentCount * 2D;
+        double timeDecay = 1D;
+        if (post.getCreateTime() != null) {
+            double hours = Math.max(0D, Duration.between(post.getCreateTime().toInstant(), Instant.now()).toHours());
+            timeDecay = 1D / (1D + hours / 24D);
+        }
+        return engagement * timeDecay;
+    }
+
     private double discoverScore(
             ShortVideoPost post,
             PostInteractionStats interaction,
             int commentCount,
             boolean followingAuthor,
-            boolean friendAuthor) {
+            boolean friendAuthor,
+            Long viewerId) {
         long plays = post.getPlayCount() != null ? post.getPlayCount() : 0L;
         long shares = post.getShareCount() != null ? post.getShareCount() : 0L;
         double engagement = plays
@@ -263,7 +359,17 @@ public class ShortVideoServiceImpl implements ShortVideoService {
             boost *= DISCOVER_FRIEND_BOOST;
         }
         double jitter = ThreadLocalRandom.current().nextDouble(0D, 0.05D);
-        return engagement * timeDecay * boost + jitter;
+        double score = engagement * timeDecay * boost + jitter;
+        if (viewerId != null && hasRecentPlay(viewerId, post.getId())) {
+            score *= DISCOVER_SEEN_PENALTY;
+        }
+        if (post.getCreateTime() != null) {
+            double hours = Math.max(0D, Duration.between(post.getCreateTime().toInstant(), Instant.now()).toHours());
+            if (hours <= DISCOVER_FRESH_HOURS) {
+                score *= DISCOVER_FRESH_BOOST;
+            }
+        }
+        return score;
     }
 
     private List<ShortVideoPost> diversifyDiscoverAuthors(List<ShortVideoPost> ranked) {
@@ -396,6 +502,7 @@ public class ShortVideoServiceImpl implements ShortVideoService {
                 .collect(Collectors.toMap(ShortVideoPost::getId, p -> p, (a, b) -> a));
         Map<Long, PostInteractionStats> interactionMap = loadInteractionStatsMap(postIdSet, userId);
         Map<Long, Integer> commentCountMap = loadCommentCountMap(postIdSet);
+        Map<Long, List<String>> topicsByPost = loadTopicsByPostIds(postIdSet);
         Set<Long> authorIds = posts.stream().map(ShortVideoPost::getUserId).collect(Collectors.toSet());
         Map<Long, SysUser> users = loadUsers(authorIds);
         Set<Long> following = loadFollowingSet(userId, authorIds);
@@ -415,7 +522,8 @@ public class ShortVideoServiceImpl implements ShortVideoService {
                     Collections.emptyList(),
                     userId,
                     following.contains(post.getUserId()),
-                    commentCountMap.getOrDefault(postId, 0)));
+                    commentCountMap.getOrDefault(postId, 0),
+                    topicsByPost.getOrDefault(postId, List.of())));
         }
         return result;
     }
@@ -456,6 +564,7 @@ public class ShortVideoServiceImpl implements ShortVideoService {
                 .collect(Collectors.toMap(ShortVideoPost::getId, p -> p, (a, b) -> a));
         Map<Long, PostInteractionStats> interactionMap = loadInteractionStatsMap(postIdSet, userId);
         Map<Long, Integer> commentCountMap = loadCommentCountMap(postIdSet);
+        Map<Long, List<String>> topicsByPost = loadTopicsByPostIds(postIdSet);
         Set<Long> authorIds = posts.stream().map(ShortVideoPost::getUserId).collect(Collectors.toSet());
         Map<Long, SysUser> users = loadUsers(authorIds);
         Set<Long> following = loadFollowingSet(userId, authorIds);
@@ -475,7 +584,8 @@ public class ShortVideoServiceImpl implements ShortVideoService {
                     Collections.emptyList(),
                     userId,
                     following.contains(post.getUserId()),
-                    commentCountMap.getOrDefault(postId, 0)));
+                    commentCountMap.getOrDefault(postId, 0),
+                    topicsByPost.getOrDefault(postId, List.of())));
         }
         return result;
     }
@@ -813,6 +923,7 @@ public class ShortVideoServiceImpl implements ShortVideoService {
         Set<Long> postIds = posts.stream().map(ShortVideoPost::getId).collect(Collectors.toSet());
         Map<Long, PostInteractionStats> interactionMap = loadInteractionStatsMap(postIds, viewerId);
         Map<Long, Integer> commentCountMap = loadCommentCountMap(postIds);
+        Map<Long, List<String>> topicsByPost = loadTopicsByPostIds(postIds);
         Set<Long> authorIds = posts.stream().map(ShortVideoPost::getUserId).collect(Collectors.toSet());
         Map<Long, SysUser> users = loadUsers(authorIds);
         Set<Long> following = loadFollowingSet(viewerId, authorIds);
@@ -832,7 +943,8 @@ public class ShortVideoServiceImpl implements ShortVideoService {
                     Collections.emptyList(),
                     viewerId,
                     followingAuthor,
-                    commentCountMap.getOrDefault(post.getId(), 0)));
+                    commentCountMap.getOrDefault(post.getId(), 0),
+                    topicsByPost.getOrDefault(post.getId(), List.of())));
         }
         return result;
     }
@@ -862,7 +974,8 @@ public class ShortVideoServiceImpl implements ShortVideoService {
             List<ShortVideoComment> comments,
             Long viewerId,
             boolean followingAuthor,
-            int commentCount) {
+            int commentCount,
+            List<String> topics) {
         decryptPost(post);
         List<ShortVideoCommentVO> commentVOs = buildCommentVOs(comments, viewerId);
         return ShortVideoPostVO.builder()
@@ -885,6 +998,7 @@ public class ShortVideoServiceImpl implements ShortVideoService {
                 .followingAuthor(followingAuthor)
                 .commentCount(commentCount)
                 .comments(commentVOs)
+                .topics(topics != null ? topics : List.of())
                 .build();
     }
 
@@ -1036,7 +1150,11 @@ public class ShortVideoServiceImpl implements ShortVideoService {
             plainDesc = "";
             post.setDescription(plainDesc);
         }
-        post.setSearchText(SearchTextSupport.buildMomentsSearchText(plainDesc, null));
+        List<String> tags = ShortVideoHashtagSupport.extract(plainDesc);
+        String tagText = tags.isEmpty()
+                ? null
+                : tags.stream().map(tag -> "#" + tag).collect(Collectors.joining(" "));
+        post.setSearchText(SearchTextSupport.buildMomentsSearchText(plainDesc, tagText));
         if (messageContentCipher.isEnabled() && !plainDesc.isBlank()) {
             post.setDescription(messageContentCipher.encryptPlaintextForStorage(plainDesc));
             post.setDescriptionEncVersion(MessageContentCipher.ENC_VERSION);
@@ -1219,6 +1337,21 @@ public class ShortVideoServiceImpl implements ShortVideoService {
             return;
         }
         String keyword = q.trim();
+        if (keyword.startsWith("#") || keyword.startsWith("＃")) {
+            String tag = ShortVideoHashtagSupport.normalize(keyword.substring(1));
+            if (!tag.isBlank()) {
+                ShortVideoTopic topic = topicMapper.selectOneByQuery(
+                        QueryWrapper.create().eq("name", tag));
+                if (topic == null) {
+                    qw.and("1 = 0");
+                } else if (topic.getStatus() != null && topic.getStatus() == 0) {
+                    qw.and("1 = 0");
+                } else {
+                    qw.and("id IN (SELECT post_id FROM short_video_post_topic WHERE topic_id = ?)", topic.getId());
+                }
+                return;
+            }
+        }
         if (messageContentCipher.isEnabled()) {
             qw.and("search_text LIKE ?", "%" + keyword + "%");
         } else {
@@ -1231,6 +1364,73 @@ public class ShortVideoServiceImpl implements ShortVideoService {
             return 20;
         }
         return Math.min(limit, 50);
+    }
+
+    private int normalizeHotTopicLimit(Integer limit) {
+        if (limit == null || limit < 1) {
+            return HOT_TOPIC_DEFAULT_LIMIT;
+        }
+        return Math.min(limit, HOT_TOPIC_MAX_LIMIT);
+    }
+
+    private int normalizeHotVideoLimit(Integer limit) {
+        if (limit == null || limit < 1) {
+            return HOT_VIDEO_DEFAULT_LIMIT;
+        }
+        return Math.min(limit, HOT_VIDEO_MAX_LIMIT);
+    }
+
+    private int normalizeTopicPlazaLimit(Integer limit) {
+        if (limit == null || limit < 1) {
+            return 20;
+        }
+        return Math.min(limit, 50);
+    }
+
+    private int normalizePage(Integer page) {
+        return page == null || page < 1 ? 1 : page;
+    }
+
+    private QueryWrapper buildPublicTopicQueryWrapper() {
+        QueryWrapper qw = QueryWrapper.create()
+                .eq("status", 1)
+                .and("(post_count > 0 OR pinned = 1)");
+        applyTopicRankingOrder(qw);
+        return qw;
+    }
+
+    private void applyTopicRankingOrder(QueryWrapper qw) {
+        qw.orderBy(ShortVideoTopic::getPinned, false)
+                .orderBy(ShortVideoTopic::getPinOrder, false)
+                .orderBy(ShortVideoTopic::getHotScore, false)
+                .orderBy(ShortVideoTopic::getId, false);
+    }
+
+    private List<ShortVideoTopicVO> toTopicVOs(List<ShortVideoTopic> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return List.of();
+        }
+        List<ShortVideoTopicVO> result = new ArrayList<>(rows.size());
+        for (ShortVideoTopic row : rows) {
+            result.add(toTopicVO(row));
+        }
+        return result;
+    }
+
+    private ShortVideoTopicVO toTopicVO(ShortVideoTopic row) {
+        if (row == null) {
+            return ShortVideoTopicVO.builder().build();
+        }
+        String displayName = row.getDisplayName();
+        if (displayName != null && displayName.isBlank()) {
+            displayName = null;
+        }
+        return ShortVideoTopicVO.builder()
+                .name(row.getName())
+                .displayName(displayName)
+                .postCount(row.getPostCount())
+                .pinned(row.getPinned() != null && row.getPinned() == 1)
+                .build();
     }
 
     private String resolveInitialTranscodeStatus() {
@@ -1390,5 +1590,133 @@ public class ShortVideoServiceImpl implements ShortVideoService {
         } catch (Exception e) {
             log.warn("短视频敏感词入审失败 target={}: {}", targetId, e.getMessage());
         }
+    }
+
+    private void scheduleTranscodeAfterCommit(Long postId) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    transcodeAsyncTrigger.trigger(postId);
+                }
+            });
+        } else {
+            transcodeAsyncTrigger.trigger(postId);
+        }
+    }
+
+    private void syncPostTopics(Long postId, String rawDescription) {
+        List<String> newTags = ShortVideoHashtagSupport.extract(rawDescription);
+        List<ShortVideoPostTopic> existingLinks = postTopicMapper.selectListByQuery(
+                QueryWrapper.create().eq("post_id", postId));
+        Set<Long> oldTopicIds = existingLinks.stream()
+                .map(ShortVideoPostTopic::getTopicId)
+                .collect(Collectors.toSet());
+        Set<Long> newTopicIds = new LinkedHashSet<>();
+        Set<Long> affectedTopicIds = new LinkedHashSet<>();
+        for (String tag : newTags) {
+            ShortVideoTopic topic = topicMapper.selectOneByQuery(QueryWrapper.create().eq("name", tag));
+            if (topic == null) {
+                topic = ShortVideoTopic.builder()
+                        .name(tag)
+                        .postCount(0)
+                        .pinned(0)
+                        .pinOrder(0)
+                        .status(1)
+                        .hotScore(0D)
+                        .build();
+                topicMapper.insert(topic);
+            }
+            newTopicIds.add(topic.getId());
+            if (!oldTopicIds.contains(topic.getId())) {
+                postTopicMapper.insert(ShortVideoPostTopic.builder()
+                        .postId(postId)
+                        .topicId(topic.getId())
+                        .build());
+                int count = topic.getPostCount() != null ? topic.getPostCount() : 0;
+                UpdateChain.of(ShortVideoTopic.class)
+                        .set(ShortVideoTopic::getPostCount, count + 1)
+                        .where(ShortVideoTopic::getId).eq(topic.getId())
+                        .update();
+                affectedTopicIds.add(topic.getId());
+            }
+        }
+        for (Long oldTopicId : oldTopicIds) {
+            if (!newTopicIds.contains(oldTopicId)) {
+                postTopicMapper.deleteByQuery(QueryWrapper.create()
+                        .eq("post_id", postId)
+                        .eq("topic_id", oldTopicId));
+                ShortVideoTopic oldTopic = topicMapper.selectOneById(oldTopicId);
+                if (oldTopic != null) {
+                    int count = oldTopic.getPostCount() != null ? oldTopic.getPostCount() : 0;
+                    UpdateChain.of(ShortVideoTopic.class)
+                            .set(ShortVideoTopic::getPostCount, Math.max(0, count - 1))
+                            .where(ShortVideoTopic::getId).eq(oldTopicId)
+                            .update();
+                    affectedTopicIds.add(oldTopicId);
+                }
+            }
+        }
+        affectedTopicIds.addAll(oldTopicIds);
+        affectedTopicIds.addAll(newTopicIds);
+        for (Long topicId : affectedTopicIds) {
+            refreshTopicRanking(topicId);
+        }
+    }
+
+    private void refreshTopicRanking(Long topicId) {
+        if (topicId == null) {
+            return;
+        }
+        ShortVideoTopic topic = topicMapper.selectOneById(topicId);
+        if (topic == null) {
+            return;
+        }
+        Date lastPostAt = topicSqlMapper.findLastPostAt(topicId);
+        int postCount = topic.getPostCount() != null ? topic.getPostCount() : 0;
+        double hotScore = ShortVideoTopicHotScore.compute(postCount, lastPostAt);
+        UpdateChain.of(ShortVideoTopic.class)
+                .set(ShortVideoTopic::getLastPostAt, lastPostAt)
+                .set(ShortVideoTopic::getHotScore, hotScore)
+                .where(ShortVideoTopic::getId).eq(topicId)
+                .update();
+    }
+
+    private Map<Long, List<String>> loadTopicsByPostIds(Set<Long> postIds) {
+        if (postIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<ShortVideoPostTopic> links = postTopicMapper.selectListByQuery(
+                QueryWrapper.create().in("post_id", new ArrayList<>(postIds)));
+        if (links.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Set<Long> topicIds = links.stream()
+                .map(ShortVideoPostTopic::getTopicId)
+                .collect(Collectors.toSet());
+        List<ShortVideoTopic> topics = topicMapper.selectListByQuery(
+                QueryWrapper.create().in("id", new ArrayList<>(topicIds)).eq("status", 1));
+        Map<Long, String> topicNames = topics.stream()
+                .collect(Collectors.toMap(ShortVideoTopic::getId, ShortVideoTopic::getName, (a, b) -> a));
+        Map<Long, List<String>> result = new HashMap<>();
+        for (ShortVideoPostTopic link : links) {
+            String name = topicNames.get(link.getTopicId());
+            if (name != null) {
+                result.computeIfAbsent(link.getPostId(), ignored -> new ArrayList<>()).add(name);
+            }
+        }
+        return result;
+    }
+
+    private List<String> loadTopicsForPost(Long postId) {
+        return loadTopicsByPostIds(Set.of(postId)).getOrDefault(postId, List.of());
+    }
+
+    private boolean hasRecentPlay(Long viewerId, Long postId) {
+        if (viewerId == null || postId == null) {
+            return false;
+        }
+        String dedupKey = PLAY_DEDUP_KEY_PREFIX + viewerId + ":" + postId;
+        return Boolean.TRUE.equals(redisTemplate.hasKey(dedupKey));
     }
 }

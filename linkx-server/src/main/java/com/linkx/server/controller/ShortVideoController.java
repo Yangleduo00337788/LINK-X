@@ -9,6 +9,7 @@ import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.MediaStreamResponses;
 import com.linkx.server.common.RateLimit;
 import com.linkx.server.common.Result;
+import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.controller.dto.CommentShortVideoDTO;
 import com.linkx.server.controller.dto.PublishShortVideoDTO;
 import com.linkx.server.controller.dto.ShareShortVideoChatDTO;
@@ -16,6 +17,7 @@ import com.linkx.server.controller.dto.UpdateShortVideoDTO;
 import com.linkx.server.controller.vo.MessageVO;
 import com.linkx.server.controller.vo.ShortVideoCommentVO;
 import com.linkx.server.controller.vo.ShortVideoPostVO;
+import com.linkx.server.controller.vo.ShortVideoTopicVO;
 import com.linkx.server.im.ImMessagePushService;
 import com.linkx.server.service.ChatService;
 import com.linkx.server.service.ShortVideoService;
@@ -77,6 +79,37 @@ public class ShortVideoController {
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         return Result.success(shortVideoService.listDiscover(userId, parseOptionalId(beforeId), limit, q));
+    }
+
+    @Operation(summary = "热门话题榜")
+    @GetMapping("/topics/hot")
+    @RateLimit(scope = "short-video:topics-hot", value = 60, window = 60)
+    public Result<List<ShortVideoTopicVO>> listHotTopics(
+            @RequestParam(required = false) @Min(1) @Max(30) Integer limit,
+            HttpServletRequest request) {
+        AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(shortVideoService.listHotTopics(limit));
+    }
+
+    @Operation(summary = "短视频热榜")
+    @GetMapping("/hot")
+    @RateLimit(scope = "short-video:hot", value = 60, window = 60)
+    public Result<List<ShortVideoPostVO>> listHotVideos(
+            @RequestParam(required = false) @Min(1) @Max(30) Integer limit,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(shortVideoService.listHotVideos(userId, limit));
+    }
+
+    @Operation(summary = "话题广场列表")
+    @GetMapping("/topics")
+    @RateLimit(scope = "short-video:topics", value = 60, window = 60)
+    public Result<PageResultVO<ShortVideoTopicVO>> listTopics(
+            @RequestParam(required = false) @Min(1) Integer page,
+            @RequestParam(required = false) @Min(1) @Max(50) Integer limit,
+            HttpServletRequest request) {
+        AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(shortVideoService.listTopicPlaza(page, limit));
     }
 
     @Operation(summary = "朋友流短视频列表")

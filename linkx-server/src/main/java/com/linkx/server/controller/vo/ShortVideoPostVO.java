@@ -58,4 +58,6 @@ public class ShortVideoPostVO {
     private Integer commentCount;
 
     private List<ShortVideoCommentVO> comments;
+
+    private List<String> topics;
 }

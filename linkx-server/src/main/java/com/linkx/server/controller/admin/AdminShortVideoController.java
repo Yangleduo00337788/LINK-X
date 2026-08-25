@@ -12,8 +12,12 @@ import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.config.aspect.AuditAction;
 import com.linkx.server.controller.admin.dto.AdminShortVideoCommentQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminShortVideoPostQueryDTO;
+import com.linkx.server.controller.admin.dto.AdminShortVideoTopicCreateDTO;
+import com.linkx.server.controller.admin.dto.AdminShortVideoTopicQueryDTO;
+import com.linkx.server.controller.admin.dto.AdminShortVideoTopicUpdateDTO;
 import com.linkx.server.controller.admin.vo.AdminShortVideoCommentVO;
 import com.linkx.server.controller.admin.vo.AdminShortVideoPostVO;
+import com.linkx.server.controller.admin.vo.AdminShortVideoTopicVO;
 import com.linkx.server.service.admin.AdminShortVideoService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -26,6 +30,8 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -102,5 +108,30 @@ public class AdminShortVideoController {
     public ResponseEntity<InputStreamResource> coverContent(@PathVariable Long postId) {
         var object = adminShortVideoService.openCoverContent(postId);
         return MediaStreamResponses.inline(object, "cover.jpg", null);
+    }
+
+    @Operation(summary = "短视频话题列表")
+    @GetMapping("/topics")
+    @RequirePermission("admin:short-video:list")
+    public Result<PageResultVO<AdminShortVideoTopicVO>> listTopics(@Valid AdminShortVideoTopicQueryDTO query) {
+        return Result.success(adminShortVideoService.listTopics(query));
+    }
+
+    @Operation(summary = "创建短视频话题")
+    @AuditAction(operationType = "CREATE", description = "创建短视频话题")
+    @PostMapping("/topics")
+    @RequirePermission("admin:short-video:topic:edit")
+    public Result<AdminShortVideoTopicVO> createTopic(@Valid @RequestBody AdminShortVideoTopicCreateDTO dto) {
+        return Result.success(adminShortVideoService.createTopic(dto));
+    }
+
+    @Operation(summary = "更新短视频话题")
+    @AuditAction(operationType = "UPDATE", description = "更新短视频话题")
+    @PutMapping("/topics/{topicId}")
+    @RequirePermission("admin:short-video:topic:edit")
+    public Result<AdminShortVideoTopicVO> updateTopic(
+            @PathVariable Long topicId,
+            @Valid @RequestBody AdminShortVideoTopicUpdateDTO dto) {
+        return Result.success(adminShortVideoService.updateTopic(topicId, dto));
     }
 }
