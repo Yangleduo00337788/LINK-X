@@ -1769,7 +1769,12 @@ export default {
     noFavorites: 'No saved videos yet',
     myLikes: 'Liked',
     noLikes: 'No liked videos yet',
-    mentionedYou: 'mentioned you in a short video'
+    mentionedYou: 'mentioned you in a short video',
+    searchResult: 'Search: {q}',
+    clearSearch: 'Clear',
+    uploadLimitHint: 'Up to {seconds}s and {size} per video',
+    videoTooLarge: 'Video must be under {max}',
+    videoTooLong: 'Video must be under {max} seconds'
   },
   moments: {
     title: 'Moments',

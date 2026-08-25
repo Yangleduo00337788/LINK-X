@@ -1769,7 +1769,12 @@ export default {
     noFavorites: '还没有收藏视频',
     myLikes: '喜欢',
     noLikes: '还没有赞过的视频',
-    mentionedYou: '在短视频中提到了你'
+    mentionedYou: '在短视频中提到了你',
+    searchResult: '搜索：{q}',
+    clearSearch: '清除',
+    uploadLimitHint: '支持 {seconds} 秒内、不超过 {size} 的视频',
+    videoTooLarge: '视频不能超过 {max}',
+    videoTooLong: '视频不能超过 {max} 秒'
   },
   moments: {
     title: '友链',

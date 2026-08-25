@@ -189,12 +189,16 @@ export function shareShortVideoToChat(
   return apiClient.post<never, ApiResult<unknown>>(`/short-video/${postId}/share-chat`, payload)
 }
 
-export function uploadShortVideoMedia(file: File) {
+export function uploadShortVideoMedia(file: File, onProgress?: (percent: number) => void) {
   const formData = new FormData()
   formData.append('file', file)
   return apiClient.post<never, ApiResult<string>>('/short-video/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
-    timeout: 300000
+    timeout: 300000,
+    onUploadProgress: event => {
+      if (!onProgress || !event.total) return
+      onProgress(Math.min(100, Math.round((event.loaded / event.total) * 100)))
+    }
   })
 }
 

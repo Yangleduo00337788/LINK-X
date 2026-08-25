@@ -34,10 +34,13 @@ import { useAppStore } from './app'
 import { useExtensionDockStore } from './extensionDock'
 import { t } from '../i18n'
 import { isEncryptedShortVideoText } from '../utils/shortVideoText'
-import { captureVideoCover } from '../utils/shortVideoCover'
+import { captureVideoCover, readVideoDurationMs } from '../utils/shortVideoCover'
 
 export type ShortVideoFeedTab = 'following' | 'friends' | 'recommend'
 export type ShortVideoPanelTabId = 'main'
+
+export const SHORT_VIDEO_MAX_BYTES = 100 * 1024 * 1024
+export const SHORT_VIDEO_MAX_DURATION_MS = 60_000
 
 let ensurePanelReadyTask: Promise<void> | null = null
 let fetchFeedTask: Promise<void> | null = null
@@ -115,7 +118,11 @@ export const useShortVideoStore = defineStore('shortVideo', {
     likedPostsLoading: false,
     likedPostsLoadingMore: false,
     likedPostsHasMore: true,
-    feedError: '' as string
+    feedError: '' as string,
+    searchMode: false,
+    searchQuery: '' as string,
+    searchHasMore: true,
+    publishProgress: 0
   }),
 
   getters: {
@@ -234,6 +241,9 @@ export const useShortVideoStore = defineStore('shortVideo', {
       this.posts = []
       this.activeIndex = 0
       this.hasMore = true
+      this.searchMode = false
+      this.searchQuery = ''
+      this.searchHasMore = true
       return this.fetchFeed(true)
     },
 
@@ -287,8 +297,11 @@ export const useShortVideoStore = defineStore('shortVideo', {
 
     async publish(file: File, description: string, visibility = 0) {
       this.publishing = true
+      this.publishProgress = 0
       try {
-        const uploadRes = await uploadShortVideoMedia(file)
+        const uploadRes = await uploadShortVideoMedia(file, pct => {
+          this.publishProgress = pct
+        })
         if (uploadRes.code !== 200 || !uploadRes.data) {
           throw new Error(uploadRes.message || 'upload failed')
         }
@@ -306,12 +319,15 @@ export const useShortVideoStore = defineStore('shortVideo', {
         }
         let durationMs: number | undefined
         try {
-          const ms = await readVideoDuration(file)
+          const ms = await readVideoDurationMs(file)
           if (Number.isFinite(ms) && ms > 0) {
             durationMs = ms
           }
         } catch {
           /* optional */
+        }
+        if (durationMs != null && durationMs > SHORT_VIDEO_MAX_DURATION_MS) {
+          throw new Error('video too long')
         }
         const res = await publishShortVideo({
           description: description.trim(),
@@ -336,6 +352,7 @@ export const useShortVideoStore = defineStore('shortVideo', {
         return res.data
       } finally {
         this.publishing = false
+        this.publishProgress = 0
       }
     },
 
@@ -742,27 +759,56 @@ export const useShortVideoStore = defineStore('shortVideo', {
       }
     },
 
-    async searchFeed(keyword: string) {
+    async searchFeed(keyword: string, reset = true) {
       const q = keyword.trim()
       if (!q) {
-        return this.fetchFeed(true)
+        return this.clearSearch()
       }
       if (fetchFeedTask) {
         await fetchFeedTask
+        if (!reset) return
       }
+      if (!reset && !this.searchHasMore) return
+
       this.loading = true
+      this.feedError = ''
       try {
-        const res = await listShortVideos({ limit: 20, q })
+        await this.ensureAuthReady()
+        const beforeId = reset ? undefined : this.posts[this.posts.length - 1]?.id
+        const res = await listShortVideos({ limit: 20, q, beforeId })
         if (res.code !== 200) {
           throw new Error(res.message || 'search failed')
         }
-        this.posts = normalizeShortVideoList(res.data)
-        this.activeIndex = 0
-        this.hasMore = false
+        const rows = normalizeShortVideoList(res.data)
+        if (reset) {
+          this.posts = rows
+          this.activeIndex = 0
+        } else {
+          const existing = new Set(this.posts.map(p => p.id))
+          this.posts.push(...rows.filter(p => !existing.has(p.id)))
+        }
+        this.searchMode = true
+        this.searchQuery = q
+        this.searchHasMore = rows.length >= 20
+        this.hasMore = this.searchHasMore
         this.initialized = true
+      } catch (e) {
+        this.feedError = e instanceof Error ? e.message : String(e)
+        if (reset) {
+          this.posts = []
+          this.activeIndex = 0
+        }
+        throw e
       } finally {
         this.loading = false
       }
+    },
+
+    async clearSearch() {
+      this.searchMode = false
+      this.searchQuery = ''
+      this.searchHasMore = true
+      return this.fetchFeed(true)
     },
 
     setActiveIndex(index: number) {
@@ -770,17 +816,3 @@ export const useShortVideoStore = defineStore('shortVideo', {
     }
   }
 })
-
-function readVideoDuration(file: File): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const video = document.createElement('video')
-    video.preload = 'metadata'
-    video.onloadedmetadata = () => {
-      const ms = Math.round(video.duration * 1000)
-      URL.revokeObjectURL(video.src)
-      resolve(ms)
-    }
-    video.onerror = () => reject(new Error('duration'))
-    video.src = URL.createObjectURL(file)
-  })
-}

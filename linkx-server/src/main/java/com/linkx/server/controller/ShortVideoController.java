@@ -27,6 +27,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.InputStreamResource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -305,7 +306,7 @@ public class ShortVideoController {
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         var object = shortVideoService.openVideoContent(userId, parseId(postId));
-        return MediaStreamResponses.inline(object, "video.mp4");
+        return MediaStreamResponses.inline(object, "video.mp4", request.getHeader(HttpHeaders.RANGE));
     }
 
     @Operation(summary = "鉴权读取封面内容")

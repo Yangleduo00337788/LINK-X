@@ -31,7 +31,7 @@ import {
 import { storeToRefs } from 'pinia'
 import { LxButton } from './ui'
 import AtMentionPicker from './common/AtMentionPicker.vue'
-import { useShortVideoStore, type ShortVideoFeedTab } from '../stores/shortVideo'
+import { useShortVideoStore, type ShortVideoFeedTab, SHORT_VIDEO_MAX_BYTES, SHORT_VIDEO_MAX_DURATION_MS } from '../stores/shortVideo'
 import { useAppStore } from '../stores/app'
 import { useNotificationsStore } from '../stores/notifications'
 import { useContactsStore } from '../stores/contacts'
@@ -48,6 +48,7 @@ import { uploadShortVideoMedia, shareShortVideoToChat } from '../api/shortVideo'
 import { resolveUserAvatarUrl } from '../utils/defaultAvatar'
 import { resolveShortVideoDisplaySrc, buildShortVideoMediaApiUrl } from '../utils/shortVideoMediaAccess'
 import { readableShortVideoText } from '../utils/shortVideoText'
+import { readVideoDurationMs } from '../utils/shortVideoCover'
 import { copyText } from '../utils/clipboard'
 import type { ShortVideoComment, ShortVideoPost } from '../api/shortVideo'
 
@@ -60,7 +61,7 @@ const store = useShortVideoStore()
 const appStore = useAppStore()
 const notificationsStore = useNotificationsStore()
 const contactsStore = useContactsStore()
-const { feedTab, posts, loading, publishing, activeIndex, myPosts, myPostsLoading, myPostsLoadingMore, feedError, authorPosts, authorPostsLoading, authorPostsLoadingMore, authorPostsHasMore, authorProfile, favoritePosts, favoritePostsLoading, favoritePostsLoadingMore, likedPosts, likedPostsLoading, likedPostsLoadingMore } = storeToRefs(store)
+const { feedTab, posts, loading, publishing, publishProgress, activeIndex, myPosts, myPostsLoading, myPostsLoadingMore, feedError, authorPosts, authorPostsLoading, authorPostsLoadingMore, authorPostsHasMore, authorProfile, favoritePosts, favoritePostsLoading, favoritePostsLoadingMore, likedPosts, likedPostsLoading, likedPostsLoadingMore, searchMode, searchQuery } = storeToRefs(store)
 const { messageNotifs } = storeToRefs(notificationsStore)
 
 const mineTabs = computed(() => [
@@ -116,7 +117,8 @@ const videoRefs = ref<Record<string, HTMLVideoElement | null>>({})
 const videoSrcMap = ref<Record<string, string>>({})
 const blobRevokeList = ref<string[]>([])
 const progressMap = ref<Record<string, number>>({})
-const pausedMap = ref<Record<string, boolean>>({})
+const userPausedIds = ref(new Set<string>())
+const playbackTick = ref(0)
 const muted = ref(false)
 const commentOpenFor = ref<string | null>(null)
 const commentText = ref('')
@@ -169,7 +171,7 @@ const commentImageUploading = ref(false)
 const showCommentEmoji = ref(false)
 const commentEmojis = [...CHAT_EMOJIS]
 const PLAYBACK_RATES = [1, 1.5, 2, 0.75]
-const MEDIA_PRELOAD_RADIUS = 1
+const FEED_WINDOW_RADIUS = 2
 
 const feedTabs: Array<{ id: ShortVideoFeedTab; label: string }> = [
   { id: 'following', label: t('shortVideo.following') },
@@ -283,16 +285,33 @@ onBeforeUnmount(() => {
 })
 
 watch(
-  () => posts.value.map(p => p.id).join(','),
-  () => {
-    videoSrcMap.value = {}
-    void preloadMediaAround(activeIndex.value)
+  () => posts.value[0]?.id,
+  (id, prev) => {
+    if (prev && id !== prev) {
+      videoSrcMap.value = {}
+    }
+    if (id) {
+      void preloadMediaAround(activeIndex.value)
+    }
   }
 )
 
-watch(activeIndex, idx => {
+watch(
+  () => posts.value.length,
+  (len, prevLen) => {
+    if (len > (prevLen ?? 0)) {
+      void preloadMediaAround(activeIndex.value)
+    }
+  }
+)
+
+watch(activeIndex, (idx, prevIdx) => {
   playErrorToastShown.value = false
   showPlaybackControls.value = false
+  const prevPost = posts.value[prevIdx ?? -1]
+  if (prevPost) {
+    userPausedIds.value.delete(prevPost.id)
+  }
   void preloadMediaAround(idx)
 })
 
@@ -315,16 +334,24 @@ function revokeBlobUrls() {
 async function preloadMediaAround(centerIndex: number) {
   const token = ++mediaSyncToken.value
   const next: Record<string, string> = { ...videoSrcMap.value }
+  const keepIds = new Set<string>()
   const indices: number[] = []
-  for (let i = centerIndex - MEDIA_PRELOAD_RADIUS; i <= centerIndex + MEDIA_PRELOAD_RADIUS; i++) {
+  for (let i = centerIndex - FEED_WINDOW_RADIUS; i <= centerIndex + FEED_WINDOW_RADIUS; i++) {
     if (i >= 0 && i < posts.value.length) indices.push(i)
   }
   for (const idx of indices) {
     const post = posts.value[idx]
-    if (!post || next[post.id]) continue
+    if (!post) continue
+    keepIds.add(post.id)
+    if (next[post.id]) continue
     const { src } = await resolveShortVideoDisplaySrc(post.id, 'video', post.videoUrl)
     if (token !== mediaSyncToken.value) return
     if (src) next[post.id] = src
+  }
+  for (const id of Object.keys(next)) {
+    if (!keepIds.has(id)) {
+      delete next[id]
+    }
   }
   if (token !== mediaSyncToken.value) return
   videoSrcMap.value = next
@@ -338,7 +365,15 @@ async function syncMediaSources() {
 }
 
 function setVideoRef(id: string, el: HTMLVideoElement | null) {
-  videoRefs.value[id] = el
+  if (el) {
+    const isNew = videoRefs.value[id] !== el
+    videoRefs.value[id] = el
+    if (isNew && activePost.value?.id === id && !userPausedIds.value.has(id)) {
+      void nextTick(() => playActiveVideo())
+    }
+    return
+  }
+  delete videoRefs.value[id]
 }
 
 async function onTabChange(tab: ShortVideoFeedTab) {
@@ -357,15 +392,19 @@ function onScroll() {
     store.setActiveIndex(index)
   }
   if (index >= posts.value.length - 3 && !loading.value) {
-    void store.fetchFeed(false)
+    if (store.searchMode) {
+      void store.searchFeed(store.searchQuery, false)
+    } else {
+      void store.fetchFeed(false)
+    }
   }
 }
 
 function scrollToIndex(index: number) {
   const el = feedRef.value
   if (!el || index < 0 || index >= posts.value.length) return
-  el.scrollTo({ top: index * el.clientHeight, behavior: 'smooth' })
   store.setActiveIndex(index)
+  el.scrollTo({ top: index * el.clientHeight, behavior: 'auto' })
 }
 
 function goPrev() {
@@ -379,27 +418,38 @@ function goNext() {
 function playActiveVideo() {
   showPlaybackControls.value = false
   const current = activePost.value
-  for (const [id, video] of Object.entries(videoRefs.value)) {
-    if (!video) continue
-    if (current && id === current.id) {
-      video.muted = muted.value
-      video.playbackRate = playbackRate.value
-      video.play().catch(() => {
-        pausedMap.value[id] = true
+  if (!current) return
+  if (userPausedIds.value.has(current.id)) return
+  const video = videoRefs.value[current.id]
+  if (!video) {
+    void nextTick(() => {
+      const retry = videoRefs.value[current.id]
+      if (retry && activePost.value?.id === current.id && !userPausedIds.value.has(current.id)) {
+        playActiveVideo()
+      }
+    })
+    return
+  }
+  for (const [id, el] of Object.entries(videoRefs.value)) {
+    if (!el) continue
+    if (id === current.id) {
+      el.muted = muted.value
+      el.playbackRate = playbackRate.value
+      void el.play().then(() => {
+        playbackTick.value++
+        void store.markPlayed(current.id)
+      }).catch(() => {
+        playbackTick.value++
       })
-      pausedMap.value[id] = false
-      void store.markPlayed(current.id)
     } else {
-      video.pause()
-      video.currentTime = 0
+      el.pause()
+      el.currentTime = 0
       progressMap.value[id] = 0
-      pausedMap.value[id] = false
     }
   }
 }
 
 function onVideoError(postId: string) {
-  pausedMap.value[postId] = true
   const current = activePost.value
   if (!current || current.id !== postId || playErrorToastShown.value) return
   playErrorToastShown.value = true
@@ -410,14 +460,19 @@ function togglePlay(post: ShortVideoPost) {
   const video = videoRefs.value[post.id]
   if (!video) return
   if (video.paused) {
-    video.play().catch(() => {})
-    pausedMap.value[post.id] = false
+    userPausedIds.value.delete(post.id)
+    void video.play().then(() => {
+      playbackTick.value++
+    }).catch(() => {
+      playbackTick.value++
+    })
     if (post.id === activePost.value?.id) {
       showPlaybackControls.value = false
     }
   } else {
+    userPausedIds.value.add(post.id)
     video.pause()
-    pausedMap.value[post.id] = true
+    playbackTick.value++
     if (post.id === activePost.value?.id) {
       showPlaybackControls.value = true
     }
@@ -449,18 +504,25 @@ function onTimeUpdate(postId: string, e: Event) {
 }
 
 function onVideoPlay(postId: string) {
-  pausedMap.value[postId] = false
+  playbackTick.value++
   if (postId === activePost.value?.id) {
     showPlaybackControls.value = false
   }
 }
 
 function onVideoPause(postId: string) {
-  pausedMap.value[postId] = true
+  playbackTick.value++
+  if (postId === activePost.value?.id && userPausedIds.value.has(postId)) {
+    showPlaybackControls.value = true
+  }
 }
 
 function isPaused(post: ShortVideoPost) {
-  return pausedMap.value[post.id] ?? false
+  void playbackTick.value
+  if (post.id !== activePost.value?.id) return false
+  const video = videoRefs.value[post.id]
+  if (!video || !videoSrc(post)) return false
+  return video.paused
 }
 
 function formatCount(n: number) {
@@ -810,6 +872,10 @@ function onFileChange(e: Event) {
     message.warning(t('shortVideo.videoOnly'))
     return
   }
+  if (file.size > SHORT_VIDEO_MAX_BYTES) {
+    message.warning(t('shortVideo.videoTooLarge', { max: '100MB' }))
+    return
+  }
   pendingFile.value = file
 }
 
@@ -817,6 +883,15 @@ async function submitPublish() {
   if (!pendingFile.value) {
     message.warning(t('shortVideo.needVideo'))
     return
+  }
+  try {
+    const durationMs = await readVideoDurationMs(pendingFile.value)
+    if (durationMs > SHORT_VIDEO_MAX_DURATION_MS) {
+      message.warning(t('shortVideo.videoTooLong', { max: 60 }))
+      return
+    }
+  } catch {
+    /* optional */
   }
   try {
     await store.publish(pendingFile.value, publishDesc.value, publishVisibility.value)
@@ -1079,12 +1154,26 @@ async function submitComment(post: ShortVideoPost) {
 async function submitSearch() {
   const q = searchText.value.trim()
   searchOpen.value = false
-  if (!q) {
-    await store.fetchFeed(true)
-  } else {
-    await store.searchFeed(q)
+  try {
+    if (!q) {
+      await store.clearSearch()
+    } else {
+      await store.searchFeed(q, true)
+    }
+    await syncMediaSources()
+  } catch (e) {
+    message.error(resolveApiErrorMessage(e, t('shortVideo.loadFail')))
   }
-  await syncMediaSources()
+}
+
+async function clearSearch() {
+  searchText.value = ''
+  try {
+    await store.clearSearch()
+    await syncMediaSources()
+  } catch (e) {
+    message.error(resolveApiErrorMessage(e, t('shortVideo.loadFail')))
+  }
 }
 
 function avatarUrl(post: ShortVideoPost) {
@@ -1121,8 +1210,16 @@ function onMineCoverError(postId: string) {
   likedCoverFailed.value = { ...likedCoverFailed.value, [postId]: true }
 }
 
+function shouldRenderSlide(index: number) {
+  return Math.abs(index - activeIndex.value) <= FEED_WINDOW_RADIUS
+}
+
 function videoSrc(post: ShortVideoPost) {
-  return videoSrcMap.value[post.id] || buildShortVideoMediaApiUrl(post.id, 'video')
+  return videoSrcMap.value[post.id] || ''
+}
+
+function videoPreload(index: number) {
+  return Math.abs(index - activeIndex.value) <= 1 ? 'auto' : 'metadata'
 }
 </script>
 
@@ -1156,10 +1253,11 @@ function videoSrc(post: ShortVideoPost) {
         @scroll.passive="onScroll"
       >
         <section
-          v-for="post in posts"
+          v-for="(post, index) in posts"
           :key="post.id"
           class="short-video-slide"
         >
+          <template v-if="shouldRenderSlide(index)">
           <video
             v-if="videoSrc(post)"
             :ref="el => setVideoRef(post.id, el as HTMLVideoElement | null)"
@@ -1169,14 +1267,18 @@ function videoSrc(post: ShortVideoPost) {
             playsinline
             loop
             :muted="muted"
-            preload="auto"
+            :preload="videoPreload(index)"
             @click="togglePlay(post)"
             @timeupdate="onTimeUpdate(post.id, $event)"
             @play="onVideoPlay(post.id)"
             @pause="onVideoPause(post.id)"
             @error="onVideoError(post.id)"
           />
-          <div v-else class="short-video-player short-video-player--loading">
+          <div
+            v-else
+            class="short-video-player short-video-player--loading"
+            :style="{ backgroundImage: `url(${coverPoster(post)})` }"
+          >
             {{ t('common.loading') }}
           </div>
 
@@ -1191,6 +1293,13 @@ function videoSrc(post: ShortVideoPost) {
           </button>
 
           <div class="short-video-gradient" />
+
+          <button
+            type="button"
+            class="short-video-tap-layer"
+            aria-label="toggle play"
+            @click="togglePlay(post)"
+          />
 
           <div class="short-video-overlay">
             <div class="short-video-meta">
@@ -1297,6 +1406,8 @@ function videoSrc(post: ShortVideoPost) {
               </button>
             </n-dropdown>
           </div>
+          </template>
+          <div v-else class="short-video-slide-placeholder" aria-hidden="true" />
         </section>
       </div>
 
@@ -1438,6 +1549,15 @@ function videoSrc(post: ShortVideoPost) {
       </div>
 
       <header class="short-video-topbar" :class="{ 'short-video-topbar--overlay': showFeed }">
+        <div v-if="searchMode" class="short-video-search-banner">
+          <span class="short-video-search-banner__text">
+            {{ t('shortVideo.searchResult', { q: searchQuery }) }}
+          </span>
+          <button type="button" class="short-video-search-banner__clear" @click="clearSearch">
+            {{ t('shortVideo.clearSearch') }}
+          </button>
+        </div>
+        <div class="short-video-topbar__row">
         <div class="short-video-topbar__side short-video-topbar__side--left">
           <button type="button" class="short-video-topbar__icon" :title="t('shortVideo.publish')" @click="openPublish">
             <NIcon :component="VideocamOutline" :size="22" />
@@ -1476,6 +1596,7 @@ function videoSrc(post: ShortVideoPost) {
           <button type="button" class="short-video-topbar__icon" :title="t('shortVideo.mine')" @click="openMine">
             <NIcon :component="PersonOutline" :size="22" />
           </button>
+        </div>
         </div>
       </header>
     </div>
@@ -1728,7 +1849,12 @@ function videoSrc(post: ShortVideoPost) {
       <div class="short-video-modal-card">
         <h3>{{ t('shortVideo.publishTitle') }}</h3>
         <p class="short-video-publish-hint">{{ pendingFile?.name || t('shortVideo.pickVideo') }}</p>
+        <p class="short-video-publish-limit">{{ t('shortVideo.uploadLimitHint', { size: '100MB', seconds: 60 }) }}</p>
         <LxButton size="small" @click="pickVideo">{{ t('shortVideo.pickVideo') }}</LxButton>
+        <div v-if="publishing && publishProgress > 0" class="short-video-publish-progress">
+          <div class="short-video-publish-progress__bar" :style="{ width: `${publishProgress}%` }" />
+          <span class="short-video-publish-progress__text">{{ publishProgress }}%</span>
+        </div>
         <NInput
           v-model:value="publishDesc"
           type="textarea"
@@ -1833,13 +1959,53 @@ function videoSrc(post: ShortVideoPost) {
 .short-video-topbar {
   position: relative;
   z-index: 30;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  background: var(--lx-bg-panel);
+}
+
+.short-video-topbar__row {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   min-height: 48px;
   padding: 0 10px;
+  width: 100%;
+}
+
+.short-video-search-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 12px 0;
+  font-size: 12px;
+}
+
+.short-video-search-banner__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--lx-text-secondary);
+}
+
+.short-video-search-banner__clear {
   flex-shrink: 0;
-  background: var(--lx-bg-panel);
+  border: none;
+  background: transparent;
+  color: var(--lx-primary);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.short-video-topbar--overlay .short-video-search-banner__text {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.short-video-topbar--overlay .short-video-search-banner__clear {
+  color: #fff;
 }
 
 .short-video-topbar--overlay {
@@ -1978,6 +2144,13 @@ function videoSrc(post: ShortVideoPost) {
   background: #000;
 }
 
+.short-video-slide-placeholder {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  background: #000;
+}
+
 .short-video-player {
   width: 100%;
   height: 100%;
@@ -1992,6 +2165,9 @@ function videoSrc(post: ShortVideoPost) {
   justify-content: center;
   color: rgba(255, 255, 255, 0.7);
   font-size: 14px;
+  background-color: #000;
+  background-size: cover;
+  background-position: center;
 }
 
 .short-video-play-overlay {
@@ -2020,6 +2196,17 @@ function videoSrc(post: ShortVideoPost) {
   background: linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.58) 100%);
   pointer-events: none;
   z-index: 8;
+}
+
+.short-video-tap-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  border: none;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
 }
 
 .short-video-overlay {
@@ -2987,6 +3174,35 @@ function videoSrc(post: ShortVideoPost) {
 .short-video-publish-hint {
   font-size: 13px;
   color: var(--lx-text-secondary);
+}
+
+.short-video-publish-limit {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--lx-text-secondary);
+}
+
+.short-video-publish-progress {
+  position: relative;
+  height: 8px;
+  margin: 10px 0 4px;
+  background: var(--lx-bg-panel);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.short-video-publish-progress__bar {
+  height: 100%;
+  background: var(--lx-primary);
+  transition: width 0.2s ease;
+}
+
+.short-video-publish-progress__text {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--lx-text-secondary);
+  text-align: center;
 }
 
 .short-video-visibility {

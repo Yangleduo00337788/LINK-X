@@ -56,6 +56,12 @@ public class ShortVideoServiceImpl implements ShortVideoService {
     private static final Duration PLAY_DEDUP_TTL = Duration.ofHours(24);
     private static final Duration SHARE_DEDUP_TTL = Duration.ofHours(24);
     private static final int COMMENT_PAGE_SIZE = 20;
+    private static final long MAX_VIDEO_BYTES = 100L * 1024 * 1024;
+    private static final int MAX_DURATION_MS = 60_000;
+    private static final PostInteractionStats EMPTY_INTERACTION = new PostInteractionStats(0, 0, false, false);
+
+    private record PostInteractionStats(int likeCount, int favoriteCount, boolean liked, boolean favorited) {
+    }
 
     private final ShortVideoPostMapper postMapper;
     private final ShortVideoLikeMapper likeMapper;
@@ -63,6 +69,7 @@ public class ShortVideoServiceImpl implements ShortVideoService {
     private final ShortVideoCommentMapper commentMapper;
     private final ShortVideoCommentLikeMapper commentLikeMapper;
     private final ShortVideoCommentSqlMapper commentSqlMapper;
+    private final ShortVideoInteractionSqlMapper interactionSqlMapper;
     private final ShortVideoFollowMapper followMapper;
     private final SysUserMapper userMapper;
     private final SysUserRelationMapper sysUserRelationMapper;
@@ -88,6 +95,9 @@ public class ShortVideoServiceImpl implements ShortVideoService {
         String coverKey = dto.getCoverKey() != null && !dto.getCoverKey().isBlank()
                 ? authorizeObjectKey(userId, dto.getCoverKey())
                 : null;
+        if (dto.getDurationMs() != null && dto.getDurationMs() > MAX_DURATION_MS) {
+            throw new CustomException(400, "视频时长不能超过60秒");
+        }
         Integer visibility = dto.getVisibility() != null ? dto.getVisibility() : 0;
 
         ShortVideoPost post = ShortVideoPost.builder()
@@ -104,7 +114,7 @@ public class ShortVideoServiceImpl implements ShortVideoService {
         preparePostForStorage(post);
         postMapper.insert(post);
         enqueueSensitiveAfterPersist(userId, SysReviewTask.TARGET_SHORT_VIDEO, String.valueOf(post.getId()), hit);
-        return toPostVO(post, user, Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), userId, false, 0);
+        return toPostVO(post, user, EMPTY_INTERACTION, Collections.emptyList(), userId, false, 0);
     }
 
     @Override
@@ -128,20 +138,20 @@ public class ShortVideoServiceImpl implements ShortVideoService {
         SysUser user = requireUser(userId);
         int commentCount = countComments(postId);
         List<ShortVideoComment> comments = loadCommentPage(postId, null, COMMENT_PAGE_SIZE);
-        return toPostVO(post, user, loadLikes(postId), loadFavorites(postId), comments, userId, false, commentCount);
+        PostInteractionStats interaction = loadInteractionStats(postId, userId);
+        return toPostVO(post, user, interaction, comments, userId, false, commentCount);
     }
 
     @Override
     public ShortVideoPostVO getPost(Long viewerId, Long postId) {
         ShortVideoPost post = assertCanView(viewerId, postId);
         SysUser author = requireUser(post.getUserId());
-        List<ShortVideoLike> likes = loadLikes(postId);
-        List<ShortVideoFavorite> favorites = loadFavorites(postId);
+        PostInteractionStats interaction = loadInteractionStats(postId, viewerId);
         int commentCount = countComments(postId);
         List<ShortVideoComment> comments = loadCommentPage(postId, null, COMMENT_PAGE_SIZE);
         boolean followingAuthor = loadFollowingSet(viewerId, Set.of(post.getUserId()))
                 .contains(post.getUserId());
-        return toPostVO(post, author, likes, favorites, comments, viewerId, followingAuthor, commentCount);
+        return toPostVO(post, author, interaction, comments, viewerId, followingAuthor, commentCount);
     }
 
     @Override
@@ -281,8 +291,7 @@ public class ShortVideoServiceImpl implements ShortVideoService {
         decryptPosts(posts);
         Map<Long, ShortVideoPost> postMap = posts.stream()
                 .collect(Collectors.toMap(ShortVideoPost::getId, p -> p, (a, b) -> a));
-        Map<Long, List<ShortVideoLike>> likesMap = loadLikesMap(postIdSet);
-        Map<Long, List<ShortVideoFavorite>> favoritesMap = loadFavoritesMap(postIdSet);
+        Map<Long, PostInteractionStats> interactionMap = loadInteractionStatsMap(postIdSet, userId);
         Map<Long, Integer> commentCountMap = loadCommentCountMap(postIdSet);
         Set<Long> authorIds = posts.stream().map(ShortVideoPost::getUserId).collect(Collectors.toSet());
         Map<Long, SysUser> users = loadUsers(authorIds);
@@ -299,8 +308,7 @@ public class ShortVideoServiceImpl implements ShortVideoService {
             result.add(toPostVO(
                     post,
                     author,
-                    likesMap.getOrDefault(postId, Collections.emptyList()),
-                    favoritesMap.getOrDefault(postId, Collections.emptyList()),
+                    interactionMap.getOrDefault(postId, EMPTY_INTERACTION),
                     Collections.emptyList(),
                     userId,
                     following.contains(post.getUserId()),
@@ -343,8 +351,7 @@ public class ShortVideoServiceImpl implements ShortVideoService {
         decryptPosts(posts);
         Map<Long, ShortVideoPost> postMap = posts.stream()
                 .collect(Collectors.toMap(ShortVideoPost::getId, p -> p, (a, b) -> a));
-        Map<Long, List<ShortVideoLike>> likesMap = loadLikesMap(postIdSet);
-        Map<Long, List<ShortVideoFavorite>> favoritesMap = loadFavoritesMap(postIdSet);
+        Map<Long, PostInteractionStats> interactionMap = loadInteractionStatsMap(postIdSet, userId);
         Map<Long, Integer> commentCountMap = loadCommentCountMap(postIdSet);
         Set<Long> authorIds = posts.stream().map(ShortVideoPost::getUserId).collect(Collectors.toSet());
         Map<Long, SysUser> users = loadUsers(authorIds);
@@ -361,8 +368,7 @@ public class ShortVideoServiceImpl implements ShortVideoService {
             result.add(toPostVO(
                     post,
                     author,
-                    likesMap.getOrDefault(postId, Collections.emptyList()),
-                    favoritesMap.getOrDefault(postId, Collections.emptyList()),
+                    interactionMap.getOrDefault(postId, EMPTY_INTERACTION),
                     Collections.emptyList(),
                     userId,
                     following.contains(post.getUserId()),
@@ -624,6 +630,9 @@ public class ShortVideoServiceImpl implements ShortVideoService {
         if (!ok) {
             throw new CustomException(400, "只能上传图片或视频文件");
         }
+        if (contentType.startsWith("video/") && file.getSize() > MAX_VIDEO_BYTES) {
+            throw new CustomException(400, "视频文件不能超过100MB");
+        }
         try {
             if (contentType.startsWith("image/")) {
                 com.linkx.server.common.ImageUploadValidator.assertSupportedImage(file);
@@ -695,8 +704,7 @@ public class ShortVideoServiceImpl implements ShortVideoService {
         }
         decryptPosts(posts);
         Set<Long> postIds = posts.stream().map(ShortVideoPost::getId).collect(Collectors.toSet());
-        Map<Long, List<ShortVideoLike>> likesMap = loadLikesMap(postIds);
-        Map<Long, List<ShortVideoFavorite>> favoritesMap = loadFavoritesMap(postIds);
+        Map<Long, PostInteractionStats> interactionMap = loadInteractionStatsMap(postIds, viewerId);
         Map<Long, Integer> commentCountMap = loadCommentCountMap(postIds);
         Set<Long> authorIds = posts.stream().map(ShortVideoPost::getUserId).collect(Collectors.toSet());
         Map<Long, SysUser> users = loadUsers(authorIds);
@@ -713,8 +721,7 @@ public class ShortVideoServiceImpl implements ShortVideoService {
             result.add(toPostVO(
                     post,
                     author,
-                    likesMap.getOrDefault(post.getId(), Collections.emptyList()),
-                    favoritesMap.getOrDefault(post.getId(), Collections.emptyList()),
+                    interactionMap.getOrDefault(post.getId(), EMPTY_INTERACTION),
                     Collections.emptyList(),
                     viewerId,
                     followingAuthor,
@@ -744,15 +751,12 @@ public class ShortVideoServiceImpl implements ShortVideoService {
     private ShortVideoPostVO toPostVO(
             ShortVideoPost post,
             SysUser author,
-            List<ShortVideoLike> likes,
-            List<ShortVideoFavorite> favorites,
+            PostInteractionStats interaction,
             List<ShortVideoComment> comments,
             Long viewerId,
             boolean followingAuthor,
             int commentCount) {
         decryptPost(post);
-        boolean liked = likes.stream().anyMatch(l -> Objects.equals(l.getUserId(), viewerId));
-        boolean favorited = favorites.stream().anyMatch(f -> Objects.equals(f.getUserId(), viewerId));
         List<ShortVideoCommentVO> commentVOs = buildCommentVOs(comments, viewerId);
         return ShortVideoPostVO.builder()
                 .id(post.getId())
@@ -767,10 +771,10 @@ public class ShortVideoServiceImpl implements ShortVideoService {
                 .playCount(post.getPlayCount() != null ? post.getPlayCount() : 0L)
                 .shares(post.getShareCount() != null ? post.getShareCount() : 0L)
                 .time(formatTime(post.getCreateTime()))
-                .likes(likes.size())
-                .liked(liked)
-                .favorites(favorites.size())
-                .favorited(favorited)
+                .likes(interaction.likeCount())
+                .liked(interaction.liked())
+                .favorites(interaction.favoriteCount())
+                .favorited(interaction.favorited())
                 .followingAuthor(followingAuthor)
                 .commentCount(commentCount)
                 .comments(commentVOs)
@@ -1014,16 +1018,45 @@ public class ShortVideoServiceImpl implements ShortVideoService {
         return users.stream().collect(Collectors.toMap(SysUser::getId, u -> u, (a, b) -> a));
     }
 
-    private Map<Long, List<ShortVideoLike>> loadLikesMap(Set<Long> postIds) {
-        List<ShortVideoLike> likes = likeMapper.selectListByQuery(
-                QueryWrapper.create().in("post_id", new ArrayList<>(postIds)).eq("deleted", 0));
-        return likes.stream().collect(Collectors.groupingBy(ShortVideoLike::getPostId));
+    private PostInteractionStats loadInteractionStats(Long postId, Long viewerId) {
+        return loadInteractionStatsMap(Set.of(postId), viewerId).getOrDefault(postId, EMPTY_INTERACTION);
     }
 
-    private Map<Long, List<ShortVideoFavorite>> loadFavoritesMap(Set<Long> postIds) {
-        List<ShortVideoFavorite> favorites = favoriteMapper.selectListByQuery(
-                QueryWrapper.create().in("post_id", new ArrayList<>(postIds)).eq("deleted", 0));
-        return favorites.stream().collect(Collectors.groupingBy(ShortVideoFavorite::getPostId));
+    private Map<Long, PostInteractionStats> loadInteractionStatsMap(Set<Long> postIds, Long viewerId) {
+        if (postIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<Long> ids = new ArrayList<>(postIds);
+        Map<Long, Integer> likeCounts = toCountMap(interactionSqlMapper.countLikesByPostIds(ids));
+        Map<Long, Integer> favoriteCounts = toCountMap(interactionSqlMapper.countFavoritesByPostIds(ids));
+        Set<Long> likedByViewer = viewerId != null
+                ? new HashSet<>(interactionSqlMapper.likedPostIdsByViewer(viewerId, ids))
+                : Collections.emptySet();
+        Set<Long> favoritedByViewer = viewerId != null
+                ? new HashSet<>(interactionSqlMapper.favoritedPostIdsByViewer(viewerId, ids))
+                : Collections.emptySet();
+        Map<Long, PostInteractionStats> result = new HashMap<>();
+        for (Long postId : postIds) {
+            result.put(postId, new PostInteractionStats(
+                    likeCounts.getOrDefault(postId, 0),
+                    favoriteCounts.getOrDefault(postId, 0),
+                    likedByViewer.contains(postId),
+                    favoritedByViewer.contains(postId)));
+        }
+        return result;
+    }
+
+    private Map<Long, Integer> toCountMap(List<ShortVideoCommentCountRow> rows) {
+        Map<Long, Integer> counts = new HashMap<>();
+        if (rows == null) {
+            return counts;
+        }
+        for (ShortVideoCommentCountRow row : rows) {
+            if (row.getPostId() != null && row.getCount() != null) {
+                counts.put(row.getPostId(), row.getCount().intValue());
+            }
+        }
+        return counts;
     }
 
     private Map<Long, Integer> loadCommentCountMap(Set<Long> postIds) {
@@ -1063,16 +1096,6 @@ public class ShortVideoServiceImpl implements ShortVideoService {
         List<ShortVideoComment> chronological = new ArrayList<>(comments);
         Collections.reverse(chronological);
         return chronological;
-    }
-
-    private List<ShortVideoLike> loadLikes(Long postId) {
-        return likeMapper.selectListByQuery(
-                QueryWrapper.create().eq("post_id", postId).eq("deleted", 0));
-    }
-
-    private List<ShortVideoFavorite> loadFavorites(Long postId) {
-        return favoriteMapper.selectListByQuery(
-                QueryWrapper.create().eq("post_id", postId).eq("deleted", 0));
     }
 
     private Map<Long, List<ShortVideoCommentLike>> loadCommentLikesMap(Set<Long> commentIds) {

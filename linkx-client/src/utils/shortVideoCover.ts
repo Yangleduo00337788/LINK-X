@@ -56,3 +56,18 @@ export function captureVideoCover(file: File): Promise<Blob> {
     video.src = URL.createObjectURL(file)
   })
 }
+
+/** 读取本地视频时长（毫秒）。 */
+export function readVideoDurationMs(file: File): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video')
+    video.preload = 'metadata'
+    video.onloadedmetadata = () => {
+      const ms = Math.round(video.duration * 1000)
+      URL.revokeObjectURL(video.src)
+      resolve(ms)
+    }
+    video.onerror = () => reject(new Error('duration'))
+    video.src = URL.createObjectURL(file)
+  })
+}
