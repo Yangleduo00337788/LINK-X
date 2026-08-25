@@ -1,7 +1,7 @@
 /**
  * 作者：yangleduo
  */
-import { del, get, post } from './request'
+import { del, get, post, put } from './request'
 import type { PageQuery, PageResult } from '@/types/api'
 
 export interface ShortVideoPostItem {
@@ -18,6 +18,7 @@ export interface ShortVideoPostItem {
   commentCount?: number
   durationMs?: number
   transcodeStatus?: string
+  transcodeError?: string
   videoUrl?: string
   coverUrl?: string
   createTime?: string
@@ -65,4 +66,42 @@ export function listShortVideoComments(params: PageQuery & {
 
 export function deleteShortVideoComment(id: string) {
   return del<null>(`/admin/short-video/comments/${id}`)
+}
+
+export interface ShortVideoTopicItem {
+  id: string
+  name?: string
+  displayName?: string
+  postCount?: number
+  pinned?: boolean
+  pinOrder?: number
+  status?: number
+  hotScore?: number
+  lastPostAt?: string
+  createTime?: string
+}
+
+export function listShortVideoTopics(params: PageQuery & {
+  pinned?: boolean
+  status?: number
+}) {
+  return get<PageResult<ShortVideoTopicItem>>('/admin/short-video/topics', params as Record<string, unknown>)
+}
+
+export function createShortVideoTopic(body: {
+  name: string
+  displayName?: string
+  pinned?: boolean
+  pinOrder?: number
+}) {
+  return post<ShortVideoTopicItem>('/admin/short-video/topics', body)
+}
+
+export function updateShortVideoTopic(id: string, body: {
+  displayName?: string
+  pinned?: boolean
+  pinOrder?: number
+  status?: number
+}) {
+  return put<ShortVideoTopicItem>(`/admin/short-video/topics/${id}`, body)
 }

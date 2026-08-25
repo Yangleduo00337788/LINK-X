@@ -1,15 +1,19 @@
 <!-- 作者：yangleduo -->
 <script setup lang="ts">
-import { computed, h, onMounted, reactive, ref } from 'vue'
+import { computed, h, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   NButton,
   NDataTable,
+  NForm,
+  NFormItem,
   NImage,
   NInput,
+  NInputNumber,
   NModal,
   NSelect,
   NSpace,
+  NSwitch,
   NTabPane,
   NTabs,
   NTag,
@@ -17,15 +21,20 @@ import {
   useDialog,
   useMessage,
   type DataTableColumns,
+  type FormRules,
 } from 'naive-ui'
 import {
+  createShortVideoTopic,
   deleteShortVideoComment,
   deleteShortVideoPost,
   listShortVideoComments,
   listShortVideoPosts,
+  listShortVideoTopics,
   retranscodeShortVideoPost,
+  updateShortVideoTopic,
   type ShortVideoCommentItem,
   type ShortVideoPostItem,
+  type ShortVideoTopicItem,
 } from '@/api/shortVideo'
 import { formatTime } from '@/utils/format'
 import { resolveShortVideoAdminMediaSrc } from '@/utils/mediaUrl'
@@ -37,7 +46,7 @@ const dialog = useDialog()
 const auth = useAuthStore()
 const { t, locale } = useI18n()
 
-const activeTab = ref<'posts' | 'comments'>('posts')
+const activeTab = ref<'posts' | 'comments' | 'topics'>('posts')
 
 const postLoading = ref(false)
 const postItems = ref<ShortVideoPostItem[]>([])
@@ -62,6 +71,37 @@ const commentQuery = reactive({
   userId: '',
 })
 
+const topicLoading = ref(false)
+const topicItems = ref<ShortVideoTopicItem[]>([])
+const topicTotal = ref(0)
+const topicQuery = reactive({
+  page: 1,
+  size: 20,
+  keyword: '',
+  pinned: '' as '' | 'true' | 'false',
+  status: '' as '' | number,
+})
+const showTopicCreate = ref(false)
+const showTopicEdit = ref(false)
+const topicSaving = ref(false)
+const topicCreateForm = reactive({
+  name: '',
+  displayName: '',
+  pinned: false,
+  pinOrder: 0,
+})
+const topicEditForm = reactive({
+  id: '',
+  name: '',
+  displayName: '',
+  pinned: false,
+  pinOrder: 0,
+  status: 1,
+})
+const topicCreateRules: FormRules = {
+  name: [{ required: true, message: () => t('shortVideo.topicNameRequired'), trigger: 'blur' }],
+}
+
 const previewPost = ref<ShortVideoPostItem | null>(null)
 const showPreview = ref(false)
 
@@ -84,6 +124,32 @@ const transcodeOptions = computed(() => {
     { label: t('shortVideo.transcodeProcessing'), value: 'processing' },
     { label: t('shortVideo.transcodeCompleted'), value: 'completed' },
     { label: t('shortVideo.transcodeFailed'), value: 'failed' },
+  ]
+})
+
+const topicPinnedOptions = computed(() => {
+  void locale.value
+  return [
+    { label: t('common.allStatus'), value: '' },
+    { label: t('shortVideo.topicPinnedOnly'), value: 'true' },
+    { label: t('shortVideo.topicUnpinnedOnly'), value: 'false' },
+  ]
+})
+
+const topicStatusOptions = computed(() => {
+  void locale.value
+  return [
+    { label: t('common.allStatus'), value: '' },
+    { label: t('shortVideo.topicVisible'), value: 1 },
+    { label: t('shortVideo.topicHidden'), value: 0 },
+  ]
+})
+
+const topicStatusEditOptions = computed(() => {
+  void locale.value
+  return [
+    { label: t('shortVideo.topicVisible'), value: 1 },
+    { label: t('shortVideo.topicHidden'), value: 0 },
   ]
 })
 
@@ -150,6 +216,81 @@ const previewVideoSrc = computed(() =>
   previewPost.value?.videoUrl ? resolveShortVideoAdminMediaSrc(previewPost.value.videoUrl) : ''
 )
 
+const topicColumns = computed<DataTableColumns<ShortVideoTopicItem>>(() => {
+  void locale.value
+  return [
+    {
+      title: t('shortVideo.topicName'),
+      key: 'name',
+      width: 140,
+      render: row => `#${row.name || '-'}`,
+    },
+    {
+      title: t('shortVideo.topicDisplayName'),
+      key: 'displayName',
+      minWidth: 140,
+      ellipsis: { tooltip: true },
+      render: row => row.displayName || '-',
+    },
+    {
+      title: t('shortVideo.topicPostCount'),
+      key: 'postCount',
+      width: 90,
+      render: row => row.postCount ?? 0,
+    },
+    {
+      title: t('shortVideo.topicHotScore'),
+      key: 'hotScore',
+      width: 100,
+      render: row => (row.hotScore != null ? Number(row.hotScore).toFixed(2) : '0.00'),
+    },
+    {
+      title: t('shortVideo.topicPinned'),
+      key: 'pinned',
+      width: 90,
+      render: row =>
+        h(NTag, { size: 'small', type: row.pinned ? 'warning' : 'default' }, () =>
+          row.pinned ? t('common.yes') : t('common.no')
+        ),
+    },
+    {
+      title: t('shortVideo.topicPinOrder'),
+      key: 'pinOrder',
+      width: 90,
+      render: row => row.pinOrder ?? 0,
+    },
+    {
+      title: t('common.status'),
+      key: 'status',
+      width: 90,
+      render: row =>
+        h(NTag, { size: 'small', type: row.status === 0 ? 'default' : 'success' }, () =>
+          row.status === 0 ? t('shortVideo.topicHidden') : t('shortVideo.topicVisible')
+        ),
+    },
+    {
+      title: t('shortVideo.topicLastPostAt'),
+      key: 'lastPostAt',
+      width: 150,
+      render: row => formatTime(row.lastPostAt),
+    },
+    {
+      title: t('common.actions'),
+      key: 'actions',
+      width: 100,
+      fixed: 'right',
+      render: row =>
+        auth.hasPermission('admin:short-video:topic:edit')
+          ? h(
+              NButton,
+              { size: 'small', onClick: () => openTopicEdit(row) },
+              () => t('common.edit')
+            )
+          : null,
+    },
+  ]
+})
+
 const postColumns = computed<DataTableColumns<ShortVideoPostItem>>(() => {
   void locale.value
   return [
@@ -189,10 +330,22 @@ const postColumns = computed<DataTableColumns<ShortVideoPostItem>>(() => {
       title: t('shortVideo.transcode'),
       key: 'transcodeStatus',
       width: 100,
-      render: row =>
-        h(NTag, { size: 'small', type: transcodeTagType(row.transcodeStatus) }, () =>
+      render: row => {
+        const tag = h(NTag, { size: 'small', type: transcodeTagType(row.transcodeStatus) }, () =>
           transcodeLabel(row.transcodeStatus)
-        ),
+        )
+        if (row.transcodeStatus === 'failed' && row.transcodeError) {
+          return h(
+            NTooltip,
+            { placement: 'top' },
+            {
+              trigger: () => tag,
+              default: () => row.transcodeError,
+            }
+          )
+        }
+        return tag
+      },
     },
     {
       title: t('common.createTime'),
@@ -333,6 +486,96 @@ function searchComments() {
   void loadComments()
 }
 
+async function loadTopics() {
+  topicLoading.value = true
+  try {
+    const res = await listShortVideoTopics({
+      page: topicQuery.page,
+      size: topicQuery.size,
+      keyword: topicQuery.keyword || undefined,
+      pinned: topicQuery.pinned === '' ? undefined : topicQuery.pinned === 'true',
+      status: topicQuery.status === '' ? undefined : topicQuery.status,
+    })
+    topicItems.value = res.items || []
+    topicTotal.value = res.total || 0
+  } catch {
+    message.error(t('shortVideo.loadTopicsFail'))
+  } finally {
+    topicLoading.value = false
+  }
+}
+
+function searchTopics() {
+  topicQuery.page = 1
+  void loadTopics()
+}
+
+function resetTopicCreateForm() {
+  topicCreateForm.name = ''
+  topicCreateForm.displayName = ''
+  topicCreateForm.pinned = false
+  topicCreateForm.pinOrder = 0
+}
+
+function openTopicCreate() {
+  resetTopicCreateForm()
+  showTopicCreate.value = true
+}
+
+function openTopicEdit(row: ShortVideoTopicItem) {
+  topicEditForm.id = row.id
+  topicEditForm.name = row.name || ''
+  topicEditForm.displayName = row.displayName || ''
+  topicEditForm.pinned = Boolean(row.pinned)
+  topicEditForm.pinOrder = row.pinOrder ?? 0
+  topicEditForm.status = row.status ?? 1
+  showTopicEdit.value = true
+}
+
+async function submitTopicCreate() {
+  const name = topicCreateForm.name.trim()
+  if (!name) {
+    message.warning(t('shortVideo.topicNameRequired'))
+    return
+  }
+  topicSaving.value = true
+  try {
+    await createShortVideoTopic({
+      name,
+      displayName: topicCreateForm.displayName.trim() || undefined,
+      pinned: topicCreateForm.pinned,
+      pinOrder: topicCreateForm.pinned ? topicCreateForm.pinOrder : undefined,
+    })
+    message.success(t('shortVideo.createTopicOk'))
+    showTopicCreate.value = false
+    await loadTopics()
+  } catch {
+    message.error(t('shortVideo.createTopicFail'))
+  } finally {
+    topicSaving.value = false
+  }
+}
+
+async function submitTopicEdit() {
+  if (!topicEditForm.id) return
+  topicSaving.value = true
+  try {
+    await updateShortVideoTopic(topicEditForm.id, {
+      displayName: topicEditForm.displayName.trim(),
+      pinned: topicEditForm.pinned,
+      pinOrder: topicEditForm.pinned ? topicEditForm.pinOrder : 0,
+      status: topicEditForm.status,
+    })
+    message.success(t('shortVideo.updateTopicOk'))
+    showTopicEdit.value = false
+    await loadTopics()
+  } catch {
+    message.error(t('shortVideo.updateTopicFail'))
+  } finally {
+    topicSaving.value = false
+  }
+}
+
 function openPreview(row: ShortVideoPostItem) {
   previewPost.value = row
   showPreview.value = true
@@ -391,6 +634,12 @@ function confirmDeleteComment(row: ShortVideoCommentItem) {
 onMounted(() => {
   void loadPosts()
   void loadComments()
+})
+
+watch(activeTab, tab => {
+  if (tab === 'topics' && topicItems.value.length === 0 && !topicLoading.value) {
+    void loadTopics()
+  }
 })
 </script>
 
@@ -479,7 +728,110 @@ onMounted(() => {
             />
           </NSpace>
         </NTabPane>
+
+        <NTabPane name="topics" :tab="t('shortVideo.topicsTab')">
+          <NSpace vertical :size="12">
+            <NSpace wrap>
+              <SearchAutoComplete
+                v-model="topicQuery.keyword"
+                :placeholder="t('shortVideo.searchTopics')"
+                style="width: 220px"
+                @search="searchTopics"
+              />
+              <NSelect
+                v-model:value="topicQuery.pinned"
+                :options="topicPinnedOptions"
+                style="width: 130px"
+              />
+              <NSelect
+                v-model:value="topicQuery.status"
+                :options="topicStatusOptions"
+                style="width: 120px"
+              />
+              <NButton type="primary" @click="searchTopics">{{ t('common.search') }}</NButton>
+              <NButton
+                v-if="auth.hasPermission('admin:short-video:topic:edit')"
+                type="success"
+                @click="openTopicCreate"
+              >
+                {{ t('shortVideo.createTopic') }}
+              </NButton>
+            </NSpace>
+            <NDataTable
+              :columns="topicColumns"
+              :data="topicItems"
+              :loading="topicLoading"
+              :scroll-x="1100"
+              :pagination="{
+                page: topicQuery.page,
+                pageSize: topicQuery.size,
+                itemCount: topicTotal,
+                onUpdatePage: (p: number) => { topicQuery.page = p; loadTopics() },
+                onUpdatePageSize: (s: number) => { topicQuery.size = s; topicQuery.page = 1; loadTopics() },
+              }"
+            />
+          </NSpace>
+        </NTabPane>
       </NTabs>
+
+      <NModal
+        v-model:show="showTopicCreate"
+        preset="card"
+        :title="t('shortVideo.createTopic')"
+        style="width: min(480px, 92vw)"
+      >
+        <NForm :model="topicCreateForm" :rules="topicCreateRules" label-placement="left" label-width="96">
+          <NFormItem :label="t('shortVideo.topicName')" path="name">
+            <NInput v-model:value="topicCreateForm.name" :placeholder="t('shortVideo.topicNamePh')" />
+          </NFormItem>
+          <NFormItem :label="t('shortVideo.topicDisplayName')">
+            <NInput v-model:value="topicCreateForm.displayName" :placeholder="t('shortVideo.topicDisplayNamePh')" />
+          </NFormItem>
+          <NFormItem :label="t('shortVideo.topicPinned')">
+            <NSwitch v-model:value="topicCreateForm.pinned" />
+          </NFormItem>
+          <NFormItem v-if="topicCreateForm.pinned" :label="t('shortVideo.topicPinOrder')">
+            <NInputNumber v-model:value="topicCreateForm.pinOrder" :min="0" :max="9999" style="width: 100%" />
+          </NFormItem>
+        </NForm>
+        <template #footer>
+          <NSpace justify="end">
+            <NButton @click="showTopicCreate = false">{{ t('common.cancel') }}</NButton>
+            <NButton type="primary" :loading="topicSaving" @click="submitTopicCreate">{{ t('common.confirm') }}</NButton>
+          </NSpace>
+        </template>
+      </NModal>
+
+      <NModal
+        v-model:show="showTopicEdit"
+        preset="card"
+        :title="t('shortVideo.editTopic')"
+        style="width: min(480px, 92vw)"
+      >
+        <NForm label-placement="left" label-width="96">
+          <NFormItem :label="t('shortVideo.topicName')">
+            <NInput :value="topicEditForm.name" disabled />
+          </NFormItem>
+          <NFormItem :label="t('shortVideo.topicDisplayName')">
+            <NInput v-model:value="topicEditForm.displayName" :placeholder="t('shortVideo.topicDisplayNamePh')" />
+          </NFormItem>
+          <NFormItem :label="t('shortVideo.topicPinned')">
+            <NSwitch v-model:value="topicEditForm.pinned" />
+          </NFormItem>
+          <NFormItem v-if="topicEditForm.pinned" :label="t('shortVideo.topicPinOrder')">
+            <NInputNumber v-model:value="topicEditForm.pinOrder" :min="0" :max="9999" style="width: 100%" />
+          </NFormItem>
+          <NFormItem :label="t('common.status')">
+            <NSelect v-model:value="topicEditForm.status" :options="topicStatusEditOptions" />
+          </NFormItem>
+        </NForm>
+        <template #footer>
+          <NSpace justify="end">
+            <NButton @click="showTopicEdit = false">{{ t('common.cancel') }}</NButton>
+            <NButton type="primary" :loading="topicSaving" @click="submitTopicEdit">{{ t('common.confirm') }}</NButton>
+          </NSpace>
+        </template>
+      </NModal>
 
       <NModal
         v-model:show="showPreview"
