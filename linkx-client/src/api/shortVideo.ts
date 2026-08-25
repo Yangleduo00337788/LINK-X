@@ -24,6 +24,26 @@ export interface ShortVideoPost {
   followingAuthor?: boolean
   commentCount?: number
   comments: ShortVideoComment[]
+  topics?: string[]
+}
+
+export interface ShortVideoTopic {
+  name: string
+  displayName?: string
+  postCount?: number
+  pinned?: boolean
+}
+
+export interface ShortVideoTopicPage {
+  items: ShortVideoTopic[]
+  page: number
+  size: number
+  total: number
+}
+
+export function shortVideoTopicLabel(topic: Pick<ShortVideoTopic, 'name' | 'displayName'>) {
+  const label = topic.displayName?.trim()
+  return label || topic.name
 }
 
 export interface ShortVideoComment {
@@ -72,6 +92,27 @@ const SHORT_VIDEO_READ_TIMEOUT = 30000
 
 export function listShortVideos(params?: ListShortVideoParams) {
   return apiClient.get<never, ApiResult<ShortVideoPost[]>>('/short-video', {
+    params,
+    timeout: SHORT_VIDEO_READ_TIMEOUT
+  })
+}
+
+export function listHotShortVideoTopics(limit = 10) {
+  return apiClient.get<never, ApiResult<ShortVideoTopic[]>>('/short-video/topics/hot', {
+    params: { limit },
+    timeout: SHORT_VIDEO_READ_TIMEOUT
+  })
+}
+
+export function listHotShortVideos(limit = 10) {
+  return apiClient.get<never, ApiResult<ShortVideoPost[]>>('/short-video/hot', {
+    params: { limit },
+    timeout: SHORT_VIDEO_READ_TIMEOUT
+  })
+}
+
+export function listShortVideoTopics(params?: { page?: number; limit?: number }) {
+  return apiClient.get<never, ApiResult<ShortVideoTopicPage>>('/short-video/topics', {
     params,
     timeout: SHORT_VIDEO_READ_TIMEOUT
   })

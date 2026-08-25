@@ -21,6 +21,7 @@ import {
   Pause,
   PersonOutline,
   Play,
+  PricetagsOutline,
   SearchOutline,
   ShareSocialOutline,
   NotificationsOutline,
@@ -40,17 +41,26 @@ import { resolveApiErrorMessage } from '../api/client'
 import { submitFeedback } from '../api/feedback'
 import Avatar from './Avatar.vue'
 import ShortVideoNotificationsPage from './ShortVideoNotificationsPage.vue'
-import ShortVideoCommentNode from './ShortVideoCommentNode.vue'
+import ShortVideoTopicPlaza from './ShortVideoTopicPlaza.vue'
+import ShortVideoSearchPage from './ShortVideoSearchPage.vue'
+import ShortVideoSearchNav from './ShortVideoSearchNav.vue'
+import ShortVideoSubPageShell from './ShortVideoSubPageShell.vue'
 import ForwardPickerModal from './chat/ForwardPickerModal.vue'
 import { CHAT_EMOJIS } from '../constants/emojis'
 import { buildShortVideoCommentTree } from '../utils/shortVideoComments'
-import { uploadShortVideoMedia, shareShortVideoToChat } from '../api/shortVideo'
+import { uploadShortVideoMedia, shareShortVideoToChat, listHotShortVideoTopics, listHotShortVideos } from '../api/shortVideo'
 import { resolveUserAvatarUrl } from '../utils/defaultAvatar'
 import { resolveShortVideoDisplaySrc, buildShortVideoMediaApiUrl } from '../utils/shortVideoMediaAccess'
 import { readableShortVideoText } from '../utils/shortVideoText'
+import {
+  clearShortVideoSearchHistory,
+  loadShortVideoSearchHistory,
+  removeShortVideoSearchHistoryItem,
+  saveShortVideoSearchQuery
+} from '../utils/shortVideoSearchHistory'
 import { readVideoDurationMs } from '../utils/shortVideoCover'
 import { copyText } from '../utils/clipboard'
-import type { ShortVideoComment, ShortVideoPost } from '../api/shortVideo'
+import type { ShortVideoComment, ShortVideoPost, ShortVideoTopic } from '../api/shortVideo'
 
 const { t } = useI18n()
 const message = useMessage()
@@ -128,7 +138,13 @@ const publishVisibility = ref(0)
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const pendingFile = ref<File | null>(null)
 const searchOpen = ref(false)
+const topicPlazaOpen = ref(false)
 const searchText = ref('')
+const searchHistory = ref<string[]>([])
+const hotTopics = ref<ShortVideoTopic[]>([])
+const hotTopicsLoading = ref(false)
+const hotVideos = ref<ShortVideoPost[]>([])
+const hotVideosLoading = ref(false)
 const mineOpen = ref(false)
 type MineTab = 'works' | 'favorites' | 'likes'
 const mineTab = ref<MineTab>('works')
@@ -1151,6 +1167,20 @@ async function submitComment(post: ShortVideoPost) {
   }
 }
 
+function refreshSearchHistory() {
+  searchHistory.value = loadShortVideoSearchHistory()
+}
+
+function removeSearchHistoryItem(query: string) {
+  removeShortVideoSearchHistoryItem(query)
+  refreshSearchHistory()
+}
+
+function clearSearchHistory() {
+  clearShortVideoSearchHistory()
+  refreshSearchHistory()
+}
+
 async function submitSearch() {
   const q = searchText.value.trim()
   searchOpen.value = false
@@ -1158,6 +1188,8 @@ async function submitSearch() {
     if (!q) {
       await store.clearSearch()
     } else {
+      saveShortVideoSearchQuery(q)
+      refreshSearchHistory()
       await store.searchFeed(q, true)
     }
     await syncMediaSources()
@@ -1165,6 +1197,78 @@ async function submitSearch() {
     message.error(resolveApiErrorMessage(e, t('shortVideo.loadFail')))
   }
 }
+
+async function pickSearchHistory(query: string) {
+  searchText.value = query
+  await submitSearch()
+}
+
+async function searchHashtag(tag: string) {
+  const q = tag.startsWith('#') ? tag : `#${tag}`
+  searchText.value = q
+  searchOpen.value = false
+  try {
+    saveShortVideoSearchQuery(q)
+    refreshSearchHistory()
+    await store.searchFeed(q, true)
+    await syncMediaSources()
+  } catch (e) {
+    message.error(resolveApiErrorMessage(e, t('shortVideo.loadFail')))
+  }
+}
+
+async function loadHotTopics() {
+  hotTopicsLoading.value = true
+  try {
+    const res = await listHotShortVideoTopics(10)
+    hotTopics.value = res.code === 200 && Array.isArray(res.data) ? res.data : []
+  } catch {
+    hotTopics.value = []
+  } finally {
+    hotTopicsLoading.value = false
+  }
+}
+
+async function loadHotVideos() {
+  hotVideosLoading.value = true
+  try {
+    const res = await listHotShortVideos(10)
+    hotVideos.value = res.code === 200 && Array.isArray(res.data) ? res.data : []
+  } catch {
+    hotVideos.value = []
+  } finally {
+    hotVideosLoading.value = false
+  }
+}
+
+async function openHotVideo(post: ShortVideoPost) {
+  searchOpen.value = false
+  try {
+    await store.openPostById(post.id)
+    await syncMediaSources()
+  } catch (e) {
+    message.error(resolveApiErrorMessage(e, t('shortVideo.loadFail')))
+  }
+}
+
+async function onTopicPlazaSelect(tag: string) {
+  topicPlazaOpen.value = false
+  await searchHashtag(tag)
+}
+
+watch(searchOpen, open => {
+  if (open) {
+    refreshSearchHistory()
+    void loadHotTopics()
+    void loadHotVideos()
+  }
+})
+
+watch(searchMode, mode => {
+  if (mode) {
+    searchText.value = searchQuery.value
+  }
+})
 
 async function clearSearch() {
   searchText.value = ''
@@ -1306,6 +1410,17 @@ function videoPreload(index: number) {
               <p v-if="readableShortVideoText(post.description)" class="short-video-desc">
                 {{ readableShortVideoText(post.description) }}
               </p>
+              <div v-if="post.topics?.length" class="short-video-tags">
+                <button
+                  v-for="tag in post.topics"
+                  :key="tag"
+                  type="button"
+                  class="short-video-hashtag"
+                  @click.stop="searchHashtag(tag)"
+                >
+                  #{{ tag }}
+                </button>
+              </div>
               <div class="short-video-author" @click.stop="openAuthorProfile(post)">
                 <Avatar
                   :text="(post.nickname || t('shortVideo.author')).slice(0, 1)"
@@ -1548,19 +1663,28 @@ function videoPreload(index: number) {
         </div>
       </div>
 
-      <header class="short-video-topbar" :class="{ 'short-video-topbar--overlay': showFeed }">
-        <div v-if="searchMode" class="short-video-search-banner">
-          <span class="short-video-search-banner__text">
-            {{ t('shortVideo.searchResult', { q: searchQuery }) }}
-          </span>
-          <button type="button" class="short-video-search-banner__clear" @click="clearSearch">
-            {{ t('shortVideo.clearSearch') }}
-          </button>
+      <header
+        class="short-video-topbar"
+        :class="{
+          'short-video-topbar--overlay': showFeed && !searchMode,
+          'short-video-topbar--inline-search': searchMode
+        }"
+      >
+        <div v-if="searchMode" class="short-video-topbar__search-nav">
+          <ShortVideoSearchNav
+            :model-value="searchText"
+            @update:model-value="searchText = $event"
+            @back="clearSearch"
+            @submit="submitSearch"
+          />
         </div>
-        <div class="short-video-topbar__row">
+        <div v-else class="short-video-topbar__row">
         <div class="short-video-topbar__side short-video-topbar__side--left">
           <button type="button" class="short-video-topbar__icon" :title="t('shortVideo.publish')" @click="openPublish">
             <NIcon :component="VideocamOutline" :size="22" />
+          </button>
+          <button type="button" class="short-video-topbar__icon" :title="t('shortVideo.topicPlaza')" @click="topicPlazaOpen = true">
+            <NIcon :component="PricetagsOutline" :size="22" />
           </button>
         </div>
 
@@ -1601,84 +1725,86 @@ function videoPreload(index: number) {
       </header>
     </div>
 
-    <div v-if="searchOpen" class="short-video-modal" @click.self="searchOpen = false">
-      <div class="short-video-modal-card short-video-modal-card--search">
-        <h3>{{ t('shortVideo.search') }}</h3>
-        <NInput
-          v-model:value="searchText"
-          :placeholder="t('shortVideo.searchPh')"
-          @keyup.enter="submitSearch"
-        />
-        <div class="short-video-modal-actions">
-          <LxButton @click="searchOpen = false">{{ t('common.cancel') }}</LxButton>
-          <LxButton variant="modal-primary" @click="submitSearch">{{ t('shortVideo.search') }}</LxButton>
-        </div>
-      </div>
-    </div>
+    <ShortVideoTopicPlaza :open="topicPlazaOpen" @close="topicPlazaOpen = false" @select="onTopicPlazaSelect" />
 
-    <div v-if="authorOpen" class="short-video-modal short-video-modal--sheet" @click.self="closeAuthorProfile">
-      <div class="short-video-modal-card short-video-modal-card--mine short-video-modal-card--sheet" @click.stop>
-        <div class="short-video-mine-header short-video-mine-header--compact">
-          <button
-            type="button"
-            class="short-video-mine-header__close"
-            :aria-label="t('common.close')"
-            @click="closeAuthorProfile"
-          >
-            <NIcon :component="CloseOutline" :size="22" />
-          </button>
-          <div class="short-video-mine-profile">
-            <Avatar
-              :text="(authorProfile?.nickname || t('shortVideo.author')).slice(0, 1)"
-              color="transparent"
-              :size="48"
-              :image-url="resolveUserAvatarUrl(authorProfile?.avatar, authorProfile?.userId)"
-            />
-            <span class="short-video-mine-profile__name">
+    <ShortVideoSearchPage
+      :open="searchOpen"
+      :search-text="searchText"
+      :search-history="searchHistory"
+      :hot-topics="hotTopics"
+      :hot-topics-loading="hotTopicsLoading"
+      :hot-videos="hotVideos"
+      :hot-videos-loading="hotVideosLoading"
+      @close="searchOpen = false"
+      @update:search-text="searchText = $event"
+      @submit="submitSearch"
+      @pick-history="pickSearchHistory"
+      @remove-history="removeSearchHistoryItem"
+      @clear-history="clearSearchHistory"
+      @pick-topic="searchHashtag"
+      @pick-video="openHotVideo"
+    />
+
+    <ShortVideoSubPageShell
+      v-if="authorOpen"
+      :title="authorProfile?.nickname || t('shortVideo.author')"
+      body-class="sv-subpage__body--flush"
+      @close="closeAuthorProfile"
+    >
+      <div class="sv-profile-header">
+        <div class="sv-profile-header__row">
+          <Avatar
+            :text="(authorProfile?.nickname || t('shortVideo.author')).slice(0, 1)"
+            color="transparent"
+            :size="48"
+            :image-url="resolveUserAvatarUrl(authorProfile?.avatar, authorProfile?.userId)"
+          />
+          <div class="sv-profile-header__info">
+            <span class="sv-profile-header__name">
               {{ authorProfile?.nickname || t('shortVideo.author') }}
             </span>
           </div>
         </div>
-        <h4 class="short-video-mine-section">{{ t('shortVideo.authorVideos') }}</h4>
-        <div class="short-video-mine-body" @scroll="onAuthorBodyScroll">
-          <div v-if="authorPostsLoading" class="short-video-mine-empty">{{ t('common.loading') }}</div>
-          <div v-else-if="authorPosts.length === 0" class="short-video-mine-empty">{{ t('shortVideo.noAuthorVideos') }}</div>
-          <div v-else class="short-video-mine-grid">
-            <div
-              v-for="item in authorPosts"
-              :key="item.id"
-              class="short-video-mine-cell"
+      </div>
+      <h4 class="sv-profile-section-title">{{ t('shortVideo.authorVideos') }}</h4>
+      <div class="short-video-mine-body" @scroll="onAuthorBodyScroll">
+        <div v-if="authorPostsLoading" class="short-video-mine-empty">{{ t('common.loading') }}</div>
+        <div v-else-if="authorPosts.length === 0" class="short-video-mine-empty">{{ t('shortVideo.noAuthorVideos') }}</div>
+        <div v-else class="short-video-mine-grid">
+          <div
+            v-for="item in authorPosts"
+            :key="item.id"
+            class="short-video-mine-cell"
+          >
+            <button
+              type="button"
+              class="short-video-mine-tile"
+              :title="readableShortVideoText(item.description) || t('shortVideo.empty')"
+              @click="openAuthorVideo(item)"
             >
-              <button
-                type="button"
-                class="short-video-mine-tile"
-                :title="readableShortVideoText(item.description) || t('shortVideo.empty')"
-                @click="openAuthorVideo(item)"
-              >
-                <img
-                  v-if="!authorCoverFailedFor(item.id)"
-                  :src="coverPoster(item)"
-                  class="short-video-mine-tile__cover"
-                  alt=""
-                  loading="lazy"
-                  @error="onAuthorCoverError(item.id)"
-                />
-                <div v-else class="short-video-mine-tile__fallback">
-                  <NIcon :component="VideocamOutline" :size="22" />
-                </div>
-                <span class="short-video-mine-tile__plays">
-                  <NIcon :component="Play" :size="10" />
-                  {{ formatCount(item.playCount || 0) }}
-                </span>
-              </button>
-            </div>
-          </div>
-          <div v-if="authorPostsLoadingMore" class="short-video-mine-empty short-video-mine-empty--inline">
-            {{ t('common.loading') }}
+              <img
+                v-if="!authorCoverFailedFor(item.id)"
+                :src="coverPoster(item)"
+                class="short-video-mine-tile__cover"
+                alt=""
+                loading="lazy"
+                @error="onAuthorCoverError(item.id)"
+              />
+              <div v-else class="short-video-mine-tile__fallback">
+                <NIcon :component="VideocamOutline" :size="22" />
+              </div>
+              <span class="short-video-mine-tile__plays">
+                <NIcon :component="Play" :size="10" />
+                {{ formatCount(item.playCount || 0) }}
+              </span>
+            </button>
           </div>
         </div>
+        <div v-if="authorPostsLoadingMore" class="short-video-mine-empty short-video-mine-empty--inline">
+          {{ t('common.loading') }}
+        </div>
       </div>
-    </div>
+    </ShortVideoSubPageShell>
 
     <div v-if="reportOpen" class="short-video-modal" @click.self="reportOpen = false">
       <div class="short-video-modal-card">
@@ -1706,111 +1832,106 @@ function videoPreload(index: number) {
       </div>
     </div>
 
-    <div v-if="mineOpen" class="short-video-modal short-video-modal--sheet" @click.self="mineOpen = false">
-      <div class="short-video-modal-card short-video-modal-card--mine short-video-modal-card--sheet" @click.stop>
-        <div class="short-video-mine-header">
-          <button
-            type="button"
-            class="short-video-mine-header__close"
-            :aria-label="t('common.close')"
-            @click="mineOpen = false"
-          >
-            <NIcon :component="CloseOutline" :size="20" />
-          </button>
-          <div class="short-video-mine-profile">
-            <Avatar
-              :text="(appStore.userProfile.nickname || t('shortVideo.author')).slice(0, 1)"
-              color="transparent"
-              :size="56"
-              :image-url="resolveUserAvatarUrl(appStore.userProfile.avatar, appStore.userProfile.userId)"
-            />
-            <div class="short-video-mine-profile__info">
-              <span class="short-video-mine-profile__name">
-                {{ appStore.userProfile.nickname || t('shortVideo.author') }}
-              </span>
-              <button type="button" class="short-video-mine-publish" @click="openPublish">
-                <NIcon :component="VideocamOutline" :size="16" />
-                {{ t('shortVideo.publish') }}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div class="short-video-mine-tabs" role="tablist">
-          <button
-            v-for="tab in mineTabs"
-            :key="tab.key"
-            type="button"
-            role="tab"
-            class="short-video-mine-tab"
-            :class="{ 'short-video-mine-tab--active': mineTab === tab.key }"
-            :aria-selected="mineTab === tab.key"
-            @click="mineTab = tab.key"
-          >
-            <NIcon :component="tab.icon" :size="18" />
-            <span>{{ tab.label }}</span>
-          </button>
-        </div>
-
-        <div class="short-video-mine-body" @scroll="onMineBodyScroll">
-          <div v-if="currentMineLoading" class="short-video-mine-empty">{{ t('common.loading') }}</div>
-          <div v-else-if="currentMinePosts.length === 0" class="short-video-mine-empty">
-            {{ currentMineEmptyText }}
-          </div>
-          <div v-else class="short-video-mine-grid">
-            <div
-              v-for="item in currentMinePosts"
-              :key="`${mineTab}-${item.id}`"
-              class="short-video-mine-cell"
-            >
-              <div class="short-video-mine-tile-wrap">
-                <button
-                  type="button"
-                  class="short-video-mine-tile"
-                  :title="readableShortVideoText(item.description) || t('shortVideo.empty')"
-                  @click="openMyVideo(item)"
-                >
-                  <img
-                    v-if="!mineCoverFailedFor(item.id)"
-                    :src="coverPoster(item)"
-                    class="short-video-mine-tile__cover"
-                    alt=""
-                    loading="lazy"
-                    @error="onMineCoverError(item.id)"
-                  />
-                  <div v-else class="short-video-mine-tile__fallback">
-                    <NIcon :component="VideocamOutline" :size="22" />
-                  </div>
-                  <span class="short-video-mine-tile__plays">
-                    <NIcon :component="Play" :size="10" />
-                    {{ formatCount(item.playCount || 0) }}
-                  </span>
-                </button>
-                <div v-if="mineTab === 'works'" class="short-video-mine-tile__actions">
-                  <button
-                    type="button"
-                    class="short-video-mine-tile__action"
-                    @click.stop="openEdit(item)"
-                  >
-                    {{ t('moments.editPost') }}
-                  </button>
-                  <button
-                    type="button"
-                    class="short-video-mine-tile__action short-video-mine-tile__action--danger"
-                    @click.stop="confirmDeletePost(item)"
-                  >
-                    {{ t('common.delete') }}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div v-if="currentMineLoadingMore" class="short-video-mine-empty short-video-mine-empty--inline">
-            {{ t('common.loading') }}
+    <ShortVideoSubPageShell
+      v-if="mineOpen"
+      :title="t('shortVideo.mine')"
+      body-class="sv-subpage__body--flush"
+      @close="mineOpen = false"
+    >
+      <div class="sv-profile-header">
+        <div class="sv-profile-header__row">
+          <Avatar
+            :text="(appStore.userProfile.nickname || t('shortVideo.author')).slice(0, 1)"
+            color="transparent"
+            :size="56"
+            :image-url="resolveUserAvatarUrl(appStore.userProfile.avatar, appStore.userProfile.userId)"
+          />
+          <div class="sv-profile-header__info">
+            <span class="sv-profile-header__name">
+              {{ appStore.userProfile.nickname || t('shortVideo.author') }}
+            </span>
+            <button type="button" class="sv-profile-publish" @click="openPublish">
+              <NIcon :component="VideocamOutline" :size="16" />
+              {{ t('shortVideo.publish') }}
+            </button>
           </div>
         </div>
       </div>
-    </div>
+
+      <div class="sv-profile-tabs" role="tablist">
+        <button
+          v-for="tab in mineTabs"
+          :key="tab.key"
+          type="button"
+          role="tab"
+          class="sv-profile-tab"
+          :class="{ 'sv-profile-tab--active': mineTab === tab.key }"
+          :aria-selected="mineTab === tab.key"
+          @click="mineTab = tab.key"
+        >
+          <NIcon :component="tab.icon" :size="18" />
+          <span>{{ tab.label }}</span>
+        </button>
+      </div>
+
+      <div class="short-video-mine-body" @scroll="onMineBodyScroll">
+        <div v-if="currentMineLoading" class="short-video-mine-empty">{{ t('common.loading') }}</div>
+        <div v-else-if="currentMinePosts.length === 0" class="short-video-mine-empty">
+          {{ currentMineEmptyText }}
+        </div>
+        <div v-else class="short-video-mine-grid">
+          <div
+            v-for="item in currentMinePosts"
+            :key="`${mineTab}-${item.id}`"
+            class="short-video-mine-cell"
+          >
+            <div class="short-video-mine-tile-wrap">
+              <button
+                type="button"
+                class="short-video-mine-tile"
+                :title="readableShortVideoText(item.description) || t('shortVideo.empty')"
+                @click="openMyVideo(item)"
+              >
+                <img
+                  v-if="!mineCoverFailedFor(item.id)"
+                  :src="coverPoster(item)"
+                  class="short-video-mine-tile__cover"
+                  alt=""
+                  loading="lazy"
+                  @error="onMineCoverError(item.id)"
+                />
+                <div v-else class="short-video-mine-tile__fallback">
+                  <NIcon :component="VideocamOutline" :size="22" />
+                </div>
+                <span class="short-video-mine-tile__plays">
+                  <NIcon :component="Play" :size="10" />
+                  {{ formatCount(item.playCount || 0) }}
+                </span>
+              </button>
+              <div v-if="mineTab === 'works'" class="short-video-mine-tile__actions">
+                <button
+                  type="button"
+                  class="short-video-mine-tile__action"
+                  @click.stop="openEdit(item)"
+                >
+                  {{ t('moments.editPost') }}
+                </button>
+                <button
+                  type="button"
+                  class="short-video-mine-tile__action short-video-mine-tile__action--danger"
+                  @click.stop="confirmDeletePost(item)"
+                >
+                  {{ t('common.delete') }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div v-if="currentMineLoadingMore" class="short-video-mine-empty short-video-mine-empty--inline">
+          {{ t('common.loading') }}
+        </div>
+      </div>
+    </ShortVideoSubPageShell>
 
     <div v-if="sharePostTarget" class="short-video-share-sheet" @click.self="closeShareSheet">
       <div class="short-video-share-panel" @click.stop>
@@ -1974,38 +2095,25 @@ function videoPreload(index: number) {
   width: 100%;
 }
 
-.short-video-search-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+.short-video-topbar__row--search {
+  grid-template-columns: var(--lx-size-control) 1fr auto;
+  gap: var(--lx-space);
+  padding: var(--lx-space) var(--lx-space-md);
+}
+
+.short-video-topbar--inline-search {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  background: var(--lx-bg-card);
+  border-bottom: 1px solid var(--lx-border-light);
+}
+
+.short-video-topbar__search-nav {
   width: 100%;
-  padding: 6px 12px 0;
-  font-size: 12px;
-}
-
-.short-video-search-banner__text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--lx-text-secondary);
-}
-
-.short-video-search-banner__clear {
-  flex-shrink: 0;
-  border: none;
-  background: transparent;
-  color: var(--lx-primary);
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.short-video-topbar--overlay .short-video-search-banner__text {
-  color: rgba(255, 255, 255, 0.92);
-}
-
-.short-video-topbar--overlay .short-video-search-banner__clear {
-  color: #fff;
+  padding: var(--lx-space) var(--lx-space-md);
 }
 
 .short-video-topbar--overlay {
@@ -2242,6 +2350,28 @@ function videoPreload(index: number) {
   overflow: hidden;
 }
 
+.short-video-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 8px;
+}
+
+.short-video-hashtag {
+  border: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #6eb6ff;
+  font-size: 12px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.short-video-hashtag:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
 .short-video-author {
   display: flex;
   align-items: center;
@@ -2261,7 +2391,7 @@ function videoPreload(index: number) {
 
 .short-video-follow-pill {
   border: none;
-  border-radius: 4px;
+  border-radius: var(--lx-radius-xs);
   background: #20d492;
   color: #fff;
   font-size: 12px;
@@ -2402,7 +2532,7 @@ function videoPreload(index: number) {
   min-height: 38%;
   background: rgba(22, 22, 22, 0.96);
   color: #fff;
-  border-radius: 16px 16px 0 0;
+  border-radius: var(--lx-radius-lg) var(--lx-radius-lg) 0 0;
   overflow: hidden;
   animation: short-video-comment-slide-up 0.24s ease;
 }
@@ -2713,160 +2843,42 @@ function videoPreload(index: number) {
 .short-video-modal {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--lx-bg-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 60;
-  padding: 12px;
+  padding: var(--lx-space-lg);
   box-sizing: border-box;
-}
-
-.short-video-modal--sheet {
-  align-items: flex-end;
-  justify-content: stretch;
-  padding: 0;
-  background: rgba(0, 0, 0, 0.55);
 }
 
 .short-video-modal-card {
   width: min(420px, 100%);
-  background: var(--lx-bg-panel);
+  background: var(--lx-bg-card);
   border-radius: var(--lx-radius-lg);
-  padding: 16px;
+  padding: var(--lx-space-2xl);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--lx-space-lg);
+  box-shadow: var(--lx-shadow-soft);
 }
 
 .short-video-modal-card h3 {
   margin: 0;
-  font-size: 16px;
-}
-
-.short-video-modal-card--search {
-  width: min(480px, 100%);
-}
-
-.short-video-modal-card--mine {
-  width: min(420px, 100%);
-  max-height: min(78vh, 640px);
-  padding: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.short-video-modal-card--sheet {
-  width: 100%;
-  max-width: none;
-  max-height: 72%;
-  height: auto;
-  border-radius: 16px 16px 0 0;
-  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.18);
-  animation: short-video-sheet-up 0.22s ease;
-}
-
-@keyframes short-video-sheet-up {
-  from { transform: translateY(100%); }
-  to { transform: translateY(0); }
-}
-
-.short-video-modal-card--sheet .short-video-mine-body {
-  flex: 0 1 auto;
-  max-height: 320px;
-  overflow-y: auto;
-}
-
-.short-video-mine-header {
-  position: relative;
-  padding: 16px 16px 12px;
-}
-
-.short-video-mine-header__close {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  border: none;
-  background: transparent;
-  color: var(--lx-text-secondary);
-  cursor: pointer;
-  padding: 4px;
-}
-
-.short-video-mine-profile {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding-right: 28px;
-}
-
-.short-video-mine-profile__info {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-}
-
-.short-video-mine-profile__name {
-  font-size: 16px;
-  font-weight: 600;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.short-video-mine-publish {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  align-self: flex-start;
-  border: none;
-  border-radius: 999px;
-  padding: 6px 14px;
-  background: #fe2c55;
-  color: #fff;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.short-video-mine-tabs {
-  display: flex;
-  border-top: 1px solid var(--lx-border);
-  border-bottom: 1px solid var(--lx-border);
-}
-
-.short-video-mine-tab {
-  flex: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 10px 8px;
-  border: none;
-  background: transparent;
-  color: var(--lx-text-secondary);
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.short-video-mine-tab--active {
-  color: var(--lx-text-body);
-  box-shadow: inset 0 -2px 0 #fe2c55;
+  font-size: var(--lx-font-xl);
 }
 
 .short-video-mine-body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 10px 12px 14px;
+  padding: var(--lx-space-lg) var(--lx-space-xl) var(--lx-space-4xl);
 }
 
 .short-video-mine-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
+  gap: var(--lx-space-sm);
 }
 
 .short-video-mine-cell {
@@ -2882,10 +2894,10 @@ function videoPreload(index: number) {
   margin: 0;
   padding: 0;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--lx-radius-sm);
   overflow: hidden;
   cursor: pointer;
-  background: #1a1a1a;
+  background: var(--lx-conf-bg-void);
   aspect-ratio: 9 / 16;
 }
 
@@ -2905,8 +2917,8 @@ function videoPreload(index: number) {
   align-items: center;
   gap: 2px;
   max-width: calc(100% - 8px);
-  padding: 2px 4px;
-  border-radius: 4px;
+  padding: var(--lx-space-2xs) var(--lx-space-xs);
+  border-radius: var(--lx-radius-xs);
   background: rgba(0, 0, 0, 0.58);
   color: #fff;
   font-size: 10px;
@@ -2930,7 +2942,7 @@ function videoPreload(index: number) {
   position: absolute;
   inset: 0;
   z-index: 70;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--lx-bg-overlay);
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -2938,9 +2950,9 @@ function videoPreload(index: number) {
 
 .short-video-share-panel {
   width: 100%;
-  background: var(--lx-bg-panel, #fff);
-  border-radius: 16px 16px 0 0;
-  padding: 12px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  background: var(--lx-bg-card);
+  border-radius: var(--lx-radius-lg) var(--lx-radius-lg) 0 0;
+  padding: var(--lx-space-lg) var(--lx-space-2xl) calc(var(--lx-space-2xl) + env(safe-area-inset-bottom, 0px));
 }
 
 .short-video-share-panel__header {
@@ -2975,23 +2987,9 @@ function videoPreload(index: number) {
   cursor: pointer;
 }
 
-.short-video-modal-card--author {
-  width: min(420px, 100%);
-  max-height: min(78vh, 640px);
-  padding: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.short-video-mine-header--compact {
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--lx-border-light);
-}
-
 .short-video-mine-empty--inline {
-  padding: 8px 0 12px;
-  font-size: 13px;
+  padding: var(--lx-space) 0 var(--lx-space-lg);
+  font-size: var(--lx-font-md);
 }
 
 .short-video-author-grid {
@@ -3087,7 +3085,7 @@ function videoPreload(index: number) {
   min-width: 64px;
   padding: 4px 8px;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--lx-radius-xs);
   background: rgba(255, 255, 255, 0.92);
   color: #222;
   font-size: 11px;
@@ -3095,17 +3093,8 @@ function videoPreload(index: number) {
 }
 
 .short-video-mine-tile__action--danger {
-  background: rgba(254, 44, 85, 0.92);
-  color: #fff;
-}
-
-.short-video-mine-section {
-  margin: 0;
-  padding: 10px 16px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--lx-text-body);
-  border-bottom: 1px solid var(--lx-border-light);
+  background: var(--lx-danger);
+  color: var(--lx-text-on-accent);
 }
 
 .short-video-mine-empty {
@@ -3164,13 +3153,6 @@ function videoPreload(index: number) {
   color: var(--lx-text-secondary);
 }
 
-.short-video-mine-profile {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 0;
-}
-
 .short-video-publish-hint {
   font-size: 13px;
   color: var(--lx-text-secondary);
@@ -3187,7 +3169,7 @@ function videoPreload(index: number) {
   height: 8px;
   margin: 10px 0 4px;
   background: var(--lx-bg-panel);
-  border-radius: 4px;
+  border-radius: var(--lx-radius-xs);
   overflow: hidden;
 }
 
