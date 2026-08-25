@@ -25,6 +25,7 @@ import com.linkx.server.mapper.row.ShortVideoCommentCountRow;
 import com.linkx.server.security.crypto.MessageContentCipher;
 import com.linkx.server.service.FileStorageService;
 import com.linkx.server.service.ShortVideoService;
+import com.linkx.server.service.ShortVideoTranscodeService;
 import com.linkx.server.service.admin.AdminShortVideoService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
@@ -55,6 +56,7 @@ public class AdminShortVideoServiceImpl implements AdminShortVideoService {
     private final ShortVideoInteractionSqlMapper interactionSqlMapper;
     private final SysUserMapper userMapper;
     private final ShortVideoService shortVideoService;
+    private final ShortVideoTranscodeService shortVideoTranscodeService;
     private final FileStorageService fileStorageService;
     private final MessageContentCipher messageContentCipher;
 
@@ -117,6 +119,12 @@ public class AdminShortVideoServiceImpl implements AdminShortVideoService {
             throw new CustomException(404, "封面不存在");
         }
         return fileStorageService.openObjectOnProvider(post.getCoverKey(), post.getStorageProvider());
+    }
+
+    @Override
+    public void enqueueRetranscode(Long postId) {
+        requirePost(postId);
+        shortVideoTranscodeService.enqueueRetranscode(postId);
     }
 
     private QueryWrapper buildPostQuery(AdminShortVideoPostQueryDTO query) {

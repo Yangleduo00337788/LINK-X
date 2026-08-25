@@ -25,6 +25,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -57,6 +58,15 @@ public class AdminShortVideoController {
     @RequirePermission("admin:short-video:delete")
     public Result<Void> deletePost(@PathVariable Long postId) {
         adminShortVideoService.deletePost(postId);
+        return Result.success(null);
+    }
+
+    @Operation(summary = "重新加入转码队列")
+    @AuditAction(operationType = "UPDATE", description = "短视频重新转码")
+    @PostMapping("/posts/{postId}/retranscode")
+    @RequirePermission("admin:short-video:view")
+    public Result<Void> retranscodePost(@PathVariable Long postId) {
+        adminShortVideoService.enqueueRetranscode(postId);
         return Result.success(null);
     }
 

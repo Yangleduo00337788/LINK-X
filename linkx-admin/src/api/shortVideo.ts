@@ -1,7 +1,7 @@
 /**
  * 作者：yangleduo
  */
-import { del, get } from './request'
+import { del, get, post } from './request'
 import type { PageQuery, PageResult } from '@/types/api'
 
 export interface ShortVideoPostItem {
@@ -50,6 +50,10 @@ export function getShortVideoPost(id: string) {
 
 export function deleteShortVideoPost(id: string) {
   return del<null>(`/admin/short-video/posts/${id}`)
+}
+
+export function retranscodeShortVideoPost(id: string) {
+  return post<null>(`/admin/short-video/posts/${id}/retranscode`)
 }
 
 export function listShortVideoComments(params: PageQuery & {

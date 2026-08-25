@@ -6,6 +6,7 @@ package com.linkx.server.service.impl;
  */
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.entity.ShortVideoPost;
+import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.ShortVideoPostMapper;
 import com.linkx.server.service.FileStorageService;
 import com.linkx.server.service.ShortVideoTranscodeService;
@@ -20,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -57,6 +59,31 @@ public class ShortVideoTranscodeServiceImpl implements ShortVideoTranscodeServic
         return success;
     }
 
+    @Override
+    public void enqueueRetranscode(Long postId) {
+        LinkxProperties.ShortVideo config = linkxProperties.getShortVideo();
+        if (config == null || !config.isTranscodeEnabled()) {
+            throw new CustomException(400, "短视频转码未启用");
+        }
+        ShortVideoPost post = postMapper.selectOneByQuery(
+                QueryWrapper.create().eq("id", postId).eq("deleted", 0));
+        if (post == null) {
+            throw new CustomException(404, "作品不存在");
+        }
+        String status = post.getTranscodeStatus();
+        if ("pending".equals(status)) {
+            throw new CustomException(409, "作品已在转码队列中");
+        }
+        if ("processing".equals(status)) {
+            throw new CustomException(409, "作品正在转码中");
+        }
+        UpdateChain.of(ShortVideoPost.class)
+                .set(ShortVideoPost::getTranscodeStatus, "pending")
+                .set(ShortVideoPost::getTranscodedVideoKey, null)
+                .where(ShortVideoPost::getId).eq(postId)
+                .update();
+    }
+
     private boolean transcodeOne(ShortVideoPost post, LinkxProperties.ShortVideo config) {
         Long postId = post.getId();
         markStatus(postId, "processing");
@@ -85,7 +112,7 @@ public class ShortVideoTranscodeServiceImpl implements ShortVideoTranscodeServic
                     .update();
             return true;
         } catch (Exception e) {
-            log.warn("短视频转码失败 postId={}: {}", postId, e.getMessage());
+            log.warn("短视频转码失败 postId={}: {}", postId, e.getMessage(), e);
             markStatus(postId, "failed");
             return false;
         } finally {
@@ -110,13 +137,16 @@ public class ShortVideoTranscodeServiceImpl implements ShortVideoTranscodeServic
                 output.toString());
         pb.redirectErrorStream(true);
         Process process = pb.start();
+        String ffmpegLog = readProcessOutput(process.getInputStream());
         boolean finished = process.waitFor(30, TimeUnit.MINUTES);
         if (!finished) {
             process.destroyForcibly();
             throw new IllegalStateException("ffmpeg 超时");
         }
         if (process.exitValue() != 0) {
-            throw new IllegalStateException("ffmpeg 退出码 " + process.exitValue());
+            String tail = tailLines(ffmpegLog, 8);
+            throw new IllegalStateException("ffmpeg 退出码 " + process.exitValue()
+                    + (tail.isBlank() ? "" : "：" + tail));
         }
         if (!Files.exists(output) || Files.size(output) <= 0) {
             throw new IllegalStateException("转码输出为空");
@@ -139,5 +169,22 @@ public class ShortVideoTranscodeServiceImpl implements ShortVideoTranscodeServic
         } catch (Exception ignored) {
             /* best effort */
         }
+    }
+
+    private static String readProcessOutput(InputStream stream) {
+        try {
+            return new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (Exception ex) {
+            return "";
+        }
+    }
+
+    private static String tailLines(String text, int maxLines) {
+        if (!StringUtils.hasText(text)) {
+            return "";
+        }
+        String[] lines = text.strip().split("\\R");
+        int from = Math.max(0, lines.length - maxLines);
+        return String.join(" | ", java.util.Arrays.copyOfRange(lines, from, lines.length));
     }
 }

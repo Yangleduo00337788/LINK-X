@@ -26,4 +26,6 @@ public interface AdminShortVideoService {
     FileStorageService.StoredObject openVideoContent(Long postId);
 
     FileStorageService.StoredObject openCoverContent(Long postId);
+
+    void enqueueRetranscode(Long postId);
 }

@@ -23,6 +23,7 @@ import {
   deleteShortVideoPost,
   listShortVideoComments,
   listShortVideoPosts,
+  retranscodeShortVideoPost,
   type ShortVideoCommentItem,
   type ShortVideoPostItem,
 } from '@/api/shortVideo'
@@ -202,7 +203,7 @@ const postColumns = computed<DataTableColumns<ShortVideoPostItem>>(() => {
     {
       title: t('common.actions'),
       key: 'actions',
-      width: 180,
+      width: 260,
       fixed: 'right',
       render: row =>
         h(NSpace, { size: 8 }, () => [
@@ -211,6 +212,13 @@ const postColumns = computed<DataTableColumns<ShortVideoPostItem>>(() => {
                 NButton,
                 { size: 'small', onClick: () => openPreview(row) },
                 () => t('shortVideo.preview')
+              )
+            : null,
+          auth.hasPermission('admin:short-video:view') && canRetranscode(row.transcodeStatus)
+            ? h(
+                NButton,
+                { size: 'small', type: 'warning', onClick: () => confirmRetranscode(row) },
+                () => t('shortVideo.retranscode')
               )
             : null,
           auth.hasPermission('admin:short-video:delete')
@@ -328,6 +336,28 @@ function searchComments() {
 function openPreview(row: ShortVideoPostItem) {
   previewPost.value = row
   showPreview.value = true
+}
+
+function canRetranscode(status?: string) {
+  return status !== 'pending' && status !== 'processing'
+}
+
+function confirmRetranscode(row: ShortVideoPostItem) {
+  dialog.warning({
+    title: t('shortVideo.retranscode'),
+    content: t('shortVideo.retranscodeConfirm', { id: row.id }),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      try {
+        await retranscodeShortVideoPost(row.id)
+        message.success(t('shortVideo.retranscodeOk'))
+        await loadPosts()
+      } catch {
+        message.error(t('shortVideo.retranscodeFail'))
+      }
+    },
+  })
 }
 
 function confirmDeletePost(row: ShortVideoPostItem) {
