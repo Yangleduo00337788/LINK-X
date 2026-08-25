@@ -7,8 +7,11 @@ package com.linkx.server.service;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.controller.dto.CommentShortVideoDTO;
 import com.linkx.server.controller.dto.PublishShortVideoDTO;
+import com.linkx.server.controller.dto.ReportShortVideoDTO;
 import com.linkx.server.controller.dto.UpdateShortVideoDTO;
+import com.linkx.server.controller.vo.ShortVideoAuthorVO;
 import com.linkx.server.controller.vo.ShortVideoCommentVO;
+import com.linkx.server.controller.vo.ShortVideoFollowingUserVO;
 import com.linkx.server.controller.vo.ShortVideoPostVO;
 import com.linkx.server.controller.vo.ShortVideoTopicVO;
 import com.linkx.server.service.FileStorageService;
@@ -34,11 +37,19 @@ public interface ShortVideoService {
 
     PageResultVO<ShortVideoTopicVO> listTopicPlaza(Integer page, Integer limit);
 
+    ShortVideoTopicVO getTopic(String name);
+
     List<ShortVideoPostVO> listFriends(Long userId, Long beforeId, Integer limit);
 
     List<ShortVideoPostVO> listFollowing(Long userId, Long beforeId, Integer limit);
 
+    List<ShortVideoFollowingUserVO> listFollowingUsers(Long userId, Long beforeId, Integer limit);
+
+    int countFollowingUsers(Long userId);
+
     List<ShortVideoPostVO> listByUser(Long userId, Long targetUserId, Long beforeId, Integer limit);
+
+    ShortVideoAuthorVO getAuthorProfile(Long viewerId, Long targetUserId);
 
     List<ShortVideoPostVO> listFavorites(Long userId, Long beforeId, Integer limit);
 
@@ -69,6 +80,14 @@ public interface ShortVideoService {
     void recordPlay(Long userId, Long postId);
 
     void recordShare(Long userId, Long postId);
+
+    void markNotInterested(Long userId, Long postId);
+
+    void blockAuthor(Long userId, Long authorId);
+
+    void reportPost(Long reporterId, Long postId, ReportShortVideoDTO dto);
+
+    Long findPostAuthorId(Long postId);
 
     String uploadMedia(Long userId, MultipartFile file);
 

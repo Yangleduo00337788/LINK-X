@@ -13,8 +13,11 @@ import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.controller.dto.CommentShortVideoDTO;
 import com.linkx.server.controller.dto.PublishShortVideoDTO;
+import com.linkx.server.controller.dto.ReportShortVideoDTO;
 import com.linkx.server.controller.dto.UpdateShortVideoDTO;
+import com.linkx.server.controller.vo.ShortVideoAuthorVO;
 import com.linkx.server.controller.vo.ShortVideoCommentVO;
+import com.linkx.server.controller.vo.ShortVideoFollowingUserVO;
 import com.linkx.server.controller.vo.ShortVideoPostVO;
 import com.linkx.server.controller.vo.ShortVideoTopicVO;
 import com.linkx.server.entity.*;
@@ -94,6 +97,8 @@ public class ShortVideoServiceImpl implements ShortVideoService {
     private final ShortVideoCommentSqlMapper commentSqlMapper;
     private final ShortVideoInteractionSqlMapper interactionSqlMapper;
     private final ShortVideoFollowMapper followMapper;
+    private final ShortVideoNotInterestedMapper notInterestedMapper;
+    private final ShortVideoAuthorBlockMapper authorBlockMapper;
     private final ShortVideoTopicMapper topicMapper;
     private final ShortVideoPostTopicMapper postTopicMapper;
     private final ShortVideoTopicSqlMapper topicSqlMapper;
@@ -223,7 +228,7 @@ public class ShortVideoServiceImpl implements ShortVideoService {
                 qw.and("id < ?", beforeId);
             }
             applySearch(qw, q);
-            return buildPostList(qw, userId);
+            return filterFeedExclusions(buildPostList(qw, userId), userId);
         }
         return listDiscoverRanked(userId, beforeId, pageSize);
     }
@@ -248,6 +253,10 @@ public class ShortVideoServiceImpl implements ShortVideoService {
                 .limit(candidateSize);
         applyActiveStorageProvider(qw);
         List<ShortVideoPost> candidates = postMapper.selectListByQuery(qw);
+        if (candidates.isEmpty()) {
+            return Collections.emptyList();
+        }
+        candidates = filterExcludedPosts(candidates, userId);
         if (candidates.isEmpty()) {
             return Collections.emptyList();
         }
@@ -279,6 +288,23 @@ public class ShortVideoServiceImpl implements ShortVideoService {
         return PageResultVO.of(toTopicVOs(rows), pageNo, size, total);
     }
 
+    @Override
+    public ShortVideoTopicVO getTopic(String name) {
+        String normalized = ShortVideoHashtagSupport.normalize(name);
+        if (normalized.isBlank()) {
+            throw new CustomException(400, "invalid topic name");
+        }
+        ShortVideoTopic topic = topicMapper.selectOneByQuery(
+                QueryWrapper.create().eq("name", normalized));
+        if (topic == null) {
+            throw new CustomException(404, "话题不存在");
+        }
+        if (topic.getStatus() != null && topic.getStatus() == 0) {
+            throw new CustomException(404, "话题不存在");
+        }
+        return toTopicVO(topic);
+    }
+
     private List<ShortVideoPostVO> listDiscoverRanked(Long userId, Long beforeId, int pageSize) {
         int candidateSize = Math.min(pageSize * DISCOVER_CANDIDATE_MULTIPLIER, DISCOVER_MAX_CANDIDATES);
         QueryWrapper qw = QueryWrapper.create()
@@ -291,6 +317,10 @@ public class ShortVideoServiceImpl implements ShortVideoService {
             qw.and("id < ?", beforeId);
         }
         List<ShortVideoPost> candidates = postMapper.selectListByQuery(qw);
+        if (candidates.isEmpty()) {
+            return Collections.emptyList();
+        }
+        candidates = filterExcludedPosts(candidates, userId);
         if (candidates.isEmpty()) {
             return Collections.emptyList();
         }
@@ -415,7 +445,7 @@ public class ShortVideoServiceImpl implements ShortVideoService {
         if (beforeId != null) {
             qw.and("id < ?", beforeId);
         }
-        return buildPostList(qw, userId);
+        return filterFeedExclusions(buildPostList(qw, userId), userId);
     }
 
     @Override
@@ -439,7 +469,51 @@ public class ShortVideoServiceImpl implements ShortVideoService {
         if (beforeId != null) {
             qw.and("id < ?", beforeId);
         }
-        return buildPostList(qw, userId);
+        return filterFeedExclusions(buildPostList(qw, userId), userId);
+    }
+
+    @Override
+    public List<ShortVideoFollowingUserVO> listFollowingUsers(Long userId, Long beforeId, Integer limit) {
+        int pageSize = normalizeLimit(limit);
+        QueryWrapper qw = QueryWrapper.create()
+                .eq("follower_id", userId)
+                .eq("deleted", 0)
+                .orderBy("create_time", false)
+                .orderBy("id", false)
+                .limit(pageSize);
+        if (beforeId != null) {
+            qw.and("id < ?", beforeId);
+        }
+        List<ShortVideoFollow> follows = followMapper.selectListByQuery(qw);
+        if (follows.isEmpty()) {
+            return Collections.emptyList();
+        }
+        Set<Long> followeeIds = follows.stream()
+                .map(ShortVideoFollow::getFolloweeId)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Map<Long, SysUser> users = loadUsers(followeeIds);
+        List<ShortVideoFollowingUserVO> result = new ArrayList<>();
+        for (ShortVideoFollow follow : follows) {
+            SysUser user = users.get(follow.getFolloweeId());
+            if (user == null) {
+                continue;
+            }
+            result.add(ShortVideoFollowingUserVO.builder()
+                    .followId(follow.getId())
+                    .userId(follow.getFolloweeId())
+                    .nickname(user.getNickname())
+                    .avatar(mediaUrlService.resolveUserAvatar(user.getId(), user.getAvatar()))
+                    .postCount(countVisiblePostsByUser(userId, follow.getFolloweeId()))
+                    .build());
+        }
+        return result;
+    }
+
+    @Override
+    public int countFollowingUsers(Long userId) {
+        long count = followMapper.selectCountByQuery(
+                QueryWrapper.create().eq("follower_id", userId).eq("deleted", 0));
+        return (int) Math.min(count, Integer.MAX_VALUE);
     }
 
     @Override
@@ -464,6 +538,46 @@ public class ShortVideoServiceImpl implements ShortVideoService {
             qw.and("id < ?", beforeId);
         }
         return buildPostList(qw, userId);
+    }
+
+    @Override
+    public ShortVideoAuthorVO getAuthorProfile(Long viewerId, Long targetUserId) {
+        SysUser user = requireUser(targetUserId);
+        int postCount = countVisiblePostsByUser(viewerId, targetUserId);
+        int followerCount = countFollowers(targetUserId);
+        boolean followingAuthor = loadFollowingSet(viewerId, Set.of(targetUserId)).contains(targetUserId);
+        return ShortVideoAuthorVO.builder()
+                .userId(targetUserId)
+                .nickname(user.getNickname())
+                .avatar(mediaUrlService.resolveUserAvatar(user.getId(), user.getAvatar()))
+                .postCount(postCount)
+                .followerCount(followerCount)
+                .followingAuthor(followingAuthor)
+                .build();
+    }
+
+    private int countVisiblePostsByUser(Long viewerId, Long targetUserId) {
+        boolean self = Objects.equals(viewerId, targetUserId);
+        boolean friend = self || getFriendIds(viewerId).contains(targetUserId);
+        QueryWrapper qw = QueryWrapper.create()
+                .eq("user_id", targetUserId)
+                .eq("deleted", 0);
+        applyActiveStorageProvider(qw);
+        if (!self) {
+            if (friend) {
+                qw.and("IFNULL(visibility, 0) <> 2");
+            } else {
+                qw.and("IFNULL(visibility, 0) = 0");
+            }
+        }
+        long count = postMapper.selectCountByQuery(qw);
+        return (int) Math.min(count, Integer.MAX_VALUE);
+    }
+
+    private int countFollowers(Long userId) {
+        long count = followMapper.selectCountByQuery(
+                QueryWrapper.create().eq("followee_id", userId).eq("deleted", 0));
+        return (int) Math.min(count, Integer.MAX_VALUE);
     }
 
     @Override
@@ -830,6 +944,92 @@ public class ShortVideoServiceImpl implements ShortVideoService {
                 .set(ShortVideoPost::getShareCount, next)
                 .where(ShortVideoPost::getId).eq(postId)
                 .update();
+    }
+
+    @Override
+    @Transactional
+    public void markNotInterested(Long userId, Long postId) {
+        assertCanView(userId, postId);
+        ShortVideoNotInterested existing = notInterestedMapper.selectOneByQuery(
+                QueryWrapper.create().eq("user_id", userId).eq("post_id", postId));
+        if (existing != null) {
+            return;
+        }
+        LogicDeleteManager.execWithoutLogicDelete(() ->
+                notInterestedMapper.deleteByQuery(
+                        QueryWrapper.create().eq("user_id", userId).eq("post_id", postId)));
+        try {
+            notInterestedMapper.insert(ShortVideoNotInterested.builder()
+                    .userId(userId)
+                    .postId(postId)
+                    .build());
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            /* idempotent */
+        }
+    }
+
+    @Override
+    @Transactional
+    public void blockAuthor(Long userId, Long authorId) {
+        if (Objects.equals(userId, authorId)) {
+            throw new CustomException(400, "不能屏蔽自己");
+        }
+        requireUser(authorId);
+        ShortVideoAuthorBlock existing = authorBlockMapper.selectOneByQuery(
+                QueryWrapper.create().eq("user_id", userId).eq("author_id", authorId));
+        if (existing == null) {
+            LogicDeleteManager.execWithoutLogicDelete(() ->
+                    authorBlockMapper.deleteByQuery(
+                            QueryWrapper.create().eq("user_id", userId).eq("author_id", authorId)));
+            try {
+                authorBlockMapper.insert(ShortVideoAuthorBlock.builder()
+                        .userId(userId)
+                        .authorId(authorId)
+                        .build());
+            } catch (org.springframework.dao.DuplicateKeyException e) {
+                /* idempotent */
+            }
+        }
+        unfollow(userId, authorId);
+    }
+
+    @Override
+    @Transactional
+    public void reportPost(Long reporterId, Long postId, ReportShortVideoDTO dto) {
+        ShortVideoPost post = assertCanView(reporterId, postId);
+        if (Objects.equals(post.getUserId(), reporterId)) {
+            throw new CustomException(400, "不能举报自己的作品");
+        }
+        SysUser reporter = requireUser(reporterId);
+        SysUser author = requireUser(post.getUserId());
+        String reporterName = StringUtils.hasText(reporter.getNickname())
+                ? reporter.getNickname()
+                : reporter.getUsername();
+        String authorNickname = StringUtils.hasText(author.getNickname())
+                ? author.getNickname()
+                : author.getUsername();
+        AdminReviewService review = adminReviewService.getIfAvailable();
+        if (review == null) {
+            throw new CustomException(503, "审核服务暂不可用");
+        }
+        review.createFromShortVideoReport(
+                reporterId,
+                reporterName,
+                postId,
+                post.getUserId(),
+                authorNickname,
+                dto.getReason(),
+                dto.getDetail(),
+                dto.getImageKeys());
+    }
+
+    @Override
+    public Long findPostAuthorId(Long postId) {
+        if (postId == null) {
+            return null;
+        }
+        ShortVideoPost post = postMapper.selectOneById(postId);
+        return post != null ? post.getUserId() : null;
     }
 
     @Override
@@ -1232,6 +1432,48 @@ public class ShortVideoServiceImpl implements ShortVideoService {
                         .in("followee_id", new ArrayList<>(authorIds))
                         .eq("deleted", 0));
         return rows.stream().map(ShortVideoFollow::getFolloweeId).collect(Collectors.toSet());
+    }
+
+    private Set<Long> loadBlockedAuthorIds(Long viewerId) {
+        List<ShortVideoAuthorBlock> rows = authorBlockMapper.selectListByQuery(
+                QueryWrapper.create().eq("user_id", viewerId).eq("deleted", 0));
+        return rows.stream().map(ShortVideoAuthorBlock::getAuthorId).collect(Collectors.toSet());
+    }
+
+    private Set<Long> loadNotInterestedPostIds(Long viewerId) {
+        List<ShortVideoNotInterested> rows = notInterestedMapper.selectListByQuery(
+                QueryWrapper.create().eq("user_id", viewerId).eq("deleted", 0));
+        return rows.stream().map(ShortVideoNotInterested::getPostId).collect(Collectors.toSet());
+    }
+
+    private List<ShortVideoPost> filterExcludedPosts(List<ShortVideoPost> posts, Long viewerId) {
+        if (viewerId == null || posts == null || posts.isEmpty()) {
+            return posts == null ? List.of() : posts;
+        }
+        Set<Long> blocked = loadBlockedAuthorIds(viewerId);
+        Set<Long> notInterested = loadNotInterestedPostIds(viewerId);
+        if (blocked.isEmpty() && notInterested.isEmpty()) {
+            return posts;
+        }
+        return posts.stream()
+                .filter(post -> !blocked.contains(post.getUserId()))
+                .filter(post -> !notInterested.contains(post.getId()))
+                .collect(Collectors.toCollection(ArrayList::new));
+    }
+
+    private List<ShortVideoPostVO> filterFeedExclusions(List<ShortVideoPostVO> list, Long viewerId) {
+        if (viewerId == null || list == null || list.isEmpty()) {
+            return list == null ? List.of() : list;
+        }
+        Set<Long> blocked = loadBlockedAuthorIds(viewerId);
+        Set<Long> notInterested = loadNotInterestedPostIds(viewerId);
+        if (blocked.isEmpty() && notInterested.isEmpty()) {
+            return list;
+        }
+        return list.stream()
+                .filter(vo -> !blocked.contains(vo.getUserId()))
+                .filter(vo -> !notInterested.contains(vo.getId()))
+                .collect(Collectors.toCollection(ArrayList::new));
     }
 
     private Map<Long, SysUser> loadUsers(Set<Long> userIds) {

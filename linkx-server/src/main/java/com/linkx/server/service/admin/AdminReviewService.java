@@ -37,6 +37,16 @@ public interface AdminReviewService {
     /** 从举报类反馈创建审核任务（幂等） */
     void createFromReportFeedback(Feedback feedback);
 
+    /** 短视频举报：直接创建审核任务（幂等） */
+    void createFromShortVideoReport(Long reporterId,
+                                    String reporterUsername,
+                                    Long postId,
+                                    Long authorId,
+                                    String authorNickname,
+                                    String reason,
+                                    String detail,
+                                    List<String> imageKeys);
+
     /**
      * 从敏感词命中创建审核任务（幂等：同 targetType+targetId 的待审任务不重复）。
      *

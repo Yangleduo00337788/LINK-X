@@ -73,6 +73,8 @@ public class AdminReviewServiceImpl implements AdminReviewService {
     private static final Pattern REPORT_PREFIX = Pattern.compile("^\\[举报([^\\]]*)\\]");
     private static final Pattern GROUP_ID_LINE = Pattern.compile("(?m)^群ID:\\s*(.+)$");
     private static final Pattern USER_ID_LINE = Pattern.compile("(?m)^用户ID:\\s*(.+)$");
+    private static final Pattern POST_ID_LINE = Pattern.compile("(?m)^作品ID:\\s*(.+)$");
+    private static final Pattern AUTHOR_ID_LINE = Pattern.compile("(?m)^作者ID:\\s*(.+)$");
     private static final Pattern EVIDENCE_KEY_LINE = Pattern.compile(
             "(?m)^\\d+\\.\\s*([\\w./-]+\\.(?:png|jpe?g|gif|webp|bmp))$",
             Pattern.CASE_INSENSITIVE
@@ -326,6 +328,86 @@ public class AdminReviewServiceImpl implements AdminReviewService {
     }
 
     @Override
+    @Transactional
+    public void createFromShortVideoReport(Long reporterId,
+                                           String reporterUsername,
+                                           Long postId,
+                                           Long authorId,
+                                           String authorNickname,
+                                           String reason,
+                                           String detail,
+                                           List<String> imageKeys) {
+        if (reporterId == null || postId == null) {
+            return;
+        }
+        String postIdStr = String.valueOf(postId);
+        SysReviewTask existing = reviewTaskMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .where(SysReviewTask::getSourceType).eq(SysReviewTask.SOURCE_REPORT)
+                        .and(SysReviewTask::getTargetType).eq(SysReviewTask.TARGET_SHORT_VIDEO)
+                        .and(SysReviewTask::getTargetId).eq(postIdStr)
+                        .and(SysReviewTask::getReporterUserId).eq(reporterId)
+                        .and(SysReviewTask::getStatus).eq(SysReviewTask.STATUS_PENDING));
+        if (existing != null) {
+            return;
+        }
+        String reasonLabel = resolveShortVideoReportReasonLabel(reason);
+        String detailText = StringUtils.hasText(detail) ? detail.trim() : "-";
+        StringBuilder sb = new StringBuilder();
+        sb.append("[举报短视频]\n");
+        sb.append("作品ID: ").append(postId).append('\n');
+        sb.append("作者ID: ").append(authorId != null ? authorId : "-").append('\n');
+        sb.append("作者: ").append(StringUtils.hasText(authorNickname) ? authorNickname.trim() : "-").append('\n');
+        sb.append("原因: ").append(reasonLabel).append('\n');
+        sb.append("说明: ").append(detailText).append('\n');
+        if (imageKeys != null && !imageKeys.isEmpty()) {
+            sb.append("证据:\n");
+            for (int i = 0; i < imageKeys.size(); i++) {
+                sb.append(i + 1).append(". ").append(imageKeys.get(i).trim()).append('\n');
+            }
+        } else {
+            sb.append("证据: 无\n");
+        }
+        String content = sb.toString();
+        Date now = new Date();
+        Long subjectUserId = authorId != null ? authorId
+                : shortVideoService.findPostAuthorId(postId);
+        String riskLevel = reviewRiskScoringService.elevateLevel("medium", subjectUserId);
+        SysReviewTask task = SysReviewTask.builder()
+                .sourceType(SysReviewTask.SOURCE_REPORT)
+                .targetType(SysReviewTask.TARGET_SHORT_VIDEO)
+                .targetId(postIdStr)
+                .reporterUserId(reporterId)
+                .reporterUsername(reporterUsername)
+                .title("举报短视频")
+                .contentSnapshot(content)
+                .riskLevel(riskLevel)
+                .status(SysReviewTask.STATUS_PENDING)
+                .escalationCount(0)
+                .createTime(now)
+                .updateTime(now)
+                .build();
+        reviewTaskMapper.insert(task);
+        afterReviewCreated(task);
+    }
+
+    private static String resolveShortVideoReportReasonLabel(String reason) {
+        if (!StringUtils.hasText(reason)) {
+            return "其他";
+        }
+        String code = reason.trim();
+        return switch (code) {
+            case "spam" -> "垃圾信息";
+            case "harassment" -> "骚扰辱骂";
+            case "fraud" -> "欺诈诈骗";
+            case "porn" -> "色情低俗";
+            case "illegal" -> "违法违规";
+            case "other" -> "其他";
+            default -> code;
+        };
+    }
+
+    @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void createFromSensitiveHit(Long userId,
                                        String targetType,
@@ -398,6 +480,7 @@ public class AdminReviewServiceImpl implements AdminReviewService {
                 .contentSnapshot(snapshot.toString())
                 .riskLevel(riskLevel)
                 .status(SysReviewTask.STATUS_PENDING)
+                .escalationCount(0)
                 .createTime(now)
                 .updateTime(now)
                 .build();
@@ -801,12 +884,22 @@ public class AdminReviewServiceImpl implements AdminReviewService {
         String content = feedback.getContent() == null ? "" : feedback.getContent();
         Matcher prefix = REPORT_PREFIX.matcher(content);
         String reportKind = prefix.find() ? prefix.group(1) : "内容";
-        String targetType = reportKind.contains("群") ? SysReviewTask.TARGET_GROUP : SysReviewTask.TARGET_USER;
+        String targetType;
         String targetId = null;
-        Matcher gid = GROUP_ID_LINE.matcher(content);
-        if (gid.find()) {
-            targetId = gid.group(1).trim();
+        if (reportKind.contains("短视频")) {
+            targetType = SysReviewTask.TARGET_SHORT_VIDEO;
+            Matcher postLine = POST_ID_LINE.matcher(content);
+            if (postLine.find()) {
+                targetId = postLine.group(1).trim();
+            }
+        } else if (reportKind.contains("群")) {
+            targetType = SysReviewTask.TARGET_GROUP;
+            Matcher gid = GROUP_ID_LINE.matcher(content);
+            if (gid.find()) {
+                targetId = gid.group(1).trim();
+            }
         } else {
+            targetType = SysReviewTask.TARGET_USER;
             Matcher uid = USER_ID_LINE.matcher(content);
             if (uid.find()) {
                 targetId = uid.group(1).trim();
@@ -821,6 +914,9 @@ public class AdminReviewServiceImpl implements AdminReviewService {
         }
         Date now = new Date();
         Long subjectUserId = subjectUserIdFromTarget(targetType, targetId);
+        if (subjectUserId == null) {
+            subjectUserId = subjectUserIdFromContent(content);
+        }
         String riskLevel = reviewRiskScoringService.elevateLevel("medium", subjectUserId);
         return SysReviewTask.builder()
                 .sourceType(SysReviewTask.SOURCE_REPORT)
@@ -833,6 +929,7 @@ public class AdminReviewServiceImpl implements AdminReviewService {
                 .riskLevel(riskLevel)
                 .status(SysReviewTask.STATUS_PENDING)
                 .feedbackId(feedback.getId())
+                .escalationCount(0)
                 .createTime(now)
                 .updateTime(now)
                 .build();
@@ -905,6 +1002,29 @@ public class AdminReviewServiceImpl implements AdminReviewService {
         return null;
     }
 
+    private Long subjectUserIdFromContent(String content) {
+        if (!StringUtils.hasText(content)) {
+            return null;
+        }
+        Matcher author = AUTHOR_ID_LINE.matcher(content);
+        if (author.find()) {
+            try {
+                return Long.parseLong(author.group(1).trim());
+            } catch (NumberFormatException ignored) {
+                // fall through
+            }
+        }
+        Matcher uid = USER_ID_LINE.matcher(content);
+        if (uid.find()) {
+            try {
+                return Long.parseLong(uid.group(1).trim());
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
     private Long resolveSubjectUserId(SysReviewTask task) {
         if (task == null) {
             return null;
@@ -929,6 +1049,11 @@ public class AdminReviewServiceImpl implements AdminReviewService {
                     if (fav != null && fav.getUserId() != null) {
                         return fav.getUserId();
                     }
+                } else if (SysReviewTask.TARGET_SHORT_VIDEO.equals(task.getTargetType())) {
+                    Long authorId = shortVideoService.findPostAuthorId(tid);
+                    if (authorId != null) {
+                        return authorId;
+                    }
                 }
             } catch (NumberFormatException ignored) {
                 // fall through
@@ -937,6 +1062,14 @@ public class AdminReviewServiceImpl implements AdminReviewService {
         String content = task.getContentSnapshot();
         if (!StringUtils.hasText(content)) {
             return null;
+        }
+        Matcher author = AUTHOR_ID_LINE.matcher(content);
+        if (author.find()) {
+            try {
+                return Long.parseLong(author.group(1).trim());
+            } catch (NumberFormatException ignored) {
+                // fall through
+            }
         }
         Matcher uid = USER_ID_LINE.matcher(content);
         if (uid.find()) {

@@ -12,10 +12,13 @@ import com.linkx.server.common.Result;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.controller.dto.CommentShortVideoDTO;
 import com.linkx.server.controller.dto.PublishShortVideoDTO;
+import com.linkx.server.controller.dto.ReportShortVideoDTO;
 import com.linkx.server.controller.dto.ShareShortVideoChatDTO;
 import com.linkx.server.controller.dto.UpdateShortVideoDTO;
 import com.linkx.server.controller.vo.MessageVO;
+import com.linkx.server.controller.vo.ShortVideoAuthorVO;
 import com.linkx.server.controller.vo.ShortVideoCommentVO;
+import com.linkx.server.controller.vo.ShortVideoFollowingUserVO;
 import com.linkx.server.controller.vo.ShortVideoPostVO;
 import com.linkx.server.controller.vo.ShortVideoTopicVO;
 import com.linkx.server.im.ImMessagePushService;
@@ -112,6 +115,16 @@ public class ShortVideoController {
         return Result.success(shortVideoService.listTopicPlaza(page, limit));
     }
 
+    @Operation(summary = "话题详情")
+    @GetMapping("/topics/{name}")
+    @RateLimit(scope = "short-video:topic-detail", value = 60, window = 60)
+    public Result<ShortVideoTopicVO> getTopic(
+            @PathVariable String name,
+            HttpServletRequest request) {
+        AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(shortVideoService.getTopic(name));
+    }
+
     @Operation(summary = "朋友流短视频列表")
     @GetMapping("/friends")
     public Result<List<ShortVideoPostVO>> listFriends(
@@ -130,6 +143,25 @@ public class ShortVideoController {
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         return Result.success(shortVideoService.listFollowing(userId, parseOptionalId(beforeId), limit));
+    }
+
+    @Operation(summary = "我关注的创作者列表")
+    @GetMapping("/following/users")
+    @RateLimit(scope = "short-video:following-users", value = 60, window = 60)
+    public Result<List<ShortVideoFollowingUserVO>> listFollowingUsers(
+            @RequestParam(required = false) String beforeId,
+            @RequestParam(required = false) @Min(1) @Max(50) Integer limit,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(shortVideoService.listFollowingUsers(userId, parseOptionalId(beforeId), limit));
+    }
+
+    @Operation(summary = "我关注的创作者数量")
+    @GetMapping("/following/count")
+    @RateLimit(scope = "short-video:following-count", value = 60, window = 60)
+    public Result<Integer> countFollowingUsers(HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(shortVideoService.countFollowingUsers(userId));
     }
 
     @Operation(summary = "我的收藏短视频列表")
@@ -164,6 +196,16 @@ public class ShortVideoController {
         Long currentUserId = AuthUtils.requireUserId(request, jwtUtils);
         return Result.success(shortVideoService.listByUser(
                 currentUserId, parseId(userId), parseOptionalId(beforeId), limit));
+    }
+
+    @Operation(summary = "创作者资料")
+    @GetMapping("/user/{userId}/profile")
+    @RateLimit(scope = "short-video:author-profile", value = 60, window = 60)
+    public Result<ShortVideoAuthorVO> getAuthorProfile(
+            @PathVariable String userId,
+            HttpServletRequest request) {
+        Long currentUserId = AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(shortVideoService.getAuthorProfile(currentUserId, parseId(userId)));
     }
 
     @Operation(summary = "更新短视频")
@@ -281,6 +323,35 @@ public class ShortVideoController {
     public Result<Void> unfollow(@PathVariable String userId, HttpServletRequest request) {
         Long currentUserId = AuthUtils.requireUserId(request, jwtUtils);
         shortVideoService.unfollow(currentUserId, parseId(userId));
+        return Result.success(null);
+    }
+
+    @Operation(summary = "标记不感兴趣")
+    @PostMapping("/{postId}/not-interested")
+    @RateLimit(scope = "short-video:not-interested", value = 30, window = 60)
+    public Result<Void> markNotInterested(@PathVariable String postId, HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        shortVideoService.markNotInterested(userId, parseId(postId));
+        return Result.success(null);
+    }
+
+    @Operation(summary = "屏蔽创作者")
+    @PostMapping("/block/{userId}")
+    @RateLimit(scope = "short-video:block-author", value = 20, window = 60)
+    public Result<Void> blockAuthor(@PathVariable String userId, HttpServletRequest request) {
+        Long currentUserId = AuthUtils.requireUserId(request, jwtUtils);
+        shortVideoService.blockAuthor(currentUserId, parseId(userId));
+        return Result.success(null);
+    }
+
+    @Operation(summary = "举报短视频")
+    @PostMapping("/{postId}/report")
+    @RateLimit(scope = "short-video:report", value = 20, window = 60)
+    public Result<Void> reportPost(@PathVariable String postId,
+                                   @Valid @RequestBody ReportShortVideoDTO dto,
+                                   HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        shortVideoService.reportPost(userId, parseId(postId), dto);
         return Result.success(null);
     }
 
