@@ -1,25 +1,47 @@
 <!-- 作者：yangleduo -->
 <script setup lang="ts">
-import logoLinkx from '@/assets/logo-linkx.png'
+import { computed } from 'vue'
+import logoLinkxTransparent from '@/assets/logo-linkx-transparent.png'
+import logoChrome from '@/assets/logo-chrome-transparent.png'
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     /** sider: 侧栏；login: 登录表单；hero: 登录左侧大号 */
     size?: 'sider' | 'login' | 'hero'
     /** 收起时只显示图形标 */
     collapsed?: boolean
+    /** 深色背景（侧栏/顶栏暗色主题） */
+    inverted?: boolean
   }>(),
   {
     size: 'sider',
     collapsed: false,
+    inverted: false,
   }
 )
+
+const logoSrc = computed(() => {
+  if (props.inverted && props.collapsed) return logoChrome
+  return logoLinkxTransparent
+})
 </script>
 
 <template>
-  <div class="lx-logo" :class="[`lx-logo--${size}`, { 'lx-logo--collapsed': collapsed }]">
-    <div class="lx-logo-img-wrap" :class="{ 'lx-logo-img-wrap--collapsed': collapsed }">
-      <img class="lx-logo-img" :src="logoLinkx" alt="LinkX" draggable="false" />
+  <div
+    class="lx-logo"
+    :class="[
+      `lx-logo--${size}`,
+      {
+        'lx-logo--collapsed': collapsed,
+        'lx-logo--inverted': inverted,
+      },
+    ]"
+  >
+    <div
+      class="lx-logo-img-wrap"
+      :class="{ 'lx-logo-img-wrap--collapsed': collapsed }"
+    >
+      <img class="lx-logo-img" :src="logoSrc" alt="LinkX" draggable="false" />
     </div>
   </div>
 </template>
@@ -47,9 +69,19 @@ withDefaults(
   object-position: center center;
 }
 
+/* 深色侧栏：反色为浅色 Logo，无白底卡片 */
+.lx-logo--inverted:not(.lx-logo--collapsed) .lx-logo-img {
+  filter: brightness(0) invert(1);
+}
+
 .lx-logo-img-wrap--collapsed {
   width: 40px;
   height: 40px;
+}
+
+.lx-logo--inverted .lx-logo-img-wrap--collapsed {
+  width: 36px;
+  height: 36px;
 }
 
 .lx-logo-img-wrap--collapsed .lx-logo-img {
@@ -58,6 +90,14 @@ withDefaults(
   height: 40px;
   object-fit: cover;
   object-position: left center;
+}
+
+.lx-logo--inverted .lx-logo-img-wrap--collapsed .lx-logo-img {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  object-position: center center;
+  filter: none;
 }
 
 /* ── sider ── */
@@ -86,6 +126,16 @@ withDefaults(
 .lx-logo--sider.lx-logo--collapsed .lx-logo-img {
   width: 140px;
   height: 40px;
+}
+
+.lx-logo--sider.lx-logo--inverted.lx-logo--collapsed .lx-logo-img-wrap--collapsed {
+  width: 36px;
+  height: 36px;
+}
+
+.lx-logo--sider.lx-logo--inverted.lx-logo--collapsed .lx-logo-img {
+  width: 36px;
+  height: 36px;
 }
 
 /* ── login ── */

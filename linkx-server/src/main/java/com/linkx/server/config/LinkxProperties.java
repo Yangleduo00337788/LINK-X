@@ -35,6 +35,27 @@ public class LinkxProperties {
     private final RiskPolicy riskPolicy = new RiskPolicy();
     private final MessageEncryption messageEncryption = new MessageEncryption();
     private final LinkMate linkmate = new LinkMate();
+    private final ShortVideo shortVideo = new ShortVideo();
+
+    @Data
+    public static class ShortVideo {
+        /** 是否启用上传后异步转码（需本机安装 ffmpeg 并配置 ffmpegPath） */
+        private boolean transcodeEnabled = false;
+        /** ffmpeg 可执行文件路径，默认 ffmpeg */
+        private String ffmpegPath = "ffmpeg";
+        /** 转码目标高度（保持宽高比） */
+        private int transcodeHeight = 720;
+        /** 每批处理待转码作品数 */
+        private int transcodeBatchSize = 3;
+
+        public void setTranscodeHeight(int transcodeHeight) {
+            this.transcodeHeight = Math.max(360, Math.min(1080, transcodeHeight));
+        }
+
+        public void setTranscodeBatchSize(int transcodeBatchSize) {
+            this.transcodeBatchSize = Math.max(1, Math.min(20, transcodeBatchSize));
+        }
+    }
 
     /**
      * 灵伴（LinkMate）AI 助手配置。

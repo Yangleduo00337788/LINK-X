@@ -496,7 +496,7 @@ async function onUserSelect(key: string) {
         @expand="collapsed = false"
       >
         <div class="brand">
-          <AdminBrandLogo size="sider" :collapsed="collapsed" />
+          <AdminBrandLogo size="sider" :collapsed="collapsed" :inverted="menuInverted" />
         </div>
         <div
           ref="menuWrapRef"
@@ -591,7 +591,7 @@ async function onUserSelect(key: string) {
     <NLayout v-else-if="layoutMode === 'top'" style="height: 100vh">
       <NLayoutHeader bordered class="header header--top" :class="headerClass">
         <div class="header-brand-inline">
-          <AdminBrandLogo size="sider" :collapsed="true" />
+          <AdminBrandLogo size="sider" :collapsed="true" :inverted="menuInverted" />
           <span class="header-title">{{ t('app.brandAdmin') }}</span>
         </div>
         <div class="header-menu-wrap">
@@ -666,7 +666,7 @@ async function onUserSelect(key: string) {
     <NLayout v-else-if="layoutMode === 'mix'" class="layout-mix-root" style="height: 100vh">
       <NLayoutHeader bordered class="header header--top" :class="headerClass">
         <div class="header-brand-inline">
-          <AdminBrandLogo size="sider" :collapsed="true" />
+          <AdminBrandLogo size="sider" :collapsed="true" :inverted="menuInverted" />
           <span class="header-title">{{ t('app.brandAdmin') }}</span>
         </div>
         <div class="header-menu-wrap">

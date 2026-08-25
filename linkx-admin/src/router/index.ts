@@ -189,6 +189,12 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        path: 'short-videos',
+        name: 'ShortVideoList',
+        component: () => import('@/views/ShortVideoListView.vue'),
+        meta: { titleKey: 'route.shortVideos', permission: 'admin:short-video:list' },
+      },
+      {
         path: 'approval-flows',
         name: 'ApprovalFlows',
         component: () => import('@/views/ApprovalFlowListView.vue'),

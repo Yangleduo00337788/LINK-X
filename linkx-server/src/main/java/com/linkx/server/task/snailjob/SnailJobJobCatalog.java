@@ -56,7 +56,10 @@ public final class SnailJobJobCatalog {
                         300, 300),
                 cron("statistic_snapshot_daily", "统计快照",
                         "写入昨日统计指标与工作台摘要快照",
-                        "0 5 0 * * ?", 1800)
+                        "0 5 0 * * ?", 1800),
+                fixed("short_video_transcode", "短视频转码",
+                        "处理待转码短视频（需开启 linkx.short-video.transcode-enabled 并安装 ffmpeg）",
+                        120, 1800)
         );
     }
 

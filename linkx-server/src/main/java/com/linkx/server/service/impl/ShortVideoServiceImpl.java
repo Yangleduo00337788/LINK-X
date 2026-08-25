@@ -7,6 +7,7 @@ package com.linkx.server.service.impl;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linkx.server.common.SearchTextSupport;
+import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.controller.dto.CommentShortVideoDTO;
 import com.linkx.server.controller.dto.PublishShortVideoDTO;
 import com.linkx.server.controller.dto.UpdateShortVideoDTO;
@@ -40,9 +41,11 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -58,6 +61,10 @@ public class ShortVideoServiceImpl implements ShortVideoService {
     private static final int COMMENT_PAGE_SIZE = 20;
     private static final long MAX_VIDEO_BYTES = 100L * 1024 * 1024;
     private static final int MAX_DURATION_MS = 60_000;
+    private static final int DISCOVER_CANDIDATE_MULTIPLIER = 5;
+    private static final int DISCOVER_MAX_CANDIDATES = 100;
+    private static final double DISCOVER_FOLLOWING_BOOST = 1.5D;
+    private static final double DISCOVER_FRIEND_BOOST = 1.2D;
     private static final PostInteractionStats EMPTY_INTERACTION = new PostInteractionStats(0, 0, false, false);
 
     private record PostInteractionStats(int likeCount, int favoriteCount, boolean liked, boolean favorited) {
@@ -84,6 +91,7 @@ public class ShortVideoServiceImpl implements ShortVideoService {
     private final MessageContentCipher messageContentCipher;
     private final StringRedisTemplate redisTemplate;
     private final ObjectStorageRouter objectStorageRouter;
+    private final LinkxProperties linkxProperties;
 
     @Override
     @Transactional
@@ -110,6 +118,7 @@ public class ShortVideoServiceImpl implements ShortVideoService {
                 .visibility(visibility)
                 .playCount(0L)
                 .shareCount(0L)
+                .transcodeStatus(resolveInitialTranscodeStatus())
                 .build();
         preparePostForStorage(post);
         postMapper.insert(post);
@@ -174,19 +183,113 @@ public class ShortVideoServiceImpl implements ShortVideoService {
     @Override
     public List<ShortVideoPostVO> listDiscover(Long userId, Long beforeId, Integer limit, String q) {
         int pageSize = normalizeLimit(limit);
+        if (q != null && !q.isBlank()) {
+            QueryWrapper qw = QueryWrapper.create()
+                    .eq("deleted", 0)
+                    .and("(IFNULL(visibility, 0) <> 2 OR user_id = ?)", userId)
+                    .orderBy("create_time", false)
+                    .orderBy("id", false)
+                    .limit(pageSize);
+            applyActiveStorageProvider(qw);
+            if (beforeId != null) {
+                qw.and("id < ?", beforeId);
+            }
+            applySearch(qw, q);
+            return buildPostList(qw, userId);
+        }
+        return listDiscoverRanked(userId, beforeId, pageSize);
+    }
 
+    private List<ShortVideoPostVO> listDiscoverRanked(Long userId, Long beforeId, int pageSize) {
+        int candidateSize = Math.min(pageSize * DISCOVER_CANDIDATE_MULTIPLIER, DISCOVER_MAX_CANDIDATES);
         QueryWrapper qw = QueryWrapper.create()
                 .eq("deleted", 0)
                 .and("(IFNULL(visibility, 0) <> 2 OR user_id = ?)", userId)
-                .orderBy("create_time", false)
                 .orderBy("id", false)
-                .limit(pageSize);
+                .limit(candidateSize);
         applyActiveStorageProvider(qw);
         if (beforeId != null) {
             qw.and("id < ?", beforeId);
         }
-        applySearch(qw, q);
-        return buildPostList(qw, userId);
+        List<ShortVideoPost> candidates = postMapper.selectListByQuery(qw);
+        if (candidates.isEmpty()) {
+            return Collections.emptyList();
+        }
+        decryptPosts(candidates);
+        Set<Long> postIds = candidates.stream().map(ShortVideoPost::getId).collect(Collectors.toSet());
+        Set<Long> authorIds = candidates.stream().map(ShortVideoPost::getUserId).collect(Collectors.toSet());
+        Map<Long, Integer> commentCountMap = loadCommentCountMap(postIds);
+        Map<Long, PostInteractionStats> interactionMap = loadInteractionStatsMap(postIds, null);
+        Set<Long> following = loadFollowingSet(userId, authorIds);
+        Set<Long> friendIds = getFriendIds(userId);
+
+        List<ShortVideoPost> ranked = candidates.stream()
+                .sorted(Comparator
+                        .comparingDouble((ShortVideoPost post) -> discoverScore(
+                                post,
+                                interactionMap.getOrDefault(post.getId(), EMPTY_INTERACTION),
+                                commentCountMap.getOrDefault(post.getId(), 0),
+                                following.contains(post.getUserId()),
+                                friendIds.contains(post.getUserId())))
+                        .reversed()
+                        .thenComparing(ShortVideoPost::getId, Comparator.reverseOrder()))
+                .limit(pageSize)
+                .collect(Collectors.toCollection(ArrayList::new));
+        ranked = diversifyDiscoverAuthors(ranked);
+        return buildPostList(ranked, userId);
+    }
+
+    private double discoverScore(
+            ShortVideoPost post,
+            PostInteractionStats interaction,
+            int commentCount,
+            boolean followingAuthor,
+            boolean friendAuthor) {
+        long plays = post.getPlayCount() != null ? post.getPlayCount() : 0L;
+        long shares = post.getShareCount() != null ? post.getShareCount() : 0L;
+        double engagement = plays
+                + interaction.likeCount() * 3D
+                + shares * 5D
+                + commentCount * 2D;
+        double timeDecay = 1D;
+        if (post.getCreateTime() != null) {
+            double hours = Math.max(0D, Duration.between(post.getCreateTime().toInstant(), Instant.now()).toHours());
+            timeDecay = 1D / (1D + hours / 24D);
+        }
+        double boost = 1D;
+        if (followingAuthor) {
+            boost *= DISCOVER_FOLLOWING_BOOST;
+        } else if (friendAuthor) {
+            boost *= DISCOVER_FRIEND_BOOST;
+        }
+        double jitter = ThreadLocalRandom.current().nextDouble(0D, 0.05D);
+        return engagement * timeDecay * boost + jitter;
+    }
+
+    private List<ShortVideoPost> diversifyDiscoverAuthors(List<ShortVideoPost> ranked) {
+        if (ranked.size() < 2) {
+            return ranked;
+        }
+        List<ShortVideoPost> result = new ArrayList<>(ranked);
+        for (int i = 1; i < result.size(); i++) {
+            Long prevAuthor = result.get(i - 1).getUserId();
+            if (!Objects.equals(prevAuthor, result.get(i).getUserId())) {
+                continue;
+            }
+            int swapIndex = -1;
+            for (int j = i + 1; j < result.size(); j++) {
+                if (!Objects.equals(prevAuthor, result.get(j).getUserId())) {
+                    swapIndex = j;
+                    break;
+                }
+            }
+            if (swapIndex > 0) {
+                ShortVideoPost current = result.get(i);
+                result.set(i, result.get(swapIndex));
+                result.set(swapIndex, current);
+            }
+        }
+        return result;
     }
 
     @Override
@@ -651,7 +754,7 @@ public class ShortVideoServiceImpl implements ShortVideoService {
     @Override
     public FileStorageService.StoredObject openVideoContent(Long userId, Long postId) {
         ShortVideoPost post = assertCanView(userId, postId);
-        return fileStorageService.openObjectOnProvider(post.getVideoKey(), post.getStorageProvider());
+        return fileStorageService.openObjectOnProvider(resolvePlaybackVideoKey(post), post.getStorageProvider());
     }
 
     @Override
@@ -699,6 +802,10 @@ public class ShortVideoServiceImpl implements ShortVideoService {
 
     private List<ShortVideoPostVO> buildPostList(QueryWrapper qw, Long viewerId) {
         List<ShortVideoPost> posts = postMapper.selectListByQuery(qw);
+        return buildPostList(posts, viewerId);
+    }
+
+    private List<ShortVideoPostVO> buildPostList(List<ShortVideoPost> posts, Long viewerId) {
         if (posts.isEmpty()) {
             return Collections.emptyList();
         }
@@ -1124,6 +1231,20 @@ public class ShortVideoServiceImpl implements ShortVideoService {
             return 20;
         }
         return Math.min(limit, 50);
+    }
+
+    private String resolveInitialTranscodeStatus() {
+        LinkxProperties.ShortVideo shortVideo = linkxProperties.getShortVideo();
+        return shortVideo != null && shortVideo.isTranscodeEnabled() ? "pending" : "skipped";
+    }
+
+    private String resolvePlaybackVideoKey(ShortVideoPost post) {
+        if (post != null
+                && "completed".equalsIgnoreCase(post.getTranscodeStatus())
+                && StringUtils.hasText(post.getTranscodedVideoKey())) {
+            return post.getTranscodedVideoKey();
+        }
+        return post != null ? post.getVideoKey() : null;
     }
 
     /** 列表仅展示当前全局 storage_provider 下的作品（各云存储内容互不影响展示）。 */

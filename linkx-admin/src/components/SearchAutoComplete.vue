@@ -51,7 +51,7 @@ function persistHistory(value: string) {
 }
 
 const options = computed(() => {
-  const q = props.modelValue.trim().toLowerCase()
+  const q = (props.modelValue ?? '').trim().toLowerCase()
   const pool = [...new Set([...props.suggestions, ...localHistory.value])]
   const filtered = q ? pool.filter((x) => x.toLowerCase().includes(q)) : pool
   return filtered.slice(0, 10).map((label) => ({ label, value: label }))

@@ -19,6 +19,7 @@ import com.linkx.server.task.PresenceHeartbeatTask;
 import com.linkx.server.task.ReviewEscalationTask;
 import com.linkx.server.task.RedPacketTask;
 import com.linkx.server.task.SearchTextBackfillTask;
+import com.linkx.server.task.ShortVideoTranscodeTask;
 import com.linkx.server.task.StatisticSnapshotTask;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -193,6 +194,18 @@ public final class LinkxSnailJobExecutors {
         public ExecuteResult jobExecute(JobArgs jobArgs) {
             delegate.captureDailySnapshots();
             return ExecuteResult.success();
+        }
+    }
+
+    @Component
+    @JobExecutor(name = "short_video_transcode")
+    @RequiredArgsConstructor
+    public static class ShortVideoTranscodeJobExecutor {
+        private final ShortVideoTranscodeTask delegate;
+
+        public ExecuteResult jobExecute(JobArgs jobArgs) {
+            int processed = delegate.processPending();
+            return ExecuteResult.success("processed=" + processed);
         }
     }
 

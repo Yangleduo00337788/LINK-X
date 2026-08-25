@@ -52,6 +52,11 @@ public class ShortVideoPost implements Serializable {
 
     private Long shareCount;
 
+    /** skipped | pending | processing | completed | failed */
+    private String transcodeStatus;
+
+    private String transcodedVideoKey;
+
     @Column(onInsertValue = "NOW()")
     private Date createTime;
 
