@@ -41,6 +41,8 @@ public class AdminShortVideoPostVO {
 
     private String transcodeStatus;
 
+    private String transcodeError;
+
     private String videoUrl;
 
     private String coverUrl;

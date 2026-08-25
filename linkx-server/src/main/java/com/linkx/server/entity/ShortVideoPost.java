@@ -57,6 +57,9 @@ public class ShortVideoPost implements Serializable {
 
     private String transcodedVideoKey;
 
+    /** 转码失败时的简要原因（管理端展示） */
+    private String transcodeError;
+
     @Column(onInsertValue = "NOW()")
     private Date createTime;
 

@@ -60,6 +60,23 @@ public class ShortVideoTranscodeServiceImpl implements ShortVideoTranscodeServic
     }
 
     @Override
+    public boolean transcodePostIfPending(Long postId) {
+        LinkxProperties.ShortVideo config = linkxProperties.getShortVideo();
+        if (config == null || !config.isTranscodeEnabled() || postId == null) {
+            return false;
+        }
+        ShortVideoPost post = postMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .eq("id", postId)
+                        .eq("deleted", 0)
+                        .eq("transcode_status", "pending"));
+        if (post == null) {
+            return false;
+        }
+        return transcodeOne(post, config);
+    }
+
+    @Override
     public void enqueueRetranscode(Long postId) {
         LinkxProperties.ShortVideo config = linkxProperties.getShortVideo();
         if (config == null || !config.isTranscodeEnabled()) {
@@ -80,13 +97,16 @@ public class ShortVideoTranscodeServiceImpl implements ShortVideoTranscodeServic
         UpdateChain.of(ShortVideoPost.class)
                 .set(ShortVideoPost::getTranscodeStatus, "pending")
                 .set(ShortVideoPost::getTranscodedVideoKey, null)
+                .set(ShortVideoPost::getTranscodeError, null)
                 .where(ShortVideoPost::getId).eq(postId)
                 .update();
     }
 
     private boolean transcodeOne(ShortVideoPost post, LinkxProperties.ShortVideo config) {
         Long postId = post.getId();
-        markStatus(postId, "processing");
+        if (!tryClaimForProcessing(postId)) {
+            return false;
+        }
         Path source = null;
         Path output = null;
         try {
@@ -108,12 +128,13 @@ public class ShortVideoTranscodeServiceImpl implements ShortVideoTranscodeServic
             UpdateChain.of(ShortVideoPost.class)
                     .set(ShortVideoPost::getTranscodedVideoKey, outputKey)
                     .set(ShortVideoPost::getTranscodeStatus, "completed")
+                    .set(ShortVideoPost::getTranscodeError, null)
                     .where(ShortVideoPost::getId).eq(postId)
                     .update();
             return true;
         } catch (Exception e) {
             log.warn("短视频转码失败 postId={}: {}", postId, e.getMessage(), e);
-            markStatus(postId, "failed");
+            markFailed(postId, e);
             return false;
         } finally {
             deleteQuietly(source);
@@ -153,11 +174,30 @@ public class ShortVideoTranscodeServiceImpl implements ShortVideoTranscodeServic
         }
     }
 
-    private void markStatus(Long postId, String status) {
+    private boolean tryClaimForProcessing(Long postId) {
+        return UpdateChain.of(ShortVideoPost.class)
+                .set(ShortVideoPost::getTranscodeStatus, "processing")
+                .set(ShortVideoPost::getTranscodeError, null)
+                .where(ShortVideoPost::getId).eq(postId)
+                .and(ShortVideoPost::getTranscodeStatus).eq("pending")
+                .update();
+    }
+
+    private void markFailed(Long postId, Exception error) {
         UpdateChain.of(ShortVideoPost.class)
-                .set(ShortVideoPost::getTranscodeStatus, status)
+                .set(ShortVideoPost::getTranscodeStatus, "failed")
+                .set(ShortVideoPost::getTranscodeError, summarizeError(error))
                 .where(ShortVideoPost::getId).eq(postId)
                 .update();
+    }
+
+    private static String summarizeError(Exception error) {
+        String message = error != null ? error.getMessage() : null;
+        if (!StringUtils.hasText(message)) {
+            message = error != null ? error.getClass().getSimpleName() : "unknown";
+        }
+        message = message.strip();
+        return message.length() <= 500 ? message : message.substring(0, 500);
     }
 
     private static void deleteQuietly(Path path) {

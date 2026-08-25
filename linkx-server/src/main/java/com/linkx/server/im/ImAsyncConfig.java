@@ -123,4 +123,17 @@ public class ImAsyncConfig {
         executor.initialize();
         return executor;
     }
+
+    /** 短视频上传后异步转码（CPU/IO 密集，与 IM 推送隔离）。 */
+    @Bean(name = "shortVideoTranscodeExecutor")
+    public java.util.concurrent.Executor shortVideoTranscodeExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(2);
+        executor.setQueueCapacity(100);
+        executor.setThreadNamePrefix("sv-transcode-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.initialize();
+        return executor;
+    }
 }
