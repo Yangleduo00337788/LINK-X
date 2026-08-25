@@ -57,6 +57,17 @@ export function resolveActivitySrc(url?: string | null): string {
   return resolveOpsMediaSrc(url)
 }
 
+/** 管理端短视频封面/视频：同源 /media/admin-short-video/{id}/... */
+export function resolveShortVideoAdminMediaSrc(url?: string | null): string {
+  const v = (url || '').trim()
+  if (!v) return ''
+  if (v.startsWith('data:') || v.startsWith('blob:')) return v
+  if (isExternalCdn(v)) return v
+  if (v.startsWith('/media/')) return `${API_BASE()}${v}`
+  if (/^https?:\/\//i.test(v)) return v
+  return `${API_BASE()}${v.startsWith('/') ? v : `/${v}`}`
+}
+
 function resolveOpsMediaSrc(url?: string | null): string {
   const v = (url || '').trim()
   if (!v) return ''

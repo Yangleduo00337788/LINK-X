@@ -38,6 +38,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -214,10 +215,13 @@ public class AdminShortVideoServiceImpl implements AdminShortVideoService {
         Map<Long, SysUser> users = loadUsers(userIds);
         Set<Long> commentIds = comments.stream().map(ShortVideoComment::getId).collect(Collectors.toSet());
         Map<Long, Integer> likeCounts = loadCommentLikeCounts(commentIds);
+        Set<Long> postIds = comments.stream().map(ShortVideoComment::getPostId).filter(Objects::nonNull).collect(Collectors.toSet());
+        Map<Long, ShortVideoPost> postsById = loadPostsById(postIds);
 
         List<AdminShortVideoCommentVO> result = new ArrayList<>();
         for (ShortVideoComment comment : comments) {
             SysUser user = users.get(comment.getUserId());
+            ShortVideoPost post = comment.getPostId() != null ? postsById.get(comment.getPostId()) : null;
             result.add(AdminShortVideoCommentVO.builder()
                     .id(comment.getId())
                     .postId(comment.getPostId())
@@ -227,6 +231,8 @@ public class AdminShortVideoServiceImpl implements AdminShortVideoService {
                     .content(comment.getContent())
                     .parentId(comment.getParentId())
                     .likeCount(likeCounts.getOrDefault(comment.getId(), 0))
+                    .postCoverUrl(post != null && post.getCoverKey() != null && !post.getCoverKey().isBlank()
+                            ? adminCoverUrl(post.getId()) : null)
                     .createTime(formatTime(comment.getCreateTime()))
                     .build());
         }
@@ -268,6 +274,15 @@ public class AdminShortVideoServiceImpl implements AdminShortVideoService {
         return users.stream().collect(Collectors.toMap(SysUser::getId, u -> u, (a, b) -> a));
     }
 
+    private Map<Long, ShortVideoPost> loadPostsById(Set<Long> postIds) {
+        if (postIds.isEmpty()) {
+            return Map.of();
+        }
+        List<ShortVideoPost> posts = postMapper.selectListByQuery(
+                QueryWrapper.create().in("id", new ArrayList<>(postIds)).eq("deleted", 0));
+        return posts.stream().collect(Collectors.toMap(ShortVideoPost::getId, p -> p, (a, b) -> a));
+    }
+
     private ShortVideoPost requirePost(Long postId) {
         ShortVideoPost post = postMapper.selectOneByQuery(
                 QueryWrapper.create().eq("id", postId).eq("deleted", 0));
@@ -307,11 +322,11 @@ public class AdminShortVideoServiceImpl implements AdminShortVideoService {
     }
 
     private static String adminVideoUrl(Long postId) {
-        return "/admin/short-video/posts/" + postId + "/video/content";
+        return "/media/admin-short-video/" + postId + "/video";
     }
 
     private static String adminCoverUrl(Long postId) {
-        return "/admin/short-video/posts/" + postId + "/cover/content";
+        return "/media/admin-short-video/" + postId + "/cover";
     }
 
     private static String formatTime(Date date) {

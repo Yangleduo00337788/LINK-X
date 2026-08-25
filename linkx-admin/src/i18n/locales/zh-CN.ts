@@ -1461,6 +1461,7 @@ export default {
     author: '作者',
     authorId: '作者用户 ID',
     postId: '作品 ID',
+    cover: '封面',
     description: '描述',
     commentContent: '评论内容',
     stats: '数据',

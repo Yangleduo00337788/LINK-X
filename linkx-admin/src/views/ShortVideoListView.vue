@@ -13,6 +13,7 @@ import {
   NTabPane,
   NTabs,
   NTag,
+  NTooltip,
   useDialog,
   useMessage,
   type DataTableColumns,
@@ -26,17 +27,9 @@ import {
   type ShortVideoPostItem,
 } from '@/api/shortVideo'
 import { formatTime } from '@/utils/format'
+import { resolveShortVideoAdminMediaSrc } from '@/utils/mediaUrl'
 import { useAuthStore } from '@/stores/auth'
 import SearchAutoComplete from '@/components/SearchAutoComplete.vue'
-
-const API_BASE = () => (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '')
-
-function resolveAdminMedia(url?: string | null) {
-  const v = (url || '').trim()
-  if (!v) return ''
-  if (v.startsWith('http://') || v.startsWith('https://') || v.startsWith('blob:')) return v
-  return `${API_BASE()}${v.startsWith('/') ? v : `/${v}`}`
-}
 
 const message = useMessage()
 const dialog = useDialog()
@@ -114,10 +107,57 @@ const transcodeTagType = (status?: string) => {
   }
 }
 
+const transcodeLabel = (status?: string) => {
+  switch (status) {
+    case 'pending':
+      return t('shortVideo.transcodePending')
+    case 'processing':
+      return t('shortVideo.transcodeProcessing')
+    case 'completed':
+      return t('shortVideo.transcodeCompleted')
+    case 'failed':
+      return t('shortVideo.transcodeFailed')
+    default:
+      return t('shortVideo.transcodeSkipped')
+  }
+}
+
+function renderCoverCell(coverUrl: string | null | undefined, postId?: string | null) {
+  const id = postId || '-'
+  const src = resolveShortVideoAdminMediaSrc(coverUrl)
+  const thumb = src
+    ? h(NImage, {
+        src,
+        width: 48,
+        height: 64,
+        objectFit: 'cover',
+        previewDisabled: true,
+        style: 'border-radius: 4px; display: block;',
+      })
+    : h('div', { class: 'sv-admin-cover-ph' }, '—')
+  return h(
+    NTooltip,
+    { placement: 'right' },
+    {
+      trigger: () => thumb,
+      default: () => `${t('shortVideo.postId')}: ${id}`,
+    }
+  )
+}
+
+const previewVideoSrc = computed(() =>
+  previewPost.value?.videoUrl ? resolveShortVideoAdminMediaSrc(previewPost.value.videoUrl) : ''
+)
+
 const postColumns = computed<DataTableColumns<ShortVideoPostItem>>(() => {
   void locale.value
   return [
-    { title: 'ID', key: 'id', width: 170, ellipsis: { tooltip: true } },
+    {
+      title: t('shortVideo.cover'),
+      key: 'coverUrl',
+      width: 72,
+      render: row => renderCoverCell(row.coverUrl, row.id),
+    },
     {
       title: t('shortVideo.author'),
       key: 'nickname',
@@ -150,7 +190,7 @@ const postColumns = computed<DataTableColumns<ShortVideoPostItem>>(() => {
       width: 100,
       render: row =>
         h(NTag, { size: 'small', type: transcodeTagType(row.transcodeStatus) }, () =>
-          row.transcodeStatus || 'skipped'
+          transcodeLabel(row.transcodeStatus)
         ),
     },
     {
@@ -189,7 +229,12 @@ const commentColumns = computed<DataTableColumns<ShortVideoCommentItem>>(() => {
   void locale.value
   return [
     { title: 'ID', key: 'id', width: 170, ellipsis: { tooltip: true } },
-    { title: t('shortVideo.postId'), key: 'postId', width: 170, ellipsis: { tooltip: true } },
+    {
+      title: t('shortVideo.postId'),
+      key: 'postCoverUrl',
+      width: 72,
+      render: row => renderCoverCell(row.postCoverUrl, row.postId),
+    },
     {
       title: t('shortVideo.author'),
       key: 'nickname',
@@ -322,119 +367,136 @@ onMounted(() => {
 <template>
   <div class="page">
     <div class="page-shell">
-    <NTabs v-model:value="activeTab" type="line" animated>
-      <NTabPane name="posts" :tab="t('shortVideo.postsTab')">
-        <NSpace vertical :size="12">
-          <NSpace wrap>
-            <SearchAutoComplete
-              v-model="postQuery.keyword"
-              :placeholder="t('shortVideo.searchPosts')"
-              style="width: 220px"
-              @search="searchPosts"
+      <NTabs v-model:value="activeTab" type="line" animated>
+        <NTabPane name="posts" :tab="t('shortVideo.postsTab')">
+          <NSpace vertical :size="12">
+            <NSpace wrap>
+              <SearchAutoComplete
+                v-model="postQuery.keyword"
+                :placeholder="t('shortVideo.searchPosts')"
+                style="width: 220px"
+                @search="searchPosts"
+              />
+              <NInput
+                v-model:value="postQuery.userId"
+                :placeholder="t('shortVideo.authorId')"
+                clearable
+                style="width: 160px"
+              />
+              <NSelect
+                v-model:value="postQuery.visibility"
+                :options="visibilityOptions"
+                style="width: 120px"
+              />
+              <NSelect
+                v-model:value="postQuery.transcodeStatus"
+                :options="transcodeOptions"
+                style="width: 130px"
+              />
+              <NButton type="primary" @click="searchPosts">{{ t('common.search') }}</NButton>
+            </NSpace>
+            <NDataTable
+              :columns="postColumns"
+              :data="postItems"
+              :loading="postLoading"
+              :scroll-x="1000"
+              :pagination="{
+                page: postQuery.page,
+                pageSize: postQuery.size,
+                itemCount: postTotal,
+                onUpdatePage: (p: number) => { postQuery.page = p; loadPosts() },
+                onUpdatePageSize: (s: number) => { postQuery.size = s; postQuery.page = 1; loadPosts() },
+              }"
             />
-            <NInput
-              v-model:value="postQuery.userId"
-              :placeholder="t('shortVideo.authorId')"
-              clearable
-              style="width: 160px"
-            />
-            <NSelect
-              v-model:value="postQuery.visibility"
-              :options="visibilityOptions"
-              style="width: 120px"
-            />
-            <NSelect
-              v-model:value="postQuery.transcodeStatus"
-              :options="transcodeOptions"
-              style="width: 130px"
-            />
-            <NButton type="primary" @click="searchPosts">{{ t('common.search') }}</NButton>
           </NSpace>
-          <NDataTable
-            :columns="postColumns"
-            :data="postItems"
-            :loading="postLoading"
-            :scroll-x="1100"
-            :pagination="{
-              page: postQuery.page,
-              pageSize: postQuery.size,
-              itemCount: postTotal,
-              onUpdatePage: (p: number) => { postQuery.page = p; loadPosts() },
-              onUpdatePageSize: (s: number) => { postQuery.size = s; postQuery.page = 1; loadPosts() },
-            }"
-          />
-        </NSpace>
-      </NTabPane>
+        </NTabPane>
 
-      <NTabPane name="comments" :tab="t('shortVideo.commentsTab')">
-        <NSpace vertical :size="12">
-          <NSpace wrap>
-            <SearchAutoComplete
-              v-model="commentQuery.keyword"
-              :placeholder="t('shortVideo.searchComments')"
-              style="width: 220px"
-              @search="searchComments"
+        <NTabPane name="comments" :tab="t('shortVideo.commentsTab')">
+          <NSpace vertical :size="12">
+            <NSpace wrap>
+              <SearchAutoComplete
+                v-model="commentQuery.keyword"
+                :placeholder="t('shortVideo.searchComments')"
+                style="width: 220px"
+                @search="searchComments"
+              />
+              <NInput
+                v-model:value="commentQuery.postId"
+                :placeholder="t('shortVideo.postId')"
+                clearable
+                style="width: 170px"
+              />
+              <NInput
+                v-model:value="commentQuery.userId"
+                :placeholder="t('shortVideo.authorId')"
+                clearable
+                style="width: 160px"
+              />
+              <NButton type="primary" @click="searchComments">{{ t('common.search') }}</NButton>
+            </NSpace>
+            <NDataTable
+              :columns="commentColumns"
+              :data="commentItems"
+              :loading="commentLoading"
+              :scroll-x="900"
+              :pagination="{
+                page: commentQuery.page,
+                pageSize: commentQuery.size,
+                itemCount: commentTotal,
+                onUpdatePage: (p: number) => { commentQuery.page = p; loadComments() },
+                onUpdatePageSize: (s: number) => { commentQuery.size = s; commentQuery.page = 1; loadComments() },
+              }"
             />
-            <NInput
-              v-model:value="commentQuery.postId"
-              :placeholder="t('shortVideo.postId')"
-              clearable
-              style="width: 170px"
-            />
-            <NInput
-              v-model:value="commentQuery.userId"
-              :placeholder="t('shortVideo.authorId')"
-              clearable
-              style="width: 160px"
-            />
-            <NButton type="primary" @click="searchComments">{{ t('common.search') }}</NButton>
           </NSpace>
-          <NDataTable
-            :columns="commentColumns"
-            :data="commentItems"
-            :loading="commentLoading"
-            :scroll-x="900"
-            :pagination="{
-              page: commentQuery.page,
-              pageSize: commentQuery.size,
-              itemCount: commentTotal,
-              onUpdatePage: (p: number) => { commentQuery.page = p; loadComments() },
-              onUpdatePageSize: (s: number) => { commentQuery.size = s; commentQuery.page = 1; loadComments() },
-            }"
-          />
-        </NSpace>
-      </NTabPane>
-    </NTabs>
+        </NTabPane>
+      </NTabs>
 
-    <NModal
-      v-model:show="showPreview"
-      preset="card"
-      :title="t('shortVideo.preview')"
-      style="width: min(520px, 92vw)"
-    >
-      <template v-if="previewPost">
-        <p class="sv-admin-preview__meta">
-          {{ previewPost.nickname || previewPost.username }} · {{ formatTime(previewPost.createTime) }}
-        </p>
-        <p class="sv-admin-preview__desc">{{ previewPost.description || t('shortVideo.noDescription') }}</p>
-        <div v-if="previewPost.coverUrl" class="sv-admin-preview__cover">
-          <NImage :src="resolveAdminMedia(previewPost.coverUrl)" width="120" object-fit="cover" />
-        </div>
-        <video
-          v-if="previewPost.videoUrl"
-          class="sv-admin-preview__video"
-          :src="resolveAdminMedia(previewPost.videoUrl)"
-          controls
-          playsinline
-          preload="metadata"
-        />
-      </template>
-    </NModal>
+      <NModal
+        v-model:show="showPreview"
+        preset="card"
+        :title="t('shortVideo.preview')"
+        style="width: min(520px, 92vw)"
+      >
+        <template v-if="previewPost">
+          <p class="sv-admin-preview__meta">
+            {{ previewPost.nickname || previewPost.username }} · {{ formatTime(previewPost.createTime) }}
+          </p>
+          <p class="sv-admin-preview__desc">{{ previewPost.description || t('shortVideo.noDescription') }}</p>
+          <div v-if="previewPost.coverUrl" class="sv-admin-preview__cover">
+            <NImage
+              :src="resolveShortVideoAdminMediaSrc(previewPost.coverUrl)"
+              width="120"
+              object-fit="cover"
+            />
+          </div>
+          <video
+            v-if="previewVideoSrc"
+            :key="previewPost.id"
+            class="sv-admin-preview__video"
+            :src="previewVideoSrc"
+            controls
+            playsinline
+            preload="metadata"
+          />
+        </template>
+      </NModal>
     </div>
   </div>
 </template>
 
 <style scoped>
+.sv-admin-cover-ph {
+  width: 48px;
+  height: 64px;
+  border-radius: 4px;
+  background: var(--n-action-color);
+  color: var(--n-text-color-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+
 .sv-admin-preview__meta {
   margin: 0 0 8px;
   color: var(--n-text-color-3);

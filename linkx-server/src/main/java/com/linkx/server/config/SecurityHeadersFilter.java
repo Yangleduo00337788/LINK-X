@@ -96,7 +96,8 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
                 || uri.contains("/media/moments-background/")
                 || uri.contains("/media/banners/")
                 || uri.contains("/media/recommends/")
-                || uri.contains("/media/activities/");
+                || uri.contains("/media/activities/")
+                || uri.contains("/media/admin-short-video/");
     }
 
     private boolean isSecureRequest(HttpServletRequest request) {

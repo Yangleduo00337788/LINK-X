@@ -32,6 +32,7 @@ export interface ShortVideoCommentItem {
   content?: string
   parentId?: string
   likeCount?: number
+  postCoverUrl?: string
   createTime?: string
 }
 

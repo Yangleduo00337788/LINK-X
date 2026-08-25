@@ -1477,6 +1477,7 @@ export default {
     author: 'Author',
     authorId: 'Author user ID',
     postId: 'Post ID',
+    cover: 'Cover',
     description: 'Description',
     commentContent: 'Comment',
     stats: 'Stats',

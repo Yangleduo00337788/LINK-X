@@ -200,6 +200,12 @@ linkx:
     admin-console-url: ${SNAIL_JOB_ADMIN_URL}
     sync-jobs-on-startup: ${SNAIL_JOB_SYNC_JOBS}
 
+  short-video:
+    transcode-enabled: ${SHORT_VIDEO_TRANSCODE_ENABLED:false}
+    ffmpeg-path: ${SHORT_VIDEO_FFMPEG_PATH:ffmpeg}
+    transcode-height: ${SHORT_VIDEO_TRANSCODE_HEIGHT:720}
+    transcode-batch-size: ${SHORT_VIDEO_TRANSCODE_BATCH_SIZE:3}
+
 # ---------- SnailJob 客户端 ----------
 snail-job:
   enabled: ${SNAIL_JOB_ENABLED}

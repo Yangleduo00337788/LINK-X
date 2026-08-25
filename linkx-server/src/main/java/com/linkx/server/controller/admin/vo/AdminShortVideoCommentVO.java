@@ -34,4 +34,7 @@ public class AdminShortVideoCommentVO {
     private Integer likeCount;
 
     private String createTime;
+
+    /** 所属作品封面（同源媒体代理地址） */
+    private String postCoverUrl;
 }
