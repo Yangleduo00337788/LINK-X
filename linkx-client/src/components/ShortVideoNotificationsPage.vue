@@ -123,6 +123,7 @@ async function refreshLayout() {
 
 const showMoreMenu = ref(false)
 const friendsInteractOnly = ref(false)
+const mentionOnly = ref(false)
 
 const friendIdSet = computed(() => {
   const set = new Set<string>()
@@ -147,6 +148,9 @@ const shortVideoNotifs = computed(() =>
 
 const displayList = computed(() => {
   let list = shortVideoNotifs.value
+  if (mentionOnly.value) {
+    list = list.filter(n => n.type === 'short_video_mention')
+  }
   if (friendsInteractOnly.value && friendIdSet.value.size > 0) {
     list = list.filter(n => friendIdSet.value.has(String(n.senderId)))
   }
@@ -206,6 +210,11 @@ async function handleClearAll() {
 
 function toggleFriendsInteractOnly() {
   friendsInteractOnly.value = !friendsInteractOnly.value
+  closeMoreMenu()
+}
+
+function toggleMentionOnly() {
+  mentionOnly.value = !mentionOnly.value
   closeMoreMenu()
 }
 
@@ -310,6 +319,14 @@ function onAvatarError(e: Event, notif: (typeof messageNotifs.value)[0]) {
                     @click="toggleFriendsInteractOnly"
                   >
                     {{ t('moments.onlyFriendsInteract') }}
+                  </LxButton>
+                  <LxButton
+                    variant="ghost"
+                    class="more-menu-item"
+                    :class="{ 'is-active': mentionOnly }"
+                    @click="toggleMentionOnly"
+                  >
+                    {{ t('shortVideo.onlyAtMe') }}
                   </LxButton>
                 </div>
               </Transition>

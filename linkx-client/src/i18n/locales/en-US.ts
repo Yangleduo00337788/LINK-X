@@ -1825,10 +1825,17 @@ export default {
     transcodePending: 'Transcoding',
     transcodeProcessing: 'Processing',
     transcodeFailed: 'Transcode failed',
+    transcodeFailedToast: 'Transcoding failed. The original video may still play.',
+    transcodeFailedGuideTitle: 'Transcode failed',
+    transcodeFailedGuideBody:
+      'Your video was uploaded, but background optimization failed. The original file usually still plays. Try re-uploading in MP4/H.264 format, or contact an administrator.',
+    transcodeFailedEdit: 'Edit post',
     editCover: 'Change cover',
     editCoverFail: 'Failed to upload cover',
     publishTranscodeHint: 'Published. Optimizing playback in the background.',
-    publishInBackground: 'Publishing in the background, please wait'
+    publishInBackground: 'Publishing in the background, please wait',
+    onlyAtMe: 'Mentions only',
+    onlyAtMeMsg: 'Show @me only'
   },
   moments: {
     title: 'Moments',

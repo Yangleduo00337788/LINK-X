@@ -24,6 +24,8 @@ import { useAppSettingsStore } from '../../stores/appSettings'
 import { useSettingsStore } from '../../stores/settings'
 import { useMomentsStore } from '../../stores/moments'
 import { useShortVideoStore } from '../../stores/shortVideo'
+import { listUserShortVideos } from '../../api/shortVideo'
+import { collectShortVideoCoverPreviews } from '../../utils/shortVideoContactPreview'
 import { useMessage } from 'naive-ui'
 import type { ContactItem } from '../../types'
 import * as userApi from '../../api/user'
@@ -64,6 +66,9 @@ const savingGroup = ref(false)
 /** 资料卡友链真实缩略图（最多 4 张图片，不含占位） */
 const momentPreviewImages = ref<string[]>([])
 const loadingMomentPreviews = ref(false)
+/** 资料卡短视频封面预览（最多 4 张） */
+const shortVideoPreviewCovers = ref<string[]>([])
+const loadingShortVideoPreviews = ref(false)
 
 const contact = computed<ContactItem | null>(() => currentContactProfile.value)
 const friendUserId = computed(() => (contact.value ? resolveContactUserId(contact.value) : null))
@@ -94,6 +99,7 @@ watch(
     remarkDraft.value = ''
     groupDraft.value = ''
     momentPreviewImages.value = []
+    shortVideoPreviewCovers.value = []
     if (!open || isSelf || !contactId || !contact.value) return
 
     remarkDraft.value = contact.value.remark || ''
@@ -104,10 +110,12 @@ watch(
 
     loadingRemoteProfile.value = true
     loadingMomentPreviews.value = true
+    loadingShortVideoPreviews.value = true
     try {
-      const [profileRes, userPosts] = await Promise.all([
+      const [profileRes, userPosts, shortVideoRes] = await Promise.all([
         userApi.getUserProfile(userId).catch(() => null),
-        fetchUserMoments(userId).catch(() => [] as Awaited<ReturnType<typeof fetchUserMoments>>)
+        fetchUserMoments(userId).catch(() => [] as Awaited<ReturnType<typeof fetchUserMoments>>),
+        listUserShortVideos(userId, { limit: 4 }).catch(() => null)
       ])
       if (profileRes && profileRes.code === 200 && profileRes.data) {
         remoteProfile.value = profileRes.data
@@ -125,11 +133,17 @@ watch(
         if (images.length >= 4) break
       }
       momentPreviewImages.value = images
+      if (shortVideoRes?.code === 200 && Array.isArray(shortVideoRes.data)) {
+        shortVideoPreviewCovers.value = collectShortVideoCoverPreviews(shortVideoRes.data, 4)
+      } else {
+        shortVideoPreviewCovers.value = []
+      }
     } catch {
       // API 失败时回退到本地联系人数据
     } finally {
       loadingRemoteProfile.value = false
       loadingMomentPreviews.value = false
+      loadingShortVideoPreviews.value = false
     }
   }
 )
@@ -240,6 +254,7 @@ const showProfileDetails = computed(
 
 /** 友链缩略图：仅展示真实图片，无图时留空由 UI 提示 */
 const momentPreviews = computed(() => momentPreviewImages.value)
+const shortVideoPreviews = computed(() => shortVideoPreviewCovers.value)
 
 /** 打开对方友链：侧栏扩展面板；独立窗通过标签弹出 */
 function openContactMoments() {
@@ -559,7 +574,23 @@ async function saveGroup() {
           @click="openContactShortVideo"
         >
           <span class="moments-label">{{ t('modals.shortVideo') }}</span>
-          <span class="moments-empty">{{ t('shortVideo.viewAuthor') }}</span>
+          <div class="moments-thumbs">
+            <template v-if="shortVideoPreviews.length">
+              <img
+                v-for="(cover, i) in shortVideoPreviews"
+                :key="i"
+                :src="cover"
+                alt=""
+                class="thumb thumb--video"
+                referrerpolicy="no-referrer"
+              />
+            </template>
+            <span v-else class="moments-empty">
+              {{
+                loadingShortVideoPreviews ? t('common.loading') : t('shortVideo.noAuthorVideos')
+              }}
+            </span>
+          </div>
           <n-icon :component="ChevronForwardOutline" :size="16" class="moments-arrow" />
         </button>
 

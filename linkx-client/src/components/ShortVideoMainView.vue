@@ -79,7 +79,7 @@ const store = useShortVideoStore()
 const appStore = useAppStore()
 const notificationsStore = useNotificationsStore()
 const contactsStore = useContactsStore()
-const { feedTab, posts, loading, publishing, publishProgress, activeIndex, myPosts, myPostsLoading, myPostsLoadingMore, feedError, authorPosts, authorPostsLoading, authorPostsLoadingMore, authorPostsHasMore, authorProfile, favoritePosts, favoritePostsLoading, favoritePostsLoadingMore, likedPosts, likedPostsLoading, likedPostsLoadingMore, searchMode, searchQuery, pendingAuthorUserId, pendingAuthorProfile, pendingMediaRefreshPostId, pendingCommentRefreshPostId } = storeToRefs(store)
+const { feedTab, posts, loading, publishing, publishProgress, activeIndex, myPosts, myPostsLoading, myPostsLoadingMore, feedError, authorPosts, authorPostsLoading, authorPostsLoadingMore, authorPostsHasMore, authorProfile, favoritePosts, favoritePostsLoading, favoritePostsLoadingMore, likedPosts, likedPostsLoading, likedPostsLoadingMore, searchMode, searchQuery, pendingAuthorUserId, pendingAuthorProfile, pendingMediaRefreshPostId, pendingCommentRefreshPostId, pendingTranscodeFailedPostId } = storeToRefs(store)
 const { messageNotifs } = storeToRefs(notificationsStore)
 
 const mineTabs = computed(() => [
@@ -316,6 +316,24 @@ function transcodeBadgeLabel(status?: string) {
   return t('shortVideo.transcodePending')
 }
 
+function showTranscodeFailedGuide(post?: ShortVideoPost | null) {
+  dialog.warning({
+    title: t('shortVideo.transcodeFailedGuideTitle'),
+    content: t('shortVideo.transcodeFailedGuideBody'),
+    positiveText: t('common.ok'),
+    negativeText: post ? t('shortVideo.transcodeFailedEdit') : undefined,
+    onNegativeClick: () => {
+      if (post) openEdit(post)
+    }
+  })
+}
+
+function onTranscodeBadgeClick(post: ShortVideoPost, event: Event) {
+  event.stopPropagation()
+  if (!isShortVideoTranscodeFailed(post.transcodeStatus)) return
+  showTranscodeFailedGuide(post)
+}
+
 async function bootstrapFeed() {
   const deepLinkPostId = String(route.query.post || '').trim()
   try {
@@ -376,6 +394,20 @@ watch(
       return
     }
     store.clearPendingCommentRefresh()
+  }
+)
+
+watch(
+  () => pendingTranscodeFailedPostId.value,
+  postId => {
+    const id = String(postId || '').trim()
+    if (!id) return
+    message.warning(t('shortVideo.transcodeFailedToast'))
+    const post = myPosts.value.find(p => p.id === id)
+    if (mineOpen.value && post) {
+      showTranscodeFailedGuide(post)
+    }
+    store.clearPendingTranscodeFailed()
   }
 )
 
@@ -1125,7 +1157,7 @@ async function refreshMineStats() {
   const userId = String(appStore.userProfile.userId || '')
   if (!userId) return
   if (authorOpen.value && isAuthorSelf.value) {
-    await store.fetchAuthorPosts(userId, authorProfile.value, true)
+    await store.fetchAuthorPosts(userId, authorProfile.value ?? undefined, true)
   }
 }
 
@@ -1160,6 +1192,9 @@ function onAuthorBodyScroll(e: Event) {
 }
 
 async function openMyVideo(item: ShortVideoPost) {
+  if (isShortVideoTranscodeFailed(item.transcodeStatus)) {
+    message.warning(t('shortVideo.transcodeFailedToast'))
+  }
   mineOpen.value = false
   try {
     await store.openPostById(item.id)
@@ -2585,15 +2620,18 @@ function videoPreload(index: number) {
                   <NIcon :component="Play" :size="10" />
                   {{ formatCount(item.playCount || 0) }}
                 </span>
-                <span
+                <button
                   v-if="mineTab === 'works' && shouldShowShortVideoTranscodeBadge(item.transcodeStatus)"
+                  type="button"
                   class="short-video-mine-tile__transcode"
                   :class="{
-                    'short-video-mine-tile__transcode--failed': isShortVideoTranscodeFailed(item.transcodeStatus)
+                    'short-video-mine-tile__transcode--failed': isShortVideoTranscodeFailed(item.transcodeStatus),
+                    'short-video-mine-tile__transcode--clickable': isShortVideoTranscodeFailed(item.transcodeStatus)
                   }"
+                  @click="onTranscodeBadgeClick(item, $event)"
                 >
                   {{ transcodeBadgeLabel(item.transcodeStatus) }}
-                </span>
+                </button>
               </button>
               <div v-if="mineTab === 'works'" class="short-video-mine-tile__actions">
                 <button
@@ -2730,6 +2768,12 @@ function videoPreload(index: number) {
     <div v-if="editOpen" class="short-video-modal" @click.self="editOpen = false">
       <div class="short-video-modal-card">
         <h3>{{ t('shortVideo.editTitle') }}</h3>
+        <p
+          v-if="editTarget && isShortVideoTranscodeFailed(editTarget.transcodeStatus)"
+          class="short-video-edit-transcode-alert"
+        >
+          {{ t('shortVideo.transcodeFailedGuideBody') }}
+        </p>
         <div class="short-video-edit-cover">
           <img
             v-if="editCoverPreview"
@@ -3774,10 +3818,28 @@ function videoPreload(index: number) {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  pointer-events: none;
 }
 
 .short-video-mine-tile__transcode--failed {
   background: rgba(180, 40, 40, 0.85);
+}
+
+.short-video-mine-tile__transcode--clickable {
+  pointer-events: auto;
+  cursor: pointer;
+  border: none;
+  font: inherit;
+}
+
+.short-video-edit-transcode-alert {
+  margin: 0 0 var(--lx-space-md);
+  padding: var(--lx-space-sm) var(--lx-space-md);
+  border-radius: var(--lx-radius-sm);
+  background: rgba(180, 40, 40, 0.12);
+  color: var(--lx-text-primary);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .short-video-edit-cover {

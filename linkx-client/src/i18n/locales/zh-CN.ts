@@ -1825,10 +1825,17 @@ export default {
     transcodePending: '转码中',
     transcodeProcessing: '处理中',
     transcodeFailed: '转码失败',
+    transcodeFailedToast: '视频转码失败，原片通常仍可播放',
+    transcodeFailedGuideTitle: '转码失败',
+    transcodeFailedGuideBody:
+      '视频已上传，但后台优化处理失败。原片通常仍可正常播放；建议检查视频格式（MP4/H.264 等）后删除并重新发布，或联系管理员协助处理。',
+    transcodeFailedEdit: '编辑作品',
     editCover: '更换封面',
     editCoverFail: '封面上传失败',
     publishTranscodeHint: '视频已发布，正在后台转码以优化播放',
-    publishInBackground: '视频正在后台发布，请稍候'
+    publishInBackground: '视频正在后台发布，请稍候',
+    onlyAtMe: '只看@我的',
+    onlyAtMeMsg: '只看@我的消息'
   },
   moments: {
     title: '友链',

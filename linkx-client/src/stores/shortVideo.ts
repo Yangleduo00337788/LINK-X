@@ -189,6 +189,7 @@ export const useShortVideoStore = defineStore('shortVideo', {
     pendingAuthorProfile: null as { nickname?: string; avatar?: string } | null,
     pendingMediaRefreshPostId: '' as string,
     pendingCommentRefreshPostId: '' as string,
+    pendingTranscodeFailedPostId: '' as string,
     commentDrawerPostId: '' as string
   }),
 
@@ -278,6 +279,10 @@ export const useShortVideoStore = defineStore('shortVideo', {
 
     clearPendingCommentRefresh() {
       this.pendingCommentRefreshPostId = ''
+    },
+
+    clearPendingTranscodeFailed() {
+      this.pendingTranscodeFailedPostId = ''
     },
 
     collapsePanel() {
@@ -442,7 +447,10 @@ export const useShortVideoStore = defineStore('shortVideo', {
         }
         progress.animate(
           PUBLISH_PROGRESS_VIDEO_WEIGHT + PUBLISH_PROGRESS_COVER_WEIGHT + 2,
-          99,
+          PUBLISH_PROGRESS_VIDEO_WEIGHT +
+            PUBLISH_PROGRESS_COVER_WEIGHT +
+            PUBLISH_PROGRESS_SUBMIT_WEIGHT -
+            1,
           600
         )
         const res = await publishShortVideo({
@@ -530,6 +538,7 @@ export const useShortVideoStore = defineStore('shortVideo', {
         forEachPostRef(lists, postId, post => {
           post.transcodeStatus = 'failed'
         })
+        this.pendingTranscodeFailedPostId = postId
       }
     },
 
