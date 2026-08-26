@@ -19,6 +19,7 @@ import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
 import { useGroupMetaStore } from '../../stores/groupMeta'
+import { useNotificationsStore } from '../../stores/notifications'
 import * as groupApi from '../../api/group'
 import * as conferenceApi from '../../api/conference'
 import type { ConferenceInfo } from '../../api/conference'
@@ -33,6 +34,8 @@ const dialog = useDialog()
 const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
 const groupMetaStore = useGroupMetaStore()
+const notificationsStore = useNotificationsStore()
+const { pendingJoinRequestConversationId } = storeToRefs(notificationsStore)
 const { groupInfoDrawerOpen, addMembersOpen } = storeToRefs(chatModalsStore)
 const { closeGroupInfo, openGroupAnnouncement, openAddMembers } = chatModalsStore
 const { currentSession, currentSessionId, userProfile } = storeToRefs(appStore)
@@ -193,6 +196,18 @@ function formatConferenceTime(raw?: string) {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
+
+watch(
+  () => pendingJoinRequestConversationId.value,
+  convId => {
+    const id = String(convId || '').trim()
+    if (!id || id !== currentSessionId.value) {
+      notificationsStore.clearPendingJoinRequest()
+      return
+    }
+    void refreshJoinRequests().finally(() => notificationsStore.clearPendingJoinRequest())
+  }
+)
 
 watch(
   () => currentSessionId.value,

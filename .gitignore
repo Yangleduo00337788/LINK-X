@@ -10,14 +10,19 @@ release-build/
 dist-installer/
 dist-installer-electron/
 # 本地/生产 env（任意目录下同名文件均忽略）
+.env
 .env.local
 .env.prod
 .env.docker
 # 前端本地 env（含本地接口地址/可能的 token）不入库
 linkx-client/.env
 linkx-client/.env.electron
+linkx-client/.env.development.local
+linkx-client/.env.production.local
 linkx-admin/.env
 linkx-admin/dist/
+!.env.example
+!.env.*.example
 !.env.local.example
 !.env.prod.example
 !.env.docker.example
@@ -42,6 +47,8 @@ __pycache__/
 .idea/
 .vscode/
 !.vscode/extensions.json
+.cursor/
+.codegraph/
 *.iml
 
 # TypeScript 增量构建缓存
@@ -56,6 +63,21 @@ linkx-server/k6/k6.env
 linkx-server/k6/results/*.json
 linkx-server/k6/results/*.log
 linkx-server/.env.docker
+
+# Docker 本地覆盖配置
+docker-compose.override.yml
+docker-compose.*.local.yml
+
+# E2E / Playwright 产物
+playwright-report/
+test-results/
+blob-report/
+
+# 证书与私钥（勿提交）
+*.pem
+*.key
+*.p12
+*.jks
 
 # SQL benchmark 本地报告产物
 linkx-server/scripts/sql-benchmark*.txt

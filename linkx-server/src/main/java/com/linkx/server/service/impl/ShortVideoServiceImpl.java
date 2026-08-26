@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linkx.server.common.SearchTextSupport;
 import com.linkx.server.common.ShortVideoHashtagSupport;
 import com.linkx.server.common.ShortVideoTopicHotScore;
+import com.linkx.server.common.ShortVideoTranscodeSupport;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.controller.dto.CommentShortVideoDTO;
@@ -475,10 +476,12 @@ public class ShortVideoServiceImpl implements ShortVideoService {
     }
 
     @Override
-    public List<ShortVideoFollowingUserVO> listFollowingUsers(Long userId, Long beforeId, Integer limit) {
+    public List<ShortVideoFollowingUserVO> listFollowingUsers(
+            Long viewerId, Long targetUserId, Long beforeId, Integer limit) {
+        requireUser(targetUserId);
         int pageSize = normalizeLimit(limit);
         QueryWrapper qw = QueryWrapper.create()
-                .eq("follower_id", userId)
+                .eq("follower_id", targetUserId)
                 .eq("deleted", 0)
                 .orderBy("create_time", false)
                 .orderBy("id", false)
@@ -494,6 +497,7 @@ public class ShortVideoServiceImpl implements ShortVideoService {
                 .map(ShortVideoFollow::getFolloweeId)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
         Map<Long, SysUser> users = loadUsers(followeeIds);
+        Set<Long> following = loadFollowingSet(viewerId, followeeIds);
         List<ShortVideoFollowingUserVO> result = new ArrayList<>();
         for (ShortVideoFollow follow : follows) {
             SysUser user = users.get(follow.getFolloweeId());
@@ -505,7 +509,8 @@ public class ShortVideoServiceImpl implements ShortVideoService {
                     .userId(follow.getFolloweeId())
                     .nickname(user.getNickname())
                     .avatar(mediaUrlService.resolveUserAvatar(user.getId(), user.getAvatar()))
-                    .postCount(countVisiblePostsByUser(userId, follow.getFolloweeId()))
+                    .postCount(countVisiblePostsByUser(viewerId, follow.getFolloweeId()))
+                    .followingAuthor(following.contains(follow.getFolloweeId()))
                     .build());
         }
         return result;
@@ -1340,7 +1345,16 @@ public class ShortVideoServiceImpl implements ShortVideoService {
                 .commentCount(commentCount)
                 .comments(commentVOs)
                 .topics(topics != null ? topics : List.of())
+                .transcodeStatus(resolveTranscodeStatusForViewer(post, viewerId))
                 .build();
+    }
+
+    private String resolveTranscodeStatusForViewer(ShortVideoPost post, Long viewerId) {
+        if (post == null || viewerId == null || !Objects.equals(post.getUserId(), viewerId)) {
+            return null;
+        }
+        String status = post.getTranscodeStatus();
+        return ShortVideoTranscodeSupport.shouldShowStatus(status) ? status : null;
     }
 
     private List<ShortVideoCommentVO> buildCommentVOs(List<ShortVideoComment> comments, Long viewerId) {
@@ -1869,10 +1883,22 @@ public class ShortVideoServiceImpl implements ShortVideoService {
                     postId,
                     extraId,
                     previewText);
-            imPushService.pushToUser(authorId, "notification_refresh", Map.of("type", type));
+            imPushService.pushToUser(authorId, "notification_refresh", buildShortVideoRefreshPayload(type, postId, extraId));
         } catch (Exception e) {
             log.warn("短视频通知失败 type={} postId={}: {}", type, postId, e.getMessage());
         }
+    }
+
+    private Map<String, Object> buildShortVideoRefreshPayload(String type, Long postId, Long extraId) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("type", type);
+        if (postId != null) {
+            payload.put("relatedId", String.valueOf(postId));
+        }
+        if (extraId != null) {
+            payload.put("extraId", String.valueOf(extraId));
+        }
+        return payload;
     }
 
     private String preview(String description) {

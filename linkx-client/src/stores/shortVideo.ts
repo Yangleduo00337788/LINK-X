@@ -46,13 +46,54 @@ export const SHORT_VIDEO_MAX_BYTES = 100 * 1024 * 1024
 export const SHORT_VIDEO_MAX_DURATION_MS = 60_000
 
 /** 发布进度权重：视频上传 / 封面上传 / 提交发布 */
-const PUBLISH_PROGRESS_VIDEO_WEIGHT = 88
-const PUBLISH_PROGRESS_COVER_WEIGHT = 8
-const PUBLISH_PROGRESS_SUBMIT_WEIGHT = 4
+const PUBLISH_PROGRESS_VIDEO_WEIGHT = 75
+const PUBLISH_PROGRESS_COVER_WEIGHT = 15
+const PUBLISH_PROGRESS_SUBMIT_WEIGHT = 10
 
 function mapUploadProgress(pct: number, weight: number, offset = 0) {
   const clamped = Math.max(0, Math.min(100, pct))
   return offset + Math.round((clamped * weight) / 100)
+}
+
+type PublishProgressAnimator = {
+  stop: () => void
+  bump: (target: number) => void
+  animate: (from: number, to: number, durationMs: number) => void
+}
+
+function createPublishProgressAnimator(
+  onProgress: (value: number) => void
+): PublishProgressAnimator {
+  let timer: ReturnType<typeof setInterval> | null = null
+  let current = 0
+
+  const stop = () => {
+    if (timer) {
+      clearInterval(timer)
+      timer = null
+    }
+  }
+
+  const bump = (target: number) => {
+    stop()
+    current = Math.max(current, Math.min(99, target))
+    onProgress(current)
+  }
+
+  const animate = (from: number, to: number, durationMs: number) => {
+    stop()
+    const start = Math.max(current, from)
+    const end = Math.min(99, to)
+    const startedAt = Date.now()
+    timer = setInterval(() => {
+      const ratio = Math.min(1, (Date.now() - startedAt) / durationMs)
+      current = Math.round(start + (end - start) * ratio)
+      onProgress(current)
+      if (ratio >= 1) stop()
+    }, 50)
+  }
+
+  return { stop, bump, animate }
 }
 
 let ensurePanelReadyTask: Promise<void> | null = null
@@ -143,7 +184,12 @@ export const useShortVideoStore = defineStore('shortVideo', {
     searchMode: false,
     searchQuery: '' as string,
     searchHasMore: true,
-    publishProgress: 0
+    publishProgress: 0,
+    pendingAuthorUserId: '' as string,
+    pendingAuthorProfile: null as { nickname?: string; avatar?: string } | null,
+    pendingMediaRefreshPostId: '' as string,
+    pendingCommentRefreshPostId: '' as string,
+    commentDrawerPostId: '' as string
   }),
 
   getters: {
@@ -205,6 +251,33 @@ export const useShortVideoStore = defineStore('shortVideo', {
       void this.ensurePanelReady()
       const tabId = (this.activeTabId || 'main') as ShortVideoPanelTabId
       useExtensionDockStore().activateTab(`shortVideo:${tabId}`)
+    },
+
+    async openAuthorPanel(userId: string, profile?: { nickname?: string; avatar?: string }) {
+      const id = String(userId || '').trim()
+      if (!id) return
+      this.pendingAuthorUserId = id
+      this.pendingAuthorProfile = profile || null
+      useAppStore().setNav('chat')
+      if (!this.openTabIds.length) {
+        this.registerOpenTab('main')
+        this.activeTabId = 'main'
+      }
+      void this.ensurePanelReady()
+      useExtensionDockStore().activateTab(`shortVideo:${(this.activeTabId || 'main') as ShortVideoPanelTabId}`)
+    },
+
+    clearPendingAuthor() {
+      this.pendingAuthorUserId = ''
+      this.pendingAuthorProfile = null
+    },
+
+    clearPendingMediaRefresh() {
+      this.pendingMediaRefreshPostId = ''
+    },
+
+    clearPendingCommentRefresh() {
+      this.pendingCommentRefreshPostId = ''
     },
 
     collapsePanel() {
@@ -319,30 +392,28 @@ export const useShortVideoStore = defineStore('shortVideo', {
     async publish(file: File, description: string, visibility = 0) {
       this.publishing = true
       this.publishProgress = 1
+      const progress = createPublishProgressAnimator(value => {
+        this.publishProgress = value
+      })
       try {
         const uploadRes = await uploadShortVideoMedia(file, pct => {
-          this.publishProgress = Math.max(
-            1,
-            mapUploadProgress(pct, PUBLISH_PROGRESS_VIDEO_WEIGHT)
-          )
+          progress.bump(mapUploadProgress(pct, PUBLISH_PROGRESS_VIDEO_WEIGHT))
         })
         if (uploadRes.code !== 200 || !uploadRes.data) {
           throw new Error(uploadRes.message || 'upload failed')
         }
         const videoKey = uploadRes.data
-        this.publishProgress = PUBLISH_PROGRESS_VIDEO_WEIGHT
+        progress.bump(PUBLISH_PROGRESS_VIDEO_WEIGHT)
         let coverKey: string | undefined
         try {
+          progress.animate(PUBLISH_PROGRESS_VIDEO_WEIGHT, PUBLISH_PROGRESS_VIDEO_WEIGHT + 4, 1500)
           const coverBlob = await captureVideoCover(file)
+          progress.bump(PUBLISH_PROGRESS_VIDEO_WEIGHT + 4)
           const coverFile = new File([coverBlob], 'cover.jpg', { type: 'image/jpeg' })
+          const coverOffset = PUBLISH_PROGRESS_VIDEO_WEIGHT + 4
           const coverRes = await uploadShortVideoMedia(coverFile, pct => {
-            this.publishProgress = Math.max(
-              PUBLISH_PROGRESS_VIDEO_WEIGHT,
-              mapUploadProgress(
-                pct,
-                PUBLISH_PROGRESS_COVER_WEIGHT,
-                PUBLISH_PROGRESS_VIDEO_WEIGHT
-              )
+            progress.bump(
+              mapUploadProgress(pct, PUBLISH_PROGRESS_COVER_WEIGHT - 4, coverOffset)
             )
           })
           if (coverRes.code === 200 && coverRes.data) {
@@ -351,10 +422,14 @@ export const useShortVideoStore = defineStore('shortVideo', {
         } catch {
           /* optional */
         }
-        this.publishProgress =
-          PUBLISH_PROGRESS_VIDEO_WEIGHT + PUBLISH_PROGRESS_COVER_WEIGHT
+        progress.bump(PUBLISH_PROGRESS_VIDEO_WEIGHT + PUBLISH_PROGRESS_COVER_WEIGHT)
         let durationMs: number | undefined
         try {
+          progress.animate(
+            PUBLISH_PROGRESS_VIDEO_WEIGHT + PUBLISH_PROGRESS_COVER_WEIGHT,
+            PUBLISH_PROGRESS_VIDEO_WEIGHT + PUBLISH_PROGRESS_COVER_WEIGHT + 2,
+            400
+          )
           const ms = await readVideoDurationMs(file)
           if (Number.isFinite(ms) && ms > 0) {
             durationMs = ms
@@ -365,11 +440,11 @@ export const useShortVideoStore = defineStore('shortVideo', {
         if (durationMs != null && durationMs > SHORT_VIDEO_MAX_DURATION_MS) {
           throw new Error('video too long')
         }
-        this.publishProgress =
-          PUBLISH_PROGRESS_VIDEO_WEIGHT +
-          PUBLISH_PROGRESS_COVER_WEIGHT +
-          PUBLISH_PROGRESS_SUBMIT_WEIGHT -
-          1
+        progress.animate(
+          PUBLISH_PROGRESS_VIDEO_WEIGHT + PUBLISH_PROGRESS_COVER_WEIGHT + 2,
+          99,
+          600
+        )
         const res = await publishShortVideo({
           description: description.trim(),
           videoKey,
@@ -377,24 +452,84 @@ export const useShortVideoStore = defineStore('shortVideo', {
           durationMs,
           visibility
         })
+        progress.stop()
         this.publishProgress = 100
         if (res.code !== 200) {
           throw new Error(res.message || 'publish failed')
         }
         if (res.data) {
           const post = normalizeShortVideoList([res.data])[0]
+          const me = String(useAppStore().userProfile.userId || '')
+          if (this.authorProfile?.userId === me) {
+            this.authorProfile = {
+              ...this.authorProfile,
+              postCount: (this.authorProfile.postCount ?? 0) + 1
+            }
+          }
           if (isEncryptedShortVideoText(post.description)) {
             await this.fetchFeed(true)
           } else {
-            this.posts.unshift(post)
             this.myPosts.unshift(post)
-            this.activeIndex = 0
           }
         }
         return res.data
       } finally {
-        this.publishing = false
-        this.publishProgress = 0
+        progress.stop()
+        const showDone = this.publishProgress >= 100
+        if (!showDone) {
+          this.publishing = false
+          this.publishProgress = 0
+        } else {
+          window.setTimeout(() => {
+            this.publishing = false
+            this.publishProgress = 0
+          }, 600)
+        }
+      }
+    },
+
+    handleRealtimeRefresh(data?: Record<string, unknown>) {
+      const type = typeof data?.type === 'string' ? data.type : ''
+      const postId = data?.relatedId != null ? String(data.relatedId).trim() : ''
+      if (!type || !postId) return
+
+      const lists = [
+        this.posts,
+        this.myPosts,
+        this.authorPosts,
+        this.favoritePosts,
+        this.likedPosts
+      ]
+
+      if (type === 'short_video_like') {
+        forEachPostRef(lists, postId, post => {
+          post.likes = (post.likes || 0) + 1
+        })
+        return
+      }
+
+      if (type === 'short_video_comment' || type === 'short_video_mention') {
+        if (this.commentDrawerPostId !== postId) {
+          forEachPostRef(lists, postId, post => {
+            post.commentCount = (post.commentCount || 0) + 1
+          })
+        }
+        this.pendingCommentRefreshPostId = postId
+        return
+      }
+
+      if (type === 'short_video_transcode_completed') {
+        forEachPostRef(lists, postId, post => {
+          post.transcodeStatus = undefined
+        })
+        this.pendingMediaRefreshPostId = postId
+        return
+      }
+
+      if (type === 'short_video_transcode_failed') {
+        forEachPostRef(lists, postId, post => {
+          post.transcodeStatus = 'failed'
+        })
       }
     },
 
@@ -745,6 +880,13 @@ export const useShortVideoStore = defineStore('shortVideo', {
       if (authorIdx >= 0) {
         this.authorPosts.splice(authorIdx, 1)
       }
+      const me = String(useAppStore().userProfile.userId || '')
+      if (this.authorProfile?.userId === me && typeof this.authorProfile.postCount === 'number') {
+        this.authorProfile = {
+          ...this.authorProfile,
+          postCount: Math.max(0, this.authorProfile.postCount - 1)
+        }
+      }
     },
 
     async openPostById(postId: string) {
@@ -768,7 +910,10 @@ export const useShortVideoStore = defineStore('shortVideo', {
       return post
     },
 
-    async updatePost(postId: string, payload: { description?: string; visibility?: number }) {
+    async updatePost(
+      postId: string,
+      payload: { description?: string; visibility?: number; coverKey?: string }
+    ) {
       const res = await updateShortVideo(postId, payload)
       if (res.code !== 200 || !res.data) {
         throw new Error(res.message || 'update failed')

@@ -23,6 +23,7 @@ import { useContactsStore } from '../../stores/contacts'
 import { useAppSettingsStore } from '../../stores/appSettings'
 import { useSettingsStore } from '../../stores/settings'
 import { useMomentsStore } from '../../stores/moments'
+import { useShortVideoStore } from '../../stores/shortVideo'
 import { useMessage } from 'naive-ui'
 import type { ContactItem } from '../../types'
 import * as userApi from '../../api/user'
@@ -42,6 +43,7 @@ const contactsStore = useContactsStore()
 const appSettingsStore = useAppSettingsStore()
 const settingsStore = useSettingsStore()
 const momentsStore = useMomentsStore()
+const shortVideoStore = useShortVideoStore()
 const message = useMessage()
 
 const { contactProfileOpen, currentContactProfile, profileCardPos, profileCardIsSelf } = storeToRefs(chatModalsStore)
@@ -49,8 +51,7 @@ const { closeContactProfile, openEditProfile } = chatModalsStore
 const { userProfile, savedLogin, isOffline } = storeToRefs(appStore)
 const { onlineFriends } = storeToRefs(contactsStore)
 const { notifyFriendOnline } = storeToRefs(appSettingsStore)
-const { startChatWithContact, updateAvatar } = appStore
-const { setFocusUser, loadFocusUserFeed, fetchUserMoments } = momentsStore
+const { fetchUserMoments } = momentsStore
 
 const avatarInputRef = ref<HTMLInputElement | null>(null)
 const uploadingAvatar = ref(false)
@@ -164,10 +165,12 @@ const displayAvatarColor = computed(() => {
 watch(
   () => [userProfile.value.avatar, userProfile.value.nickname] as const,
   ([avatar, nickname]) => {
-    if (!profileCardIsSelf.value || !contact.value) return
-    contact.value.avatarUrl = avatar || undefined
-    contact.value.avatarColor = avatar ? 'transparent' : 'var(--lx-success)'
-    if (nickname) contact.value.name = nickname
+    if (!profileCardIsSelf.value) return
+    const profileContact = currentContactProfile.value
+    if (!profileContact) return
+    profileContact.avatarUrl = avatar || undefined
+    profileContact.avatarColor = avatar ? 'transparent' : 'var(--lx-success)'
+    if (nickname) profileContact.name = nickname
   }
 )
 
@@ -246,16 +249,25 @@ function openContactMoments() {
   closeContactProfile()
   appStore.setNav('chat')
   void (async () => {
-    await momentsStore.ensurePanelReady({ userId, name })
-    momentsStore.openPanel({ userId, name })
+    await momentsStore.ensurePanelReady({ userId, userName: name })
+    momentsStore.openPanel({ userId, userName: name })
   })()
+}
+
+function openContactShortVideo() {
+  const userId = friendUserId.value
+  if (!userId || !contact.value) return
+  const name = displayName.value
+  const avatar = contact.value.avatarUrl
+  closeContactProfile()
+  void shortVideoStore.openAuthorPanel(userId, { nickname: name, avatar })
 }
 
 /** 从资料卡发起与该联系人的聊天 */
 async function handleSendMessage() {
   if (!contact.value) return
   try {
-    await startChatWithContact(contact.value)
+    await appStore.startChatWithContact(contact.value)
     closeContactProfile()
   } catch (error) {
     message.error((error as Error).message || t('modals.openSessionFail'))
@@ -285,9 +297,12 @@ async function handleAvatarChange(e: Event) {
 
   uploadingAvatar.value = true
   try {
-    const avatarUrl = await updateAvatar(file)
-    contact.value.avatarUrl = avatarUrl
-    contact.value.avatarColor = 'transparent'
+    const avatarUrl = await appStore.updateAvatar(file)
+    const profileContact = currentContactProfile.value
+    if (profileContact) {
+      profileContact.avatarUrl = avatarUrl
+      profileContact.avatarColor = 'transparent'
+    }
     message.success(t('modals.avatarUpdated'))
   } catch (error) {
     message.error(t('modals.uploadFail', { message: (error as Error).message }))
@@ -302,7 +317,7 @@ function handleEditProfile() {
 
 async function chatWithOnlineFriend(friend: ContactItem) {
   try {
-    await startChatWithContact(friend)
+    await appStore.startChatWithContact(friend)
     closeContactProfile()
   } catch (error) {
     message.error((error as Error).message || t('modals.openSessionFail'))
@@ -534,6 +549,17 @@ async function saveGroup() {
               {{ loadingMomentPreviews ? t('common.loading') : t('modals.noMomentsPreview') }}
             </span>
           </div>
+          <n-icon :component="ChevronForwardOutline" :size="16" class="moments-arrow" />
+        </button>
+
+        <button
+          v-if="!profileCardIsSelf"
+          type="button"
+          class="moments-row"
+          @click="openContactShortVideo"
+        >
+          <span class="moments-label">{{ t('modals.shortVideo') }}</span>
+          <span class="moments-empty">{{ t('shortVideo.viewAuthor') }}</span>
           <n-icon :component="ChevronForwardOutline" :size="16" class="moments-arrow" />
         </button>
 

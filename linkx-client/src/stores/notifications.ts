@@ -155,7 +155,11 @@ export const useNotificationsStore = defineStore('notifications', {
     serverUnreadCount: 0 as number,             // 服务端未读计数（权威值）
     loading: false,
     /** 消息通知过滤："全部" | "@我"（仅 type=moments_mention） */
-    mentionOnly: false as boolean
+    mentionOnly: false as boolean,
+    /** 入群申请推送：需刷新对应群的申请列表 */
+    pendingJoinRequestConversationId: '' as string,
+    /** 官方反馈/审核详情页：需刷新对应工单 */
+    officialDetailRefreshId: '' as string
   }),
 
   getters: {
@@ -430,6 +434,16 @@ export const useNotificationsStore = defineStore('notifications', {
      */
     async refreshFromSocket(data?: Record<string, unknown>) {
       const type = typeof data?.type === 'string' ? data.type : ''
+
+      if (type.startsWith('short_video_')) {
+        const { useShortVideoStore } = await import('./shortVideo')
+        useShortVideoStore().handleRealtimeRefresh(data)
+      }
+      if (type.startsWith('moments_')) {
+        const { useMomentsStore } = await import('./moments')
+        useMomentsStore().handleRealtimeRefresh(data)
+      }
+
       const tasks: Promise<unknown>[] = []
 
       if (
@@ -476,6 +490,13 @@ export const useNotificationsStore = defineStore('notifications', {
 
       await Promise.all(tasks)
 
+      if (type === 'group_join_request') {
+        const conversationId = data?.conversationId != null ? String(data.conversationId).trim() : ''
+        if (conversationId) {
+          this.pendingJoinRequestConversationId = conversationId
+        }
+      }
+
       if (
         type === 'friend_request' ||
         type === 'group_invitation' ||
@@ -503,19 +524,27 @@ export const useNotificationsStore = defineStore('notifications', {
         (type.startsWith('feedback_') || type.startsWith('review_') || type === 'notice_published') &&
         type !== 'notice_unpublished'
       ) {
+        const relatedId = data?.relatedId != null ? String(data.relatedId).trim() : ''
+        if (relatedId) {
+          this.officialDetailRefreshId = relatedId
+        }
         const { notifyOfficialFeedback } = await import('../utils/messageNotify')
         void notifyOfficialFeedback(type, typeof data?.content === 'string' ? data.content : undefined)
       }
-      if (type === 'friend_blocked' || type === 'friend_unblocked' || type === 'friend_deleted') {
+      if (type === 'friend_blocked' || type === 'friend_unblocked') {
         void import('./app').then(({ useAppStore }) => {
           void useAppStore().loadChatSessions()
         })
       }
 
-      if (type === 'friend_accepted' || type === 'friend_deleted') {
+      if (type === 'friend_accepted') {
         try {
           const { useContactsStore } = await import('./contacts')
-          await useContactsStore().fetchFriends()
+          const { useAppStore } = await import('./app')
+          await Promise.all([
+            useContactsStore().fetchFriends(),
+            useAppStore().loadChatSessions()
+          ])
         } catch {
           /* ignore */
         }
@@ -524,7 +553,9 @@ export const useNotificationsStore = defineStore('notifications', {
       if (type === 'friend_deleted') {
         const peerUserId = data?.peerUserId != null ? String(data.peerUserId) : ''
         try {
+          const { useContactsStore } = await import('./contacts')
           const { useAppStore } = await import('./app')
+          await useContactsStore().fetchFriends()
           const app = useAppStore()
           if (peerUserId) {
             app.removePrivateSessionByPeer(peerUserId)
@@ -534,10 +565,26 @@ export const useNotificationsStore = defineStore('notifications', {
           /* ignore */
         }
       }
+
+      if (type === 'group_join_approved') {
+        try {
+          const { useAppStore } = await import('./app')
+          await useAppStore().loadChatSessions()
+        } catch {
+          /* ignore */
+        }
+      }
+    },
+
+    clearOfficialDetailRefresh() {
+      this.officialDetailRefreshId = ''
+    },
+
+    clearPendingJoinRequest() {
+      this.pendingJoinRequestConversationId = ''
     },
 
     /**
-     * 兼容老方法名。WebSocket 由 app store 统一管理,
      * 这里仅占位以避免已经调用方崩溃。
      */
     async initRealtime() {

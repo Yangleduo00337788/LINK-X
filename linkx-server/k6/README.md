@@ -43,6 +43,9 @@ k6 run -e K6_USERNAME=你的账号 -e K6_PASSWORD=你的密码 chat-read.js
 
 # 4. 混合场景
 k6 run -e K6_USERNAME=你的账号 -e K6_PASSWORD=你的密码 mixed.js
+
+# 5. 短视频读链路
+k6 run -e K6_USERNAME=你的账号 -e K6_PASSWORD=你的密码 short-video-read.js
 ```
 
 或使用封装脚本（PowerShell，自动读取 `k6.env`）：
@@ -63,6 +66,7 @@ copy k6.env.example k6.env   # 首次配置账号
 | `smoke.js` | 1 VU × 10s | `/health`、`/auth/config` |
 | `auth-load.js` | 0→10 VU，70s | `/auth/login`、`/user/me`、`/chat/unread-total` |
 | `chat-read.js` | 0→10 VU，75s | `/chat/sessions`、`/messages`、`/friend/list` |
+| `short-video-read.js` | 0→8 VU，70s | `/short-video`、`/short-video/hot`、`/short-video/topics/hot` |
 | `mixed.js` | 公开 2 VU + 认证 15 VU | 健康探针 + 混合读请求 |
 
 ## 输出与阈值

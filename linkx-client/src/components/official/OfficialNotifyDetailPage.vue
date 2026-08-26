@@ -21,8 +21,8 @@ import {
 const route = useRoute()
 const { t } = useI18n()
 const notificationsStore = useNotificationsStore()
-const { officialNotifs } = storeToRefs(notificationsStore)
-const { fetchMessageNotifications, markMessageAsRead } = notificationsStore
+const { officialNotifs, officialDetailRefreshId } = storeToRefs(notificationsStore)
+const { fetchMessageNotifications, markMessageAsRead, clearOfficialDetailRefresh } = notificationsStore
 
 const resolvedEvidenceUrls = ref<Record<string, string>>({})
 const feedbackDetail = ref<FeedbackVO | null>(null)
@@ -140,6 +140,19 @@ watch(
     void loadFeedbackDetail(n?.type, n?.relatedId)
   },
   { immediate: true }
+)
+
+watch(
+  () => officialDetailRefreshId.value,
+  relatedId => {
+    const id = String(relatedId || '').trim()
+    const n = notif.value
+    if (!id || !n || n.relatedId !== id) {
+      clearOfficialDetailRefresh()
+      return
+    }
+    void loadFeedbackDetail(n.type, id).finally(() => clearOfficialDetailRefresh())
+  }
 )
 
 watch(

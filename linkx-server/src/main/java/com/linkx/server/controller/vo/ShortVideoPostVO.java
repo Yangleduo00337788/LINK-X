@@ -60,4 +60,7 @@ public class ShortVideoPostVO {
     private List<ShortVideoCommentVO> comments;
 
     private List<String> topics;
+
+    /** 仅作者可见：pending / processing / completed / failed / skipped */
+    private String transcodeStatus;
 }

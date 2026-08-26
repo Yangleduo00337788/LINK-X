@@ -3036,13 +3036,14 @@ export const useAppStore = defineStore('app', {
       try {
         const { useMomentsStore } = await import('./moments')
         const store = useMomentsStore()
-        // 避免重复添加（已有则跳过）
-        const exists = store.posts.some(p => String(p.id) === String(postData.id))
-        if (exists) return
+        const postId = String(postData.id)
+        const authorId = String(postData.userId ?? '')
+        const existsInPosts = store.posts.some(p => String(p.id) === postId)
+        const existsInFocus = store.focusUserPosts.some(p => String(p.id) === postId)
 
         const momentPost: import('./moments').MomentPost = {
-          id: String(postData.id),
-          userId: String(postData.userId ?? ''),
+          id: postId,
+          userId: authorId,
           user: postData.nickname || t('defaults.user'),
           avatar: normalizeMediaUrl(postData.avatar) || '',
           content: postData.content || '',
@@ -3054,9 +3055,18 @@ export const useAppStore = defineStore('app', {
           comments: []
         }
 
-        // 添加到列表顶部
-        store.posts.unshift(momentPost)
-        console.log('[handleMomentsNewPost] 已添加新动态:', momentPost.user)
+        if (!existsInPosts && !store.focusUserId) {
+          store.posts.unshift(momentPost)
+        }
+        if (!existsInFocus && store.focusUserId && store.focusUserId === authorId) {
+          store.focusUserPosts.unshift(momentPost)
+        }
+        if (
+          (!existsInPosts && !store.focusUserId) ||
+          (!existsInFocus && store.focusUserId && store.focusUserId === authorId)
+        ) {
+          console.log('[handleMomentsNewPost] 已添加新动态:', momentPost.user)
+        }
       } catch (e) {
         console.warn('[handleMomentsNewPost] 处理新动态失败:', e)
       }

@@ -71,6 +71,10 @@ export function getUserMoments(userId: string, params?: ListMomentsParams) {
   return apiClient.get<never, ApiResult<MomentsPost[]>>(`/moments/user/${userId}`, { params })
 }
 
+export function getMomentsPost(postId: string) {
+  return apiClient.get<never, ApiResult<MomentsPost>>(`/moments/${postId}`)
+}
+
 export function publishMoments(payload: PublishPayload) {
   return apiClient.post<never, ApiResult<MomentsPost>>('/moments', payload)
 }

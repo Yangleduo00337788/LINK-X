@@ -76,7 +76,7 @@ const contactsStore = useContactsStore()
 const route = useRoute()
 const router = useRouter()
 const { userProfile, theme } = storeToRefs(appStore)
-const { posts, hasMore, loadingMore, focusUserId, focusUserName, focusUserPosts, focusUserLoading, isUserFeed } =
+const { posts, hasMore, loadingMore, focusUserId, focusUserName, focusUserPosts, focusUserLoading, isUserFeed, pendingCommentRefreshPostId } =
   storeToRefs(momentsStore)
 const { momentsUnreadCount } = storeToRefs(notificationsStore)
 const { toggleLike, fetchMoments, loadMoreMoments, removePost, deleteComment, updatePost, loadFocusUserFeed, clearFocusUser, setFocusUser } =
@@ -473,7 +473,23 @@ watch(
   }
 )
 
+watch(
+  () => pendingCommentRefreshPostId.value,
+  postId => {
+    const id = String(postId || '').trim()
+    if (!id) return
+    if (commentPostId.value === id) {
+      void momentsStore.refreshPostFromServer(id).finally(() => {
+        momentsStore.clearPendingCommentRefresh()
+      })
+      return
+    }
+    momentsStore.clearPendingCommentRefresh()
+  }
+)
+
 onBeforeUnmount(() => {
+  momentsStore.commentDrawerPostId = ''
   window.removeEventListener('keydown', onPreviewKeydown)
   window.removeEventListener('click', closeBannerMenu)
   revokePreviewBlob()
@@ -579,8 +595,10 @@ async function onToggleLike(postId: string) {
 }
 
 function onComment(post: { id: string }) {
-  commentPostId.value = commentPostId.value === post.id ? null : post.id
-  if (commentPostId.value !== post.id) {
+  const opening = commentPostId.value !== post.id
+  commentPostId.value = opening ? post.id : null
+  momentsStore.commentDrawerPostId = opening ? post.id : ''
+  if (!opening) {
     showCommentMention.value = false
     commentMentions.value = []
     replyParentId.value = null
@@ -590,6 +608,7 @@ function onComment(post: { id: string }) {
 
 function startReply(postId: string, comment: { id: string; user: string }) {
   commentPostId.value = postId
+  momentsStore.commentDrawerPostId = postId
   replyParentId.value = comment.id
   replyParentName.value = comment.user
   commentDraft.value = ''
@@ -776,6 +795,7 @@ async function submitComment(postId: string) {
   if (ok) {
     commentDraft.value = ''
     commentPostId.value = null
+    momentsStore.commentDrawerPostId = ''
     commentMentions.value = []
     showCommentMention.value = false
     commentMentionQuery.value = ''

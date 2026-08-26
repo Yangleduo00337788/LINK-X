@@ -28,4 +28,6 @@ public class ShortVideoFollowingUserVO {
     private String avatar;
 
     private Integer postCount;
+
+    private Boolean followingAuthor;
 }

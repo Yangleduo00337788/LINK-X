@@ -7,6 +7,7 @@ package com.linkx.server.service.impl;
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.entity.ShortVideoPost;
 import com.linkx.server.exception.CustomException;
+import com.linkx.server.im.ImMessagePushService;
 import com.linkx.server.mapper.ShortVideoPostMapper;
 import com.linkx.server.service.FileStorageService;
 import com.linkx.server.service.ShortVideoTranscodeService;
@@ -24,7 +25,9 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
@@ -36,6 +39,7 @@ public class ShortVideoTranscodeServiceImpl implements ShortVideoTranscodeServic
     private final FileStorageService fileStorageService;
     private final ObjectStorageRouter objectStorageRouter;
     private final LinkxProperties linkxProperties;
+    private final ImMessagePushService imPushService;
 
     @Override
     public int processPendingBatch() {
@@ -131,10 +135,12 @@ public class ShortVideoTranscodeServiceImpl implements ShortVideoTranscodeServic
                     .set(ShortVideoPost::getTranscodeError, null)
                     .where(ShortVideoPost::getId).eq(postId)
                     .update();
+            pushTranscodeRefresh(post, "short_video_transcode_completed");
             return true;
         } catch (Exception e) {
             log.warn("短视频转码失败 postId={}: {}", postId, e.getMessage(), e);
             markFailed(postId, e);
+            pushTranscodeRefresh(post, "short_video_transcode_failed");
             return false;
         } finally {
             deleteQuietly(source);
@@ -189,6 +195,20 @@ public class ShortVideoTranscodeServiceImpl implements ShortVideoTranscodeServic
                 .set(ShortVideoPost::getTranscodeError, summarizeError(error))
                 .where(ShortVideoPost::getId).eq(postId)
                 .update();
+    }
+
+    private void pushTranscodeRefresh(ShortVideoPost post, String type) {
+        if (post == null || post.getUserId() == null || post.getId() == null) {
+            return;
+        }
+        try {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("type", type);
+            payload.put("relatedId", String.valueOf(post.getId()));
+            imPushService.pushToUser(post.getUserId(), "notification_refresh", payload);
+        } catch (Exception e) {
+            log.warn("短视频转码推送失败 postId={} type={}: {}", post.getId(), type, e.getMessage());
+        }
     }
 
     private static String summarizeError(Exception error) {

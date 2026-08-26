@@ -78,6 +78,15 @@ public class MomentsController {
                 currentUserId, parseId(userId), parseOptionalId(beforeId), limit, q));
     }
 
+    @Operation(summary = "获取单条朋友圈动态")
+    @GetMapping("/{postId}")
+    public Result<MomentsPostVO> getPost(
+            @PathVariable String postId,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(momentsService.getPost(userId, parseId(postId)));
+    }
+
     @Operation(summary = "更新朋友圈动态")
     @PutMapping("/{postId}")
     @RateLimit(scope = "moments:update", value = 20, window = 60)

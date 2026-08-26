@@ -140,7 +140,8 @@ public class MomentsServiceImpl implements MomentsService {
                             post.getId(),
                             extractPostPreview(dto.getContent())
                     );
-                    imPushService.pushToUser(targetId, "notification_refresh", Map.of("type", "moments_at"));
+                    imPushService.pushToUser(targetId, "notification_refresh",
+                            buildMomentsRefreshPayload("moments_at", post.getId(), null));
                 } catch (Exception e) {
                     log.warn("发送提醒通知失败 postId={} targetId={}: {}", post.getId(), targetId, e.getMessage());
                 }
@@ -170,6 +171,18 @@ public class MomentsServiceImpl implements MomentsService {
         for (Long friendId : friendIds) {
             imPushService.pushToUser(friendId, "moments_new_post", pushData);
         }
+    }
+
+    private Map<String, Object> buildMomentsRefreshPayload(String type, Long postId, Long extraId) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("type", type);
+        if (postId != null) {
+            payload.put("relatedId", String.valueOf(postId));
+        }
+        if (extraId != null) {
+            payload.put("extraId", String.valueOf(extraId));
+        }
+        return payload;
     }
 
     @Override
@@ -317,6 +330,23 @@ public class MomentsServiceImpl implements MomentsService {
                     userId));
         }
         return result;
+    }
+
+    @Override
+    public MomentsPostVO getPost(Long userId, Long postId) {
+        MomentsPost post = assertCanInteract(userId, postId);
+        SysUser author = userMapper.selectOneById(post.getUserId());
+        List<MomentsPost> single = List.of(post);
+        Map<Long, List<MomentsImage>> imagesMap = loadImages(single);
+        Map<Long, List<MomentsLike>> likesMap = loadLikes(single);
+        Map<Long, List<MomentsComment>> commentsMap = loadComments(single);
+        return toPostVO(
+                post,
+                author,
+                imagesMap.getOrDefault(postId, Collections.emptyList()),
+                likesMap.getOrDefault(postId, Collections.emptyList()),
+                commentsMap.getOrDefault(postId, Collections.emptyList()),
+                userId);
     }
 
     private int normalizeLimit(Integer limit) {
@@ -470,7 +500,8 @@ public class MomentsServiceImpl implements MomentsService {
                         postId,
                         content
                 );
-                imPushService.pushToUser(post.getUserId(), "notification_refresh", Map.of("type", "moments_like"));
+                imPushService.pushToUser(post.getUserId(), "notification_refresh",
+                        buildMomentsRefreshPayload("moments_like", postId, null));
             } catch (Exception e) {
                 log.warn("发送点赞通知失败 postId={} userId={}: {}", postId, userId, e.getMessage());
             }
@@ -542,7 +573,8 @@ public class MomentsServiceImpl implements MomentsService {
                         postId,
                         truncate(dto.getContent(), 100)
                 );
-                imPushService.pushToUser(post.getUserId(), "notification_refresh", Map.of("type", "moments_comment"));
+                imPushService.pushToUser(post.getUserId(), "notification_refresh",
+                        buildMomentsRefreshPayload("moments_comment", postId, comment.getId()));
             } catch (Exception e) {
                 log.warn("发送评论通知失败 postId={} userId={}: {}", postId, userId, e.getMessage());
             }
@@ -564,7 +596,8 @@ public class MomentsServiceImpl implements MomentsService {
                             postId,
                             truncate(dto.getContent(), 100)
                     );
-                    imPushService.pushToUser(targetId, "notification_refresh", Map.of("type", "moments_mention"));
+                    imPushService.pushToUser(targetId, "notification_refresh",
+                            buildMomentsRefreshPayload("moments_mention", postId, comment.getId()));
                 } catch (Exception e) {
                     log.warn("发送@通知失败 postId={} userId={}: {}", postId, userId, e.getMessage());
                 }

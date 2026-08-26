@@ -155,7 +155,8 @@ public class ShortVideoController {
             @RequestParam(required = false) @Min(1) @Max(50) Integer limit,
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        return Result.success(shortVideoService.listFollowingUsers(userId, parseOptionalId(beforeId), limit));
+        return Result.success(shortVideoService.listFollowingUsers(
+                userId, userId, parseOptionalId(beforeId), limit));
     }
 
     @Operation(summary = "我关注的创作者数量")
@@ -220,6 +221,19 @@ public class ShortVideoController {
             HttpServletRequest request) {
         Long currentUserId = AuthUtils.requireUserId(request, jwtUtils);
         return Result.success(shortVideoService.listFollowerUsers(
+                currentUserId, parseId(userId), parseOptionalId(beforeId), limit));
+    }
+
+    @Operation(summary = "创作者关注列表")
+    @GetMapping("/user/{userId}/following/users")
+    @RateLimit(scope = "short-video:user-following-users", value = 60, window = 60)
+    public Result<List<ShortVideoFollowingUserVO>> listUserFollowingUsers(
+            @PathVariable String userId,
+            @RequestParam(required = false) String beforeId,
+            @RequestParam(required = false) @Min(1) @Max(50) Integer limit,
+            HttpServletRequest request) {
+        Long currentUserId = AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(shortVideoService.listFollowingUsers(
                 currentUserId, parseId(userId), parseOptionalId(beforeId), limit));
     }
 

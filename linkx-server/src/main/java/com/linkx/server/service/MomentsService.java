@@ -42,6 +42,11 @@ public interface MomentsService {
     List<MomentsPostVO> listByUser(Long userId, Long targetUserId, Long beforeId, Integer limit, String q);
 
     /**
+     * 获取单条动态详情（点赞/评论实时刷新）
+     */
+    MomentsPostVO getPost(Long userId, Long postId);
+
+    /**
      * 点赞动态
      */
     void like(Long userId, Long postId);

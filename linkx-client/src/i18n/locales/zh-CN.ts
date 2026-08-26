@@ -1372,6 +1372,7 @@ export default {
     reportOk: '举报已提交，感谢反馈',
     reportFail: '提交举报失败',
     moments: '友链',
+    shortVideo: '短视频',
     noMomentsPreview: '暂无动态',
     linkxId: 'LinkX ID: {id}'
   },
@@ -1798,6 +1799,7 @@ export default {
     followerListTitle: '粉丝',
     myFollowers: '我的粉丝',
     userFollowersTitle: '{name} 的粉丝',
+    userFollowingTitle: '{name} 的关注',
     followerListLoadFail: '加载粉丝列表失败',
     noFollowers: '还没有粉丝',
     reportTitle: '举报短视频',
@@ -1819,7 +1821,14 @@ export default {
     uploadingProgress: '上传中 {n}%',
     uploadLimitHint: '支持 {seconds} 秒内、不超过 {size} 的视频',
     videoTooLarge: '视频不能超过 {max}',
-    videoTooLong: '视频不能超过 {max} 秒'
+    videoTooLong: '视频不能超过 {max} 秒',
+    transcodePending: '转码中',
+    transcodeProcessing: '处理中',
+    transcodeFailed: '转码失败',
+    editCover: '更换封面',
+    editCoverFail: '封面上传失败',
+    publishTranscodeHint: '视频已发布，正在后台转码以优化播放',
+    publishInBackground: '视频正在后台发布，请稍候'
   },
   moments: {
     title: '友链',

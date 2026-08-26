@@ -201,7 +201,9 @@ export const useMomentsStore = defineStore('moments', {
     focusUserPosts: [] as MomentPost[],
     focusUserLoading: false,
     openTabIds: [] as MomentsPanelTabId[],
-    activeTabId: '' as MomentsPanelTabId | ''
+    activeTabId: '' as MomentsPanelTabId | '',
+    commentDrawerPostId: '' as string,
+    pendingCommentRefreshPostId: '' as string
   }),
 
   getters: {
@@ -627,6 +629,63 @@ export const useMomentsStore = defineStore('moments', {
     /** 查询操作栏状态 */
     isActionsOpen(postId: string) {
       return !!this.uiShowActions[postId]
+    },
+
+    clearPendingCommentRefresh() {
+      this.pendingCommentRefreshPostId = ''
+    },
+
+    mergePost(mapped: MomentPost) {
+      const id = String(mapped.id)
+      const mainIdx = this.posts.findIndex(p => String(p.id) === id)
+      if (mainIdx >= 0) {
+        this.posts.splice(mainIdx, 1, mapped)
+      } else if (!this.focusUserId) {
+        this.posts.unshift(mapped)
+      }
+      const focusIdx = this.focusUserPosts.findIndex(p => String(p.id) === id)
+      if (focusIdx >= 0) {
+        this.focusUserPosts.splice(focusIdx, 1, mapped)
+      } else if (this.focusUserId && String(this.focusUserId) === String(mapped.userId)) {
+        this.focusUserPosts.unshift(mapped)
+      }
+    },
+
+    async refreshPostFromServer(postId: string) {
+      const id = String(postId || '').trim()
+      if (!id) return
+      try {
+        const res = await momentsApi.getMomentsPost(id)
+        if (res.code !== 200 || !res.data) return
+        this.mergePost(mapPost(res.data))
+      } catch {
+        /* 无权限或已删除时忽略 */
+      }
+    },
+
+    handleRealtimeRefresh(data?: Record<string, unknown>) {
+      const type = typeof data?.type === 'string' ? data.type : ''
+      const postId = data?.relatedId != null ? String(data.relatedId).trim() : ''
+      if (!type || !postId) return
+
+      if (type === 'moments_like') {
+        if (this.findPost(postId)) {
+          void this.refreshPostFromServer(postId)
+        }
+        return
+      }
+
+      if (type === 'moments_comment' || type === 'moments_mention') {
+        this.pendingCommentRefreshPostId = postId
+        if (this.commentDrawerPostId !== postId && this.findPost(postId)) {
+          void this.refreshPostFromServer(postId)
+        }
+        return
+      }
+
+      if (type === 'moments_at') {
+        void this.refreshPostFromServer(postId)
+      }
     }
   },
 

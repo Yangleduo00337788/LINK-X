@@ -62,7 +62,11 @@ import {
   removeShortVideoSearchHistoryItem,
   saveShortVideoSearchQuery
 } from '../utils/shortVideoSearchHistory'
-import { readVideoDurationMs } from '../utils/shortVideoCover'
+import { readVideoDurationMs, captureVideoCover } from '../utils/shortVideoCover'
+import {
+  isShortVideoTranscodeFailed,
+  shouldShowShortVideoTranscodeBadge
+} from '../utils/shortVideoTranscode'
 import { copyText } from '../utils/clipboard'
 import type { ShortVideoComment, ShortVideoPost, ShortVideoTopic, ShortVideoFollowingUser, ShortVideoFollowerUser, ShortVideoBlockedUser } from '../api/shortVideo'
 
@@ -75,7 +79,7 @@ const store = useShortVideoStore()
 const appStore = useAppStore()
 const notificationsStore = useNotificationsStore()
 const contactsStore = useContactsStore()
-const { feedTab, posts, loading, publishing, publishProgress, activeIndex, myPosts, myPostsLoading, myPostsLoadingMore, feedError, authorPosts, authorPostsLoading, authorPostsLoadingMore, authorPostsHasMore, authorProfile, favoritePosts, favoritePostsLoading, favoritePostsLoadingMore, likedPosts, likedPostsLoading, likedPostsLoadingMore, searchMode, searchQuery } = storeToRefs(store)
+const { feedTab, posts, loading, publishing, publishProgress, activeIndex, myPosts, myPostsLoading, myPostsLoadingMore, feedError, authorPosts, authorPostsLoading, authorPostsLoadingMore, authorPostsHasMore, authorProfile, favoritePosts, favoritePostsLoading, favoritePostsLoadingMore, likedPosts, likedPostsLoading, likedPostsLoadingMore, searchMode, searchQuery, pendingAuthorUserId, pendingAuthorProfile, pendingMediaRefreshPostId, pendingCommentRefreshPostId } = storeToRefs(store)
 const { messageNotifs } = storeToRefs(notificationsStore)
 
 const mineTabs = computed(() => [
@@ -141,11 +145,14 @@ const publishDesc = ref('')
 const publishVisibility = ref(0)
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const pendingFile = ref<File | null>(null)
+const publishCoverPreview = ref('')
+const publishCoverLoading = ref(false)
 const searchOpen = ref(false)
 const topicPlazaOpen = ref(false)
 const topicDetailOpen = ref(false)
 const topicDetailName = ref('')
 const followingListOpen = ref(false)
+const followingListUserId = ref('')
 const followingCount = ref(0)
 const mineFollowerCount = ref(0)
 const blockedListOpen = ref(false)
@@ -169,6 +176,10 @@ const editOpen = ref(false)
 const editTarget = ref<ShortVideoPost | null>(null)
 const editDesc = ref('')
 const editVisibility = ref(0)
+const editCoverPreview = ref('')
+const editCoverKey = ref('')
+const editCoverUploading = ref(false)
+const editCoverInputRef = ref<HTMLInputElement | null>(null)
 const replyToComment = ref<ShortVideoComment | null>(null)
 const mediaSyncToken = ref(0)
 const playErrorToastShown = ref(false)
@@ -251,6 +262,20 @@ const followerListTitle = computed(() => {
   return t('shortVideo.followerListTitle')
 })
 
+const followingListTitle = computed(() => {
+  if (followingListUserId.value && followingListUserId.value === currentUserId.value) {
+    return t('shortVideo.myFollowing')
+  }
+  if (authorProfile.value?.userId === followingListUserId.value && authorProfile.value?.nickname) {
+    return t('shortVideo.userFollowingTitle', { name: authorProfile.value.nickname })
+  }
+  return t('shortVideo.following')
+})
+
+const followingListSelfManage = computed(() =>
+  Boolean(followingListUserId.value && followingListUserId.value === currentUserId.value)
+)
+
 const visibilityOptions = computed(() => [
   { value: 0, label: t('moments.public'), desc: t('moments.publicDesc') },
   { value: 1, label: t('moments.friendsOnly'), desc: t('moments.friendsOnlyDesc') },
@@ -282,6 +307,13 @@ const commentPlaceholder = computed(() => {
 
 function isOwnPost(post: ShortVideoPost) {
   return Boolean(post.userId && currentUserId.value && post.userId === currentUserId.value)
+}
+
+function transcodeBadgeLabel(status?: string) {
+  const normalized = (status || '').trim().toLowerCase()
+  if (normalized === 'processing') return t('shortVideo.transcodeProcessing')
+  if (normalized === 'failed') return t('shortVideo.transcodeFailed')
+  return t('shortVideo.transcodePending')
 }
 
 async function bootstrapFeed() {
@@ -318,6 +350,48 @@ onMounted(() => {
 })
 
 watch(
+  () => pendingMediaRefreshPostId.value,
+  postId => {
+    const id = String(postId || '').trim()
+    if (!id) return
+    if (activePost.value?.id === id) {
+      void syncMediaSources()
+    }
+    store.clearPendingMediaRefresh()
+  }
+)
+
+watch(
+  () => pendingCommentRefreshPostId.value,
+  postId => {
+    const id = String(postId || '').trim()
+    if (!id) return
+    if (commentOpenFor.value === id) {
+      void store.fetchComments(id, true).then(() => {
+        const post = posts.value.find(p => p.id === id)
+        if (post) {
+          post.commentCount = Math.max(post.commentCount || 0, post.comments.length)
+        }
+      }).finally(() => store.clearPendingCommentRefresh())
+      return
+    }
+    store.clearPendingCommentRefresh()
+  }
+)
+
+watch(
+  () => pendingAuthorUserId.value,
+  userId => {
+    const id = String(userId || '').trim()
+    if (!id) return
+    void (async () => {
+      await openAuthorProfileByUser(id, pendingAuthorProfile.value || undefined)
+      store.clearPendingAuthor()
+    })()
+  }
+)
+
+watch(
   () => route.query.post,
   postId => {
     const id = String(postId || '').trim()
@@ -338,6 +412,7 @@ watch(
 
 onBeforeUnmount(() => {
   revokeBlobUrls()
+  revokePublishCoverPreview()
   clearReportEvidence()
 })
 
@@ -602,6 +677,7 @@ async function openComments(post: ShortVideoPost, opts?: { highlightCommentId?: 
     return
   }
   commentOpenFor.value = post.id
+  store.commentDrawerPostId = post.id
   commentText.value = ''
   replyToComment.value = null
   commentMentions.value = []
@@ -632,6 +708,7 @@ async function scrollToHighlightedComment() {
 
 function closeComments() {
   commentOpenFor.value = null
+  store.commentDrawerPostId = ''
   replyToComment.value = null
   commentMentions.value = []
   showCommentMention.value = false
@@ -707,12 +784,16 @@ async function openAuthorVideo(item: ShortVideoPost) {
   }
 }
 
-function openFollowingList() {
+function openFollowingList(userId?: string) {
+  const targetId = String(userId || currentUserId.value || '').trim()
+  if (!targetId) return
+  followingListUserId.value = targetId
   followingListOpen.value = true
 }
 
 function closeFollowingList() {
   followingListOpen.value = false
+  followingListUserId.value = ''
 }
 
 function openFollowerList(userId: string) {
@@ -784,14 +865,22 @@ function onFollowerFollowChange(userId: string, following: boolean) {
       }
     }
   }
+  void loadMineProfileStats()
+}
+
+function onFollowingFollowChange(userId: string, following: boolean) {
+  onFollowerFollowChange(userId, following)
+}
+
+function closePublishModal() {
+  publishOpen.value = false
+  resetPublishForm()
 }
 
 async function onFollowingUnfollow(userId: string) {
   try {
     await store.toggleFollowAuthor(userId, true)
-    if (followingCount.value > 0) {
-      followingCount.value -= 1
-    }
+    await loadMineProfileStats()
     if (
       authorProfile.value
       && isAuthorSelf.value
@@ -830,6 +919,7 @@ async function toggleAuthorFollow() {
   authorFollowLoading.value = true
   try {
     await store.toggleFollowAuthor(profile.userId, profile.followingAuthor)
+    await loadMineProfileStats()
   } catch {
     message.error(t('shortVideo.followFail'))
   } finally {
@@ -1005,12 +1095,38 @@ async function submitReport() {
 }
 
 function openPublish() {
+  if (publishing.value) {
+    message.info(t('shortVideo.publishInBackground'))
+    return
+  }
   publishOpen.value = true
+  resetPublishForm()
+  mineOpen.value = false
+  authorOpen.value = false
+}
+
+function revokePublishCoverPreview() {
+  if (publishCoverPreview.value && publishCoverPreview.value.startsWith('blob:')) {
+    URL.revokeObjectURL(publishCoverPreview.value)
+  }
+  publishCoverPreview.value = ''
+}
+
+function resetPublishForm() {
   publishDesc.value = ''
   publishVisibility.value = 0
   pendingFile.value = null
-  mineOpen.value = false
-  authorOpen.value = false
+  revokePublishCoverPreview()
+  publishCoverLoading.value = false
+}
+
+async function refreshMineStats() {
+  await loadMineProfileStats()
+  const userId = String(appStore.userProfile.userId || '')
+  if (!userId) return
+  if (authorOpen.value && isAuthorSelf.value) {
+    await store.fetchAuthorPosts(userId, authorProfile.value, true)
+  }
 }
 
 async function openMine() {
@@ -1156,19 +1272,55 @@ function openEdit(post: ShortVideoPost) {
   editTarget.value = post
   editDesc.value = readableShortVideoText(post.description)
   editVisibility.value = post.visibility ?? 0
+  editCoverPreview.value = coverPoster(post)
+  editCoverKey.value = ''
   editOpen.value = true
   mineOpen.value = false
+}
+
+function pickEditCover() {
+  if (editCoverUploading.value) return
+  editCoverInputRef.value?.click()
+}
+
+async function onEditCoverSelected(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  if (!file.type.startsWith('image/')) {
+    message.warning(t('shortVideo.commentImageOnly'))
+    return
+  }
+  editCoverUploading.value = true
+  try {
+    const res = await uploadShortVideoMedia(file)
+    if (res.code !== 200 || !res.data) {
+      throw new Error(res.message || 'cover upload failed')
+    }
+    editCoverKey.value = res.data
+    editCoverPreview.value = URL.createObjectURL(file)
+  } catch (e) {
+    message.error(resolveApiErrorMessage(e, t('shortVideo.editCoverFail')))
+  } finally {
+    editCoverUploading.value = false
+  }
 }
 
 async function submitEdit() {
   if (!editTarget.value) return
   try {
-    await store.updatePost(editTarget.value.id, {
+    const payload: { description?: string; visibility?: number; coverKey?: string } = {
       description: editDesc.value.trim(),
       visibility: editVisibility.value
-    })
+    }
+    if (editCoverKey.value) {
+      payload.coverKey = editCoverKey.value
+    }
+    await store.updatePost(editTarget.value.id, payload)
     message.success(t('moments.editPostOk'))
     editOpen.value = false
+    editCoverKey.value = ''
   } catch (e) {
     message.error(resolveApiErrorMessage(e, t('moments.editPostFail')))
   }
@@ -1184,6 +1336,7 @@ function confirmDeletePost(post: ShortVideoPost) {
       try {
         await store.deletePost(post.id)
         message.success(t('shortVideo.deletePostOk'))
+        await refreshMineStats()
         await syncMediaSources()
       } catch (e) {
         message.error(resolveApiErrorMessage(e, t('shortVideo.deletePostFail')))
@@ -1210,11 +1363,44 @@ function onFileChange(e: Event) {
     return
   }
   pendingFile.value = file
+  publishCoverLoading.value = true
+  revokePublishCoverPreview()
+  void (async () => {
+    try {
+      const coverBlob = await captureVideoCover(file)
+      publishCoverPreview.value = URL.createObjectURL(coverBlob)
+    } catch {
+      publishCoverPreview.value = ''
+    } finally {
+      publishCoverLoading.value = false
+    }
+  })()
+}
+
+async function runBackgroundPublish(file: File, description: string, visibility: number) {
+  try {
+    const published = await store.publish(file, description, visibility)
+    message.success(t('shortVideo.publishOk'))
+    if (published && shouldShowShortVideoTranscodeBadge(published.transcodeStatus)) {
+      message.info(t('shortVideo.publishTranscodeHint'))
+    }
+    await refreshMineStats()
+    if (mineOpen.value) {
+      await store.fetchMyPosts(true)
+    }
+    await syncMediaSources()
+  } catch (e) {
+    message.error(resolveApiErrorMessage(e, t('shortVideo.publishFail')))
+  }
 }
 
 async function submitPublish() {
   if (!pendingFile.value) {
     message.warning(t('shortVideo.needVideo'))
+    return
+  }
+  if (publishing.value) {
+    message.info(t('shortVideo.publishInBackground'))
     return
   }
   try {
@@ -1226,17 +1412,12 @@ async function submitPublish() {
   } catch {
     /* optional */
   }
-  try {
-    await store.publish(pendingFile.value, publishDesc.value, publishVisibility.value)
-    message.success(t('shortVideo.publishOk'))
-    publishOpen.value = false
-    await syncMediaSources()
-    await nextTick()
-    feedRef.value?.scrollTo({ top: 0 })
-    playActiveVideo()
-  } catch (e) {
-    message.error(resolveApiErrorMessage(e, t('shortVideo.publishFail')))
-  }
+  const file = pendingFile.value
+  const description = publishDesc.value
+  const visibility = publishVisibility.value
+  publishOpen.value = false
+  resetPublishForm()
+  void runBackgroundPublish(file, description, visibility)
 }
 
 async function toggleFavorite(post: ShortVideoPost) {
@@ -1263,6 +1444,7 @@ async function toggleFollow(post: ShortVideoPost) {
   if (isOwnPost(post)) return
   try {
     await store.toggleFollow(post)
+    await loadMineProfileStats()
   } catch {
     message.error(t('shortVideo.followFail'))
   }
@@ -1685,6 +1867,17 @@ function videoPreload(index: number) {
 
 <template>
   <div class="short-video-main" :class="{ 'short-video-main--feed': showFeed }">
+    <div v-if="publishing && !publishOpen" class="short-video-publish-banner">
+      <span class="short-video-publish-banner__text">
+        {{ t('shortVideo.uploadingProgress', { n: publishProgress }) }}
+      </span>
+      <div class="short-video-publish-banner__bar">
+        <div
+          class="short-video-publish-banner__fill"
+          :style="{ width: `${publishProgress}%` }"
+        />
+      </div>
+    </div>
     <div class="short-video-stage">
       <div v-if="loading && posts.length === 0" class="short-video-empty">
         {{ t('common.loading') }}
@@ -2037,7 +2230,13 @@ function videoPreload(index: number) {
         </div>
         <div v-else class="short-video-topbar__row">
         <div class="short-video-topbar__side short-video-topbar__side--left">
-          <button type="button" class="short-video-topbar__icon" :title="t('shortVideo.publish')" @click="openPublish">
+          <button
+            type="button"
+            class="short-video-topbar__icon"
+            :title="t('shortVideo.publish')"
+            :disabled="publishing"
+            @click="openPublish"
+          >
             <NIcon :component="VideocamOutline" :size="22" />
           </button>
           <button type="button" class="short-video-topbar__icon" :title="t('shortVideo.topicPlaza')" @click="topicPlazaOpen = true">
@@ -2133,9 +2332,8 @@ function videoPreload(index: number) {
               </button>
               <button
                 type="button"
-                :class="['sv-profile-stat', isAuthorSelf ? 'sv-profile-stat--link' : 'sv-profile-stat--static']"
-                :tabindex="isAuthorSelf ? 0 : -1"
-                @click="isAuthorSelf && openFollowingList()"
+                class="sv-profile-stat sv-profile-stat--link"
+                @click="authorProfile?.userId && openFollowingList(authorProfile.userId)"
               >
                 <span class="sv-profile-stat__value">{{ authorProfile?.followingCount ?? 0 }}</span>
                 <span class="sv-profile-stat__label">{{ t('shortVideo.following') }}</span>
@@ -2310,7 +2508,7 @@ function videoPreload(index: number) {
                 <span class="sv-profile-stat__value">{{ myPosts.length }}</span>
                 <span class="sv-profile-stat__label">{{ t('shortVideo.authorVideos') }}</span>
               </button>
-              <button type="button" class="sv-profile-stat sv-profile-stat--link" @click="openFollowingList">
+              <button type="button" class="sv-profile-stat sv-profile-stat--link" @click="openFollowingList(currentUserId)">
                 <span class="sv-profile-stat__value">{{ followingCount }}</span>
                 <span class="sv-profile-stat__label">{{ t('shortVideo.following') }}</span>
               </button>
@@ -2387,6 +2585,15 @@ function videoPreload(index: number) {
                   <NIcon :component="Play" :size="10" />
                   {{ formatCount(item.playCount || 0) }}
                 </span>
+                <span
+                  v-if="mineTab === 'works' && shouldShowShortVideoTranscodeBadge(item.transcodeStatus)"
+                  class="short-video-mine-tile__transcode"
+                  :class="{
+                    'short-video-mine-tile__transcode--failed': isShortVideoTranscodeFailed(item.transcodeStatus)
+                  }"
+                >
+                  {{ transcodeBadgeLabel(item.transcodeStatus) }}
+                </span>
               </button>
               <div v-if="mineTab === 'works'" class="short-video-mine-tile__actions">
                 <button
@@ -2415,9 +2622,13 @@ function videoPreload(index: number) {
 
     <ShortVideoFollowingList
       :open="followingListOpen"
+      :user-id="followingListUserId"
+      :title="followingListTitle"
+      :self-manage="followingListSelfManage"
       @close="closeFollowingList"
       @select="onFollowingUserSelect"
       @unfollow="onFollowingUnfollow"
+      @follow-change="onFollowingFollowChange"
     />
 
     <ShortVideoBlockedList
@@ -2469,18 +2680,27 @@ function videoPreload(index: number) {
       @confirm="confirmShareToChat"
     />
 
-    <div v-if="publishOpen" class="short-video-modal" @click.self="!publishing && (publishOpen = false)">
-      <div class="short-video-modal-card">
+    <div v-if="publishOpen" class="short-video-modal" @click.self="closePublishModal">
+      <div class="short-video-modal-card" @click.stop>
         <h3>{{ t('shortVideo.publishTitle') }}</h3>
-        <p class="short-video-publish-hint">{{ pendingFile?.name || t('shortVideo.pickVideo') }}</p>
-        <p class="short-video-publish-limit">{{ t('shortVideo.uploadLimitHint', { size: '100MB', seconds: 60 }) }}</p>
-        <LxButton size="small" :disabled="publishing" @click="pickVideo">{{ t('shortVideo.pickVideo') }}</LxButton>
-        <div v-if="publishing" class="short-video-publish-progress-wrap">
-          <span class="short-video-publish-progress__text">
-            {{ t('shortVideo.uploadingProgress', { n: publishProgress }) }}
-          </span>
-          <div class="short-video-publish-progress">
-            <div class="short-video-publish-progress__bar" :style="{ width: `${publishProgress}%` }" />
+        <div class="short-video-publish-cover">
+          <div class="short-video-publish-cover__preview">
+            <div v-if="publishCoverLoading" class="short-video-publish-cover__loading">
+              {{ t('common.loading') }}
+            </div>
+            <img
+              v-else-if="publishCoverPreview"
+              :src="publishCoverPreview"
+              class="short-video-publish-cover__img"
+              alt=""
+            />
+            <div v-else class="short-video-publish-cover__placeholder">
+              <NIcon :component="VideocamOutline" :size="24" />
+            </div>
+          </div>
+          <div class="short-video-publish-cover__meta">
+            <LxButton size="small" @click="pickVideo">{{ t('shortVideo.pickVideo') }}</LxButton>
+            <p class="short-video-publish-limit">{{ t('shortVideo.uploadLimitHint', { size: '100MB', seconds: 60 }) }}</p>
           </div>
         </div>
         <NInput
@@ -2488,7 +2708,6 @@ function videoPreload(index: number) {
           type="textarea"
           :placeholder="t('shortVideo.descPh')"
           :autosize="{ minRows: 3, maxRows: 6 }"
-          :disabled="publishing"
         />
         <div class="short-video-visibility">
           <span class="short-video-visibility__label">{{ t('moments.whoCanSee') }}</span>
@@ -2500,8 +2719,8 @@ function videoPreload(index: number) {
           </n-radio-group>
         </div>
         <div class="short-video-modal-actions">
-          <LxButton :disabled="publishing" @click="publishOpen = false">{{ t('common.cancel') }}</LxButton>
-          <LxButton variant="modal-primary" :loading="publishing" :disabled="publishing" @click="submitPublish">
+          <LxButton @click="closePublishModal">{{ t('common.cancel') }}</LxButton>
+          <LxButton variant="modal-primary" :disabled="!pendingFile" @click="submitPublish">
             {{ t('shortVideo.publish') }}
           </LxButton>
         </div>
@@ -2511,6 +2730,20 @@ function videoPreload(index: number) {
     <div v-if="editOpen" class="short-video-modal" @click.self="editOpen = false">
       <div class="short-video-modal-card">
         <h3>{{ t('shortVideo.editTitle') }}</h3>
+        <div class="short-video-edit-cover">
+          <img
+            v-if="editCoverPreview"
+            :src="editCoverPreview"
+            class="short-video-edit-cover__img"
+            alt=""
+          />
+          <div v-else class="short-video-edit-cover__fallback">
+            <NIcon :component="VideocamOutline" :size="28" />
+          </div>
+          <LxButton size="small" :loading="editCoverUploading" @click="pickEditCover">
+            {{ t('shortVideo.editCover') }}
+          </LxButton>
+        </div>
         <NInput
           v-model:value="editDesc"
           type="textarea"
@@ -2541,6 +2774,13 @@ function videoPreload(index: number) {
       accept="video/*"
       class="hidden-input"
       @change="onFileChange"
+    />
+    <input
+      ref="editCoverInputRef"
+      type="file"
+      accept="image/*"
+      class="hidden-input"
+      @change="onEditCoverSelected"
     />
 
     <div
@@ -2640,6 +2880,7 @@ function videoPreload(index: number) {
 }
 
 .short-video-topbar__side--left {
+  position: relative;
   justify-content: flex-start;
   gap: 4px;
 }
@@ -2660,6 +2901,11 @@ function videoPreload(index: number) {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
+}
+
+.short-video-topbar__icon:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .short-video-topbar--overlay .short-video-topbar__icon {
@@ -3283,7 +3529,8 @@ function videoPreload(index: number) {
 .notif-dismiss-layer {
   position: absolute;
   inset: 0;
-  z-index: calc(var(--lx-z-critical) - 1);
+  /* 须低于 embedded 通知弹层（ShortVideoNotificationsPage z-index: 75），否则会吞掉弹层内点击 */
+  z-index: 74;
   background: transparent;
   cursor: default;
 }
@@ -3435,6 +3682,8 @@ function videoPreload(index: number) {
 
 .short-video-modal-card {
   width: min(420px, 100%);
+  max-height: calc(100% - 32px);
+  overflow-y: auto;
   background: var(--lx-bg-card);
   border-radius: var(--lx-radius-lg);
   padding: var(--lx-space-2xl);
@@ -3508,6 +3757,53 @@ function videoPreload(index: number) {
   pointer-events: none;
   overflow: hidden;
   white-space: nowrap;
+}
+
+.short-video-mine-tile__transcode {
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  z-index: 2;
+  max-width: calc(100% - 8px);
+  padding: 2px 6px;
+  border-radius: var(--lx-radius-xs);
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+  font-size: 10px;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.short-video-mine-tile__transcode--failed {
+  background: rgba(180, 40, 40, 0.85);
+}
+
+.short-video-edit-cover {
+  display: flex;
+  align-items: center;
+  gap: var(--lx-space-md);
+  margin-bottom: var(--lx-space-md);
+}
+
+.short-video-edit-cover__img {
+  width: 72px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: var(--lx-radius-sm);
+  background: var(--lx-conf-bg-void);
+}
+
+.short-video-edit-cover__fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 96px;
+  border-radius: var(--lx-radius-sm);
+  background: var(--lx-conf-bg-void);
+  color: var(--lx-text-secondary);
 }
 
 .short-video-mine-tile__fallback {
@@ -3737,6 +4033,95 @@ function videoPreload(index: number) {
 .short-video-publish-hint {
   font-size: 13px;
   color: var(--lx-text-secondary);
+}
+
+.short-video-publish-cover {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--lx-space-md);
+}
+
+.short-video-publish-cover__preview {
+  flex-shrink: 0;
+  width: 84px;
+  height: 112px;
+  border-radius: var(--lx-radius-sm);
+  overflow: hidden;
+  background: var(--lx-conf-bg-void);
+}
+
+.short-video-publish-cover__img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.short-video-publish-cover__placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--lx-text-secondary);
+}
+
+.short-video-publish-cover__loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--lx-text-secondary);
+  font-size: 12px;
+}
+
+.short-video-publish-cover__meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--lx-space-sm);
+  padding-top: var(--lx-space-xs);
+}
+
+.short-video-publish-cover__meta .short-video-publish-limit {
+  margin: 0;
+}
+
+.short-video-publish-banner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 90;
+  padding: 8px 12px 10px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.82) 0%, rgba(0, 0, 0, 0.45) 100%);
+  pointer-events: none;
+}
+
+.short-video-publish-banner__text {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #fff;
+  line-height: 1.2;
+}
+
+.short-video-publish-banner__bar {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.28);
+  overflow: hidden;
+}
+
+.short-video-publish-banner__fill {
+  height: 100%;
+  background: var(--lx-primary);
+  transition: width 0.15s linear;
+  will-change: width;
 }
 
 .short-video-publish-limit {

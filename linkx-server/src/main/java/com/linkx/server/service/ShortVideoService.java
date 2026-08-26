@@ -45,7 +45,8 @@ public interface ShortVideoService {
 
     List<ShortVideoPostVO> listFollowing(Long userId, Long beforeId, Integer limit);
 
-    List<ShortVideoFollowingUserVO> listFollowingUsers(Long userId, Long beforeId, Integer limit);
+    List<ShortVideoFollowingUserVO> listFollowingUsers(
+            Long viewerId, Long targetUserId, Long beforeId, Integer limit);
 
     int countFollowingUsers(Long userId);
 

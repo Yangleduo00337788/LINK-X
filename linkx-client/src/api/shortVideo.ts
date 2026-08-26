@@ -25,6 +25,8 @@ export interface ShortVideoPost {
   commentCount?: number
   comments: ShortVideoComment[]
   topics?: string[]
+  /** 仅本人作品返回：pending / processing / failed */
+  transcodeStatus?: string
 }
 
 export interface ShortVideoTopic {
@@ -148,6 +150,7 @@ export interface ShortVideoFollowingUser {
   nickname?: string
   avatar?: string
   postCount?: number
+  followingAuthor?: boolean
 }
 
 export function listFollowingShortVideoUsers(params?: { beforeId?: string; limit?: number }) {
@@ -155,6 +158,19 @@ export function listFollowingShortVideoUsers(params?: { beforeId?: string; limit
     params,
     timeout: SHORT_VIDEO_READ_TIMEOUT
   })
+}
+
+export function listShortVideoFollowingUsers(
+  userId: string,
+  params?: { beforeId?: string; limit?: number }
+) {
+  return apiClient.get<never, ApiResult<ShortVideoFollowingUser[]>>(
+    `/short-video/user/${userId}/following/users`,
+    {
+      params,
+      timeout: SHORT_VIDEO_READ_TIMEOUT
+    }
+  )
 }
 
 export function countFollowingShortVideoUsers() {

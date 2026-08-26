@@ -1372,6 +1372,7 @@ export default {
     reportOk: 'Report submitted. Thank you',
     reportFail: 'Failed to submit report',
     moments: 'Moments',
+    shortVideo: 'Short video',
     noMomentsPreview: 'No posts yet',
     linkxId: 'LinkX ID: {id}'
   },
@@ -1798,6 +1799,7 @@ export default {
     followerListTitle: 'Followers',
     myFollowers: 'My followers',
     userFollowersTitle: "{name}'s followers",
+    userFollowingTitle: "{name}'s following",
     followerListLoadFail: 'Failed to load followers',
     noFollowers: 'No followers yet',
     reportTitle: 'Report short video',
@@ -1819,7 +1821,14 @@ export default {
     uploadingProgress: 'Uploading {n}%',
     uploadLimitHint: 'Up to {seconds}s and {size} per video',
     videoTooLarge: 'Video must be under {max}',
-    videoTooLong: 'Video must be under {max} seconds'
+    videoTooLong: 'Video must be under {max} seconds',
+    transcodePending: 'Transcoding',
+    transcodeProcessing: 'Processing',
+    transcodeFailed: 'Transcode failed',
+    editCover: 'Change cover',
+    editCoverFail: 'Failed to upload cover',
+    publishTranscodeHint: 'Published. Optimizing playback in the background.',
+    publishInBackground: 'Publishing in the background, please wait'
   },
   moments: {
     title: 'Moments',
