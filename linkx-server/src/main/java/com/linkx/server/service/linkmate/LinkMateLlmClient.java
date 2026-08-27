@@ -8,6 +8,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.exception.CustomException;
 import lombok.RequiredArgsConstructor;
@@ -53,7 +58,19 @@ public class LinkMateLlmClient {
     public record LlmResult(String content, int totalTokens) {
     }
 
-    public record StreamResult(String content, String reasoning, int totalTokens, boolean cancelled) {
+    public record ToolCall(String id, String name, String argumentsJson) {
+    }
+
+    public record StreamResult(
+            String content,
+            String reasoning,
+            int totalTokens,
+            boolean cancelled,
+            List<ToolCall> toolCalls) {
+
+        public StreamResult(String content, String reasoning, int totalTokens, boolean cancelled) {
+            this(content, reasoning, totalTokens, cancelled, List.of());
+        }
     }
 
     public record StreamDeltaHandlers(
@@ -109,8 +126,17 @@ public class LinkMateLlmClient {
             boolean deepThinking,
             StreamDeltaHandlers handlers,
             BooleanSupplier cancelled) {
+        return streamChat(messages, deepThinking, handlers, cancelled, null);
+    }
+
+    public StreamResult streamChat(
+            List<LlmMessage> messages,
+            boolean deepThinking,
+            StreamDeltaHandlers handlers,
+            BooleanSupplier cancelled,
+            ArrayNode tools) {
         LinkxProperties.LinkMate cfg = requireConfig();
-        ObjectNode body = buildRequestBody(cfg, messages, true, deepThinking);
+        ObjectNode body = buildRequestBody(cfg, messages, true, deepThinking, tools);
         HttpRequest request = buildHttpRequest(cfg, body);
 
         for (int attempt = 1; attempt <= LLM_MAX_ATTEMPTS; attempt++) {
@@ -153,6 +179,7 @@ public class LinkMateLlmClient {
         StringBuilder content = new StringBuilder();
         int totalTokens = 0;
         boolean usageReported = false;
+        Map<Integer, ToolCallBuilder> toolCallBuilders = new LinkedHashMap<>();
 
         try (InputStream stream = bodyStream;
              BufferedReader reader = new BufferedReader(
@@ -179,6 +206,9 @@ public class LinkMateLlmClient {
                 JsonNode delta = root.path("choices").path(0).path("delta");
                 String reasoningChunk = delta.path("reasoning_content").asText(null);
                 String contentChunk = delta.path("content").asText(null);
+                if (delta.has("tool_calls")) {
+                    accumulateToolCalls(delta.path("tool_calls"), toolCallBuilders);
+                }
                 if (StringUtils.hasText(reasoningChunk)) {
                     reasoning.append(reasoningChunk);
                     if (handlers.onReasoningDelta() != null) {
@@ -194,19 +224,20 @@ public class LinkMateLlmClient {
             }
         }
 
+        List<ToolCall> toolCalls = finalizeToolCalls(toolCallBuilders);
         boolean wasCancelled = cancelled != null && cancelled.getAsBoolean();
         if (wasCancelled) {
             String partial = content.length() > 0 ? content.toString() : reasoning.toString();
             int tokens = usageReported ? totalTokens : estimateTokens(messages, partial);
-            return new StreamResult(partial, reasoning.toString(), tokens, true);
+            return new StreamResult(partial, reasoning.toString(), tokens, true, toolCalls);
         }
 
-        String full = content.length() > 0 ? content.toString() : reasoning.toString();
-        if (!StringUtils.hasText(full)) {
+        String full = content.toString();
+        if (!StringUtils.hasText(full) && toolCalls.isEmpty()) {
             throw new CustomException(502, "AI 未返回有效内容");
         }
         int tokens = usageReported ? totalTokens : estimateTokens(messages, full);
-        return new StreamResult(full, reasoning.toString(), tokens, false);
+        return new StreamResult(full, reasoning.toString(), tokens, false, toolCalls);
     }
 
     /** 兼容旧调用 */
@@ -233,6 +264,15 @@ public class LinkMateLlmClient {
             List<LlmMessage> messages,
             boolean stream,
             boolean deepThinking) {
+        return buildRequestBody(cfg, messages, stream, deepThinking, null);
+    }
+
+    private ObjectNode buildRequestBody(
+            LinkxProperties.LinkMate cfg,
+            List<LlmMessage> messages,
+            boolean stream,
+            boolean deepThinking,
+            ArrayNode tools) {
         ObjectNode body = objectMapper.createObjectNode();
         body.put("model", LinkMateModelCapability.resolveModel(cfg.getModel(), deepThinking));
         body.put("temperature", cfg.getTemperature());
@@ -241,6 +281,10 @@ public class LinkMateLlmClient {
         if (stream) {
             ObjectNode streamOptions = body.putObject("stream_options");
             streamOptions.put("include_usage", true);
+        }
+        if (tools != null && !tools.isEmpty()) {
+            body.set("tools", tools);
+            body.put("tool_choice", "auto");
         }
 
         ArrayNode msgArray = body.putArray("messages");
@@ -320,6 +364,50 @@ public class LinkMateLlmClient {
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    private static final class ToolCallBuilder {
+        private String id;
+        private String name;
+        private final StringBuilder arguments = new StringBuilder();
+    }
+
+    private static void accumulateToolCalls(JsonNode toolCallsNode, Map<Integer, ToolCallBuilder> builders) {
+        if (toolCallsNode == null || !toolCallsNode.isArray()) {
+            return;
+        }
+        for (JsonNode item : toolCallsNode) {
+            int index = item.path("index").asInt(builders.size());
+            ToolCallBuilder builder = builders.computeIfAbsent(index, ignored -> new ToolCallBuilder());
+            String id = item.path("id").asText(null);
+            if (StringUtils.hasText(id)) {
+                builder.id = id;
+            }
+            JsonNode fn = item.path("function");
+            String name = fn.path("name").asText(null);
+            if (StringUtils.hasText(name)) {
+                builder.name = name;
+            }
+            String argsChunk = fn.path("arguments").asText(null);
+            if (StringUtils.hasText(argsChunk)) {
+                builder.arguments.append(argsChunk);
+            }
+        }
+    }
+
+    private static List<ToolCall> finalizeToolCalls(Map<Integer, ToolCallBuilder> builders) {
+        if (builders.isEmpty()) {
+            return List.of();
+        }
+        List<ToolCall> calls = new ArrayList<>();
+        for (ToolCallBuilder builder : builders.values()) {
+            if (!StringUtils.hasText(builder.name)) {
+                continue;
+            }
+            String id = StringUtils.hasText(builder.id) ? builder.id : "call_" + calls.size();
+            calls.add(new ToolCall(id, builder.name, builder.arguments.toString()));
+        }
+        return calls;
     }
 
     private static String readAll(InputStream stream) {

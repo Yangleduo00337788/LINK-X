@@ -8,6 +8,7 @@ import { NInput, NIcon, NDropdown, useMessage, useDialog, type DropdownOption } 
 import {
   BulbOutline,
   CallOutline,
+  SparklesOutline,
   ChevronDownOutline,
   TrashOutline,
   RefreshOutline,
@@ -19,6 +20,7 @@ import {
 } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useLinkMateStore } from '../stores/linkmate'
+import { useLinkMateAgentStore } from '../stores/linkmateAgent'
 import { useCallStore } from '../stores/call'
 import { useExtensionDockStore } from '../stores/extensionDock'
 import type { LinkMateMessage } from '../api/linkmate'
@@ -52,6 +54,7 @@ const { t } = useI18n()
 const message = useMessage()
 const dialog = useDialog()
 const linkMate = useLinkMateStore()
+const linkMateAgent = useLinkMateAgentStore()
 const callStore = useCallStore()
 const extensionDock = useExtensionDockStore()
 const { panelWidth } = storeToRefs(extensionDock)
@@ -75,6 +78,7 @@ const {
   hasMoreBySession,
   loadingMoreBySession
 } = storeToRefs(linkMate)
+const { agentMode } = storeToRefs(linkMateAgent)
 
 const inputRef = ref<InstanceType<typeof NInput> | null>(null)
 const messageListRef = ref<HTMLElement | null>(null)
@@ -507,6 +511,12 @@ function handleDeepThinkingClick() {
   toggleDeepThinking()
 }
 
+function handleAgentModeClick() {
+  if (streaming.value) return
+  linkMateAgent.toggleAgentMode()
+  message.info(agentMode.value ? t('linkmateAgent.enabled') : t('linkmateAgent.disabled'))
+}
+
 async function handleVoiceCallClick() {
   if (!enabled.value) {
     message.warning(t('linkmate.serviceDisabled'))
@@ -927,6 +937,16 @@ onUnmounted(() => {
             >
               <NIcon :component="BulbOutline" :size="14" />
               <span>{{ t('linkmate.deepThinking') }}</span>
+            </button>
+            <button
+              type="button"
+              class="linkmate-deep-btn"
+              :class="{ active: agentMode, disabled: streaming }"
+              :title="agentMode ? t('linkmateAgent.modeOn') : t('linkmateAgent.modeOff')"
+              @click="handleAgentModeClick"
+            >
+              <NIcon :component="SparklesOutline" :size="14" />
+              <span>{{ t('linkmateAgent.modeLabel') }}</span>
             </button>
             <button
               type="button"

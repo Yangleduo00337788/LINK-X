@@ -4,7 +4,7 @@
  * 添加好友/群聊搜索模态框。
  * 保留原有综合搜索 UI，用户搜索对接后端 API。
  */
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import DOMPurify from 'dompurify'
 import Avatar from '../Avatar.vue'
 import { useMessage } from 'naive-ui'
@@ -58,7 +58,7 @@ const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
 const contactsStore = useContactsStore()
 const notificationsStore = useNotificationsStore()
-const { comprehensiveSearchOpen } = storeToRefs(chatModalsStore)
+const { comprehensiveSearchOpen, comprehensiveSearchKeyword } = storeToRefs(chatModalsStore)
 const { closeComprehensiveSearch } = chatModalsStore
 const { groupSessions, sessions, userProfile } = storeToRefs(appStore)
 const { openGroupSession, addFriendSession: addFriendAction, openSessionAtMessage } = appStore
@@ -77,6 +77,12 @@ const mainTabs = computed(() => [
   { key: 'group' as const, label: t('modals.groupChat') },
   { key: 'message' as const, label: t('modals.messages') }
 ])
+
+watch(comprehensiveSearchOpen, open => {
+  if (open && comprehensiveSearchKeyword.value) {
+    keyword.value = comprehensiveSearchKeyword.value
+  }
+})
 
 function close() {
   closeComprehensiveSearch()

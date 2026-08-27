@@ -7,6 +7,7 @@ package com.linkx.server.service.impl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.controller.dto.LinkMateChatDTO;
+import com.linkx.server.controller.dto.LinkMateClientContextDTO;
 import com.linkx.server.controller.dto.LinkMateGroupReplyDTO;
 import com.linkx.server.controller.dto.LinkMateImContextDTO;
 import com.linkx.server.controller.dto.LinkMateTranslateDTO;
@@ -32,7 +33,8 @@ import com.linkx.server.mapper.ImConversationMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.repository.ImMessageRepository;
 import com.linkx.server.service.LinkMateService;
-import com.linkx.server.service.linkmate.LinkMateConstants;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.linkx.server.service.linkmate.LinkMateAgentTools;
 import com.linkx.server.service.linkmate.LinkMateImReplyFormatter;
 import com.linkx.server.service.linkmate.LinkMateLlmClient;
 import com.linkx.server.service.linkmate.LinkMatePromptTemplate;
@@ -43,6 +45,8 @@ import com.linkx.server.service.linkmate.LinkMateSttClient.TranscribeResult;
 import com.linkx.server.service.linkmate.LinkMateLlmClient.LlmMessage;
 import com.linkx.server.service.linkmate.LinkMateLlmClient.LlmResult;
 import com.linkx.server.service.linkmate.LinkMateLlmClient.StreamResult;
+import com.linkx.server.service.linkmate.LinkMateLlmClient.ToolCall;
+import com.linkx.server.service.linkmate.LinkMateConstants;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -161,6 +165,7 @@ public class LinkMateServiceImpl implements LinkMateService {
     private final AiChatSessionMapper sessionMapper;
     private final AiChatMessageMapper messageMapper;
     private final LinkMateLlmClient llmClient;
+    private final LinkMateAgentTools linkMateAgentTools;
     private final LinkMateSttClient sttClient;
     private final LinkMateRealtimeClient realtimeClient;
     private final LinkMateDashScopeWsBridge dashScopeWsBridge;
@@ -269,7 +274,8 @@ public class LinkMateServiceImpl implements LinkMateService {
             userMessage = trimMessage(dto.getMessage());
             saveUserMessage(userId, session, userMessage);
         }
-        List<LlmMessage> context = buildLlmContext(session.getId(), dto.getImContext());
+        List<LlmMessage> context = buildLlmContext(
+                session.getId(), dto.getImContext(), Boolean.TRUE.equals(dto.getAgentMode()), dto.getClientContext());
         int estimatedTokens = estimatePromptTokens(context);
         int reservedTokens = reserveDailyTokens(userId, estimatedTokens);
         try {
@@ -301,7 +307,8 @@ public class LinkMateServiceImpl implements LinkMateService {
             userMessage = trimMessage(dto.getMessage());
             userMessageId = saveUserMessage(userId, session, userMessage).getId();
         }
-        List<LlmMessage> context = buildLlmContext(session.getId(), dto.getImContext());
+        List<LlmMessage> context = buildLlmContext(
+                session.getId(), dto.getImContext(), Boolean.TRUE.equals(dto.getAgentMode()), dto.getClientContext());
         int estimatedTokens = estimatePromptTokens(context);
         int reservedTokens;
         try {
@@ -349,6 +356,8 @@ public class LinkMateServiceImpl implements LinkMateService {
                 sendSse(emitter, "start", startPayload);
                 boolean deepThinking = Boolean.TRUE.equals(dto.getDeepThinking())
                         && linkxProperties.getLinkmate().isReasoningSupported();
+                boolean agentMode = Boolean.TRUE.equals(dto.getAgentMode());
+                ArrayNode tools = agentMode ? linkMateAgentTools.buildToolsArray() : null;
                 StreamResult result = llmClient.streamChat(
                         context,
                         deepThinking,
@@ -370,7 +379,8 @@ public class LinkMateServiceImpl implements LinkMateService {
                                         log.debug("LinkMate SSE client disconnected");
                                     }
                                 }),
-                        cancelled::get);
+                        cancelled::get,
+                        tools);
                 if (result.cancelled() || cancelled.get()) {
                     if (rollbackUserMessageId != null) {
                         messageMapper.deleteById(rollbackUserMessageId);
@@ -389,10 +399,21 @@ public class LinkMateServiceImpl implements LinkMateService {
                     reasoningDurationMs = (int) Math.max(1, reasoningEnd - streamStartedAt);
                 }
                 String reasoningContent = StringUtils.hasText(result.reasoning()) ? result.reasoning() : null;
+                String assistantContent = result.content();
+                if (!StringUtils.hasText(assistantContent) && !result.toolCalls().isEmpty()) {
+                    assistantContent = "正在为你执行操作…";
+                }
+                for (ToolCall toolCall : result.toolCalls()) {
+                    java.util.Map<String, Object> toolPayload = new java.util.LinkedHashMap<>();
+                    toolPayload.put("id", toolCall.id());
+                    toolPayload.put("name", toolCall.name());
+                    toolPayload.put("arguments", toolCall.argumentsJson());
+                    sendSse(emitter, "tool_call", toolPayload);
+                }
                 AiChatMessage assistant = saveAssistantMessage(
                         userId,
                         session,
-                        result.content(),
+                        assistantContent,
                         result.totalTokens(),
                         reasoningContent,
                         responseDurationMs,
@@ -400,10 +421,21 @@ public class LinkMateServiceImpl implements LinkMateService {
                 if (!regenerate) {
                     maybeUpdateTitle(session, userMessage);
                 }
-                sendSse(emitter, "done", Map.of(
-                        "messageId", String.valueOf(assistant.getId()),
-                        "sessionId", String.valueOf(sessionId),
-                        "totalTokens", String.valueOf(result.totalTokens())));
+                java.util.Map<String, Object> donePayload = new java.util.LinkedHashMap<>();
+                donePayload.put("messageId", String.valueOf(assistant.getId()));
+                donePayload.put("sessionId", String.valueOf(sessionId));
+                donePayload.put("totalTokens", String.valueOf(result.totalTokens()));
+                if (!result.toolCalls().isEmpty()) {
+                    List<Map<String, Object>> actions = new ArrayList<>();
+                    for (ToolCall toolCall : result.toolCalls()) {
+                        actions.add(Map.of(
+                                "id", toolCall.id(),
+                                "name", toolCall.name(),
+                                "arguments", toolCall.argumentsJson()));
+                    }
+                    donePayload.put("actions", actions);
+                }
+                sendSse(emitter, "done", donePayload);
                 emitter.complete();
             } catch (CustomException ex) {
                 if (rollbackUserMessageId != null) {
@@ -1107,15 +1139,27 @@ public class LinkMateServiceImpl implements LinkMateService {
         }
     }
 
-    private List<LlmMessage> buildLlmContext(Long sessionId, LinkMateImContextDTO imContext) {
+    private List<LlmMessage> buildLlmContext(
+            Long sessionId,
+            LinkMateImContextDTO imContext,
+            boolean agentMode,
+            LinkMateClientContextDTO clientContext) {
         LinkxProperties.LinkMate cfg = linkxProperties.getLinkmate();
         String systemPrompt = resolveSystemPrompt(cfg);
+        if (agentMode) {
+            systemPrompt = systemPrompt + "\n\n" + linkMateAgentTools.agentSystemSuffix();
+        }
         List<LlmMessage> messages = new ArrayList<>();
         messages.add(new LlmMessage("system", systemPrompt));
 
         String imPreamble = formatImContext(imContext);
         if (StringUtils.hasText(imPreamble)) {
             messages.add(new LlmMessage("system", imPreamble));
+        }
+
+        String clientPreamble = formatClientContext(clientContext);
+        if (StringUtils.hasText(clientPreamble)) {
+            messages.add(new LlmMessage("system", clientPreamble));
         }
 
         List<AiChatMessage> history = messageMapper.selectListByQuery(
@@ -1175,6 +1219,28 @@ public class LinkMateServiceImpl implements LinkMateService {
                 sb.append('[').append(time).append("] ");
             }
             sb.append(prefix).append("：").append(item.getContent().trim()).append('\n');
+        }
+        return sb.toString().trim();
+    }
+
+    private String formatClientContext(LinkMateClientContextDTO clientContext) {
+        if (clientContext == null) {
+            return null;
+        }
+        if (!StringUtils.hasText(clientContext.getCurrentNav())
+                && !StringUtils.hasText(clientContext.getCurrentSessionId())) {
+            return null;
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append("用户当前 LinkX 客户端状态：\n");
+        if (StringUtils.hasText(clientContext.getCurrentNav())) {
+            sb.append("当前页面：").append(clientContext.getCurrentNav().trim()).append('\n');
+        }
+        if (StringUtils.hasText(clientContext.getCurrentSessionTitle())) {
+            sb.append("当前会话：").append(clientContext.getCurrentSessionTitle().trim()).append('\n');
+        }
+        if (StringUtils.hasText(clientContext.getCurrentSessionId())) {
+            sb.append("当前会话ID：").append(clientContext.getCurrentSessionId().trim()).append('\n');
         }
         return sb.toString().trim();
     }

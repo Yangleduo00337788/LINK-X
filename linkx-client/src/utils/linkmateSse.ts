@@ -7,6 +7,7 @@ export interface LinkMateSseHandlers {
   onStart?: (payload: LinkMateSsePayload) => void
   onDelta?: (content: string) => void
   onReasoningDelta?: (content: string) => void
+  onToolCall?: (payload: LinkMateSsePayload) => void
   onDone?: (payload: LinkMateSsePayload) => void
   onError?: (message: string) => void
 }
@@ -46,6 +47,9 @@ export function dispatchLinkMateSseEvent(eventName: string, payload: LinkMateSse
     case 'reasoning_delta':
       if (typeof payload.content === 'string' && payload.content !== '')
         handlers.onReasoningDelta?.(payload.content)
+      break
+    case 'tool_call':
+      handlers.onToolCall?.(payload)
       break
     case 'done':
       handlers.onDone?.(payload)

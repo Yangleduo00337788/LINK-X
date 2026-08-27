@@ -9,6 +9,7 @@ import { createStringRafBatcher } from '../utils/linkmateRafBatch'
 import { resolveLinkMateErrorMessage } from '../utils/linkmateErrors'
 import { useAppStore } from '../stores/app'
 import { useExtensionDockStore } from './extensionDock'
+import { useLinkMateAgentStore } from './linkmateAgent'
 import { t } from '../i18n'
 
 export type LinkMatePanelState = 'closed' | 'open' | 'collapsed'
@@ -183,6 +184,17 @@ export const useLinkMateStore = defineStore('linkmate', {
         return refreshSnapshotMessages(this.imContextSnapshot)
       }
       return undefined
+    },
+
+    getAgentRequestExtras() {
+      const agentStore = useLinkMateAgentStore()
+      if (!agentStore.agentMode) {
+        return { agentMode: false as const, clientContext: undefined }
+      }
+      return {
+        agentMode: true as const,
+        clientContext: agentStore.buildClientContext()
+      }
     },
 
     /** 打开灵伴前退出当前 IM 会话，保证不与聊天主区同时展示 */
@@ -666,7 +678,7 @@ export const useLinkMateStore = defineStore('linkmate', {
               }
               batchContent.push(chunk)
             },
-            onDone: (messageId, sid, totalTokens) => {
+            onDone: (messageId, sid, totalTokens, actions) => {
               batchReasoning.flush()
               batchContent.flush()
               this.finalizeMessageMetrics(sessionId, assistantId, reasoningEndedAt)
@@ -674,6 +686,13 @@ export const useLinkMateStore = defineStore('linkmate', {
               this.activeSessionId = sid
               this.bumpSessionOrder(sid)
               void this.loadStatus()
+              if (actions?.length) {
+                const agentStore = useLinkMateAgentStore()
+                const parsed = agentStore.parseActionsFromPayload(actions)
+                if (parsed.length) {
+                  void agentStore.runActions(parsed)
+                }
+              }
             },
             onError: message => {
               failed = true
@@ -760,7 +779,8 @@ export const useLinkMateStore = defineStore('linkmate', {
         sessionId,
         message: content,
         deepThinking: this.deepThinking && this.deepThinkingSupported,
-        imContext: this.getImContextForRequest()
+        imContext: this.getImContextForRequest(),
+        ...this.getAgentRequestExtras()
       }, { titleHint: content })
     },
 
@@ -797,7 +817,8 @@ export const useLinkMateStore = defineStore('linkmate', {
         regenerate: true,
         regenerateMessageId: assistantMessageId,
         deepThinking: this.deepThinking && this.deepThinkingSupported,
-        imContext: this.getImContextForRequest()
+        imContext: this.getImContextForRequest(),
+        ...this.getAgentRequestExtras()
       }, { reloadOnFailure: true })
     }
   }

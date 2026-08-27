@@ -46,6 +46,20 @@ describe('linkmateSse', () => {
     expect(onError).toHaveBeenCalledWith('额度不足')
   })
 
+  it('routes tool_call event to handler', () => {
+    const onToolCall = vi.fn()
+    dispatchLinkMateSseEvent(
+      'tool_call',
+      { id: 'call_1', name: 'navigate', arguments: '{"nav":"calendar"}' },
+      { onToolCall }
+    )
+    expect(onToolCall).toHaveBeenCalledWith({
+      id: 'call_1',
+      name: 'navigate',
+      arguments: '{"nav":"calendar"}'
+    })
+  })
+
   it('parses double-encoded JSON payload', () => {
     const onDelta = vi.fn()
     parseLinkMateSseEvent('event: delta\ndata: "{\\"content\\":\\"ok\\"}"\n\n', { onDelta })

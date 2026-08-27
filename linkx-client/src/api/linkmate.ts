@@ -70,6 +70,8 @@ export interface LinkMateStreamRequest {
   regenerate?: boolean
   regenerateMessageId?: string
   imContext?: LinkMateImContext
+  agentMode?: boolean
+  clientContext?: LinkMateClientContextPayload
 }
 
 export function getStatus() {
@@ -240,8 +242,27 @@ export interface LinkMateStreamHandlers {
   onStart?: (sessionId: string) => void
   onDelta?: (content: string) => void
   onReasoningDelta?: (content: string) => void
-  onDone?: (messageId: string, sessionId: string, totalTokens?: number) => void
+  onToolCall?: (payload: LinkMateAgentToolCallPayload) => void
+  onDone?: (messageId: string, sessionId: string, totalTokens?: number, actions?: LinkMateAgentActionPayload[]) => void
   onError?: (message: string) => void
+}
+
+export interface LinkMateAgentToolCallPayload {
+  id: string
+  name: string
+  arguments: string
+}
+
+export interface LinkMateAgentActionPayload {
+  id: string
+  name: string
+  arguments: string
+}
+
+export interface LinkMateClientContextPayload {
+  currentNav?: string
+  currentSessionId?: string
+  currentSessionTitle?: string
 }
 
 /**
@@ -277,7 +298,9 @@ export async function streamChat(
       deepThinking: !!request.deepThinking,
       regenerate: !!request.regenerate,
       regenerateMessageId: request.regenerateMessageId,
-      imContext: request.imContext
+      imContext: request.imContext,
+      agentMode: !!request.agentMode,
+      clientContext: request.clientContext
     }),
     credentials: isWebEnvironment() ? 'include' : 'omit',
     signal
@@ -302,13 +325,30 @@ export async function streamChat(
     },
     onDelta: handlers.onDelta,
     onReasoningDelta: handlers.onReasoningDelta,
+    onToolCall: payload => {
+      const id = typeof payload.id === 'string' ? payload.id : ''
+      const name = typeof payload.name === 'string' ? payload.name : ''
+      const args = typeof payload.arguments === 'string' ? payload.arguments : ''
+      if (id && name) handlers.onToolCall?.({ id, name, arguments: args })
+    },
     onDone: payload => {
       const sessionId = typeof payload.sessionId === 'string' ? payload.sessionId : ''
       const messageId = typeof payload.messageId === 'string' ? payload.messageId : ''
       if (messageId && sessionId) {
         const totalTokens =
           payload.totalTokens != null ? Number(payload.totalTokens) : undefined
-        handlers.onDone?.(messageId, sessionId, totalTokens)
+        let actions: LinkMateAgentActionPayload[] | undefined
+        if (Array.isArray(payload.actions)) {
+          actions = payload.actions
+            .filter((item): item is Record<string, unknown> => item != null && typeof item === 'object')
+            .map(item => ({
+              id: String(item.id ?? ''),
+              name: String(item.name ?? ''),
+              arguments: String(item.arguments ?? '')
+            }))
+            .filter(item => item.id && item.name)
+        }
+        handlers.onDone?.(messageId, sessionId, totalTokens, actions)
       }
     },
     onError: handlers.onError

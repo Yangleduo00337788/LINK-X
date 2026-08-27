@@ -20,6 +20,7 @@ export const useChatModalsStore = defineStore('chatModals', {
     groupInfoDrawerOpen: false,         // 群资料抽屉
     createGroupOpen: false,             // 创建群聊模态框
     comprehensiveSearchOpen: false,     // 综合搜索模态框
+    comprehensiveSearchKeyword: '' as string | undefined, // Agent 打开搜索时的初始关键词
     momentsModalOpen: false,            // 朋友圈模态框
     voiceCallOpen: false,               // 语音通话模态框
     videoCallOpen: false,               // 视频通话模态框
@@ -84,11 +85,13 @@ export const useChatModalsStore = defineStore('chatModals', {
     closeCreateGroup() {
       this.createGroupOpen = false
     },
-    openComprehensiveSearch() {
+    openComprehensiveSearch(keyword?: string) {
+      this.comprehensiveSearchKeyword = keyword?.trim() || undefined
       this.comprehensiveSearchOpen = true
     },
     closeComprehensiveSearch() {
       this.comprehensiveSearchOpen = false
+      this.comprehensiveSearchKeyword = undefined
     },
     closeMomentsModal() {
       this.momentsModalOpen = false
