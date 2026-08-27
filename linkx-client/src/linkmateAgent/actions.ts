@@ -27,6 +27,24 @@ export const LINKMATE_AGENT_ACTIONS: Record<LinkMateAgentToolName, LinkMateActio
     risk: 'low',
     requireConfirm: false,
     labelKey: 'linkmateAgent.actionOpenCalendar'
+  },
+  send_message: {
+    name: 'send_message',
+    risk: 'medium',
+    requireConfirm: true,
+    labelKey: 'linkmateAgent.actionSendMessage'
+  },
+  create_calendar_event: {
+    name: 'create_calendar_event',
+    risk: 'medium',
+    requireConfirm: true,
+    labelKey: 'linkmateAgent.actionCreateEvent'
+  },
+  add_favorite: {
+    name: 'add_favorite',
+    risk: 'medium',
+    requireConfirm: true,
+    labelKey: 'linkmateAgent.actionAddFavorite'
   }
 }
 

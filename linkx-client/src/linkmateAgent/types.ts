@@ -6,8 +6,25 @@ import type { NavKey } from '../types'
 /** Agent 动作风险等级 */
 export type LinkMateActionRisk = 'low' | 'medium' | 'high' | 'critical'
 
-/** Phase 1 支持的工具名 */
-export type LinkMateAgentToolName = 'navigate' | 'open_chat' | 'open_search' | 'open_calendar'
+/** Agent 支持的工具名 */
+export type LinkMateAgentToolName =
+  | 'navigate'
+  | 'open_chat'
+  | 'open_search'
+  | 'open_calendar'
+  | 'send_message'
+  | 'create_calendar_event'
+  | 'add_favorite'
+
+export const LINKMATE_AGENT_TOOL_NAMES: LinkMateAgentToolName[] = [
+  'navigate',
+  'open_chat',
+  'open_search',
+  'open_calendar',
+  'send_message',
+  'create_calendar_event',
+  'add_favorite'
+]
 
 export interface LinkMateAgentAction {
   id: string
@@ -68,7 +85,7 @@ export function parseAgentAction(raw: {
 }): LinkMateAgentAction | null {
   const name = raw.name
   if (typeof name !== 'string') return null
-  if (!['navigate', 'open_chat', 'open_search', 'open_calendar'].includes(name)) return null
+  if (!LINKMATE_AGENT_TOOL_NAMES.includes(name as LinkMateAgentToolName)) return null
 
   let args: Record<string, unknown> = {}
   if (typeof raw.arguments === 'string') {

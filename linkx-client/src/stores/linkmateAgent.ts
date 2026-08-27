@@ -132,7 +132,7 @@ export const useLinkMateAgentStore = defineStore('linkmateAgent', {
         const def = getActionDefinition(action.name)
         if (def.requireConfirm) {
           this.run.phase = 'confirming'
-          const approved = await this.requestConfirm(action)
+          const approved = await this.requestConfirm(action, def.risk)
           if (!approved) {
             this.run.completed.push({
               action,
@@ -155,11 +155,15 @@ export const useLinkMateAgentStore = defineStore('linkmateAgent', {
       this.run.phase = 'idle'
     },
 
-    async requestConfirm(action: LinkMateAgentAction): Promise<boolean> {
+    async requestConfirm(
+      action: LinkMateAgentAction,
+      risk: 'low' | 'medium' | 'high' | 'critical'
+    ): Promise<boolean> {
       const label = describeLinkMateAction(action)
+      const confirmRisk = risk === 'high' || risk === 'critical' ? 'high' : 'medium'
       return new Promise(resolve => {
         import('../utils/linkmateAgentConfirm').then(({ confirmLinkMateAction }) => {
-          void confirmLinkMateAction(label).then(resolve)
+          void confirmLinkMateAction(label, confirmRisk).then(resolve)
         })
       })
     }
