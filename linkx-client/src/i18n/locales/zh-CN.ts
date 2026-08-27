@@ -890,6 +890,7 @@ export default {
     enabled: '已开启灵伴代操模式',
     disabled: '已关闭灵伴代操模式',
     executing: '灵伴正在为你操作…',
+    helpingOperation: '正在帮助操作',
     waitConfirm: '等待你确认操作…',
     cancel: '取消',
     confirmTitle: '确认执行操作',
@@ -927,7 +928,18 @@ export default {
     doneCreateEvent: '已创建日程「{title}」({date})',
     addFavoriteMissingTitle: '收藏标题不能为空',
     addFavoriteFailed: '添加收藏失败',
-    doneAddFavorite: '已添加收藏「{title}」'
+    doneAddFavorite: '已添加收藏「{title}」',
+    thinkingPlanning: '正在分析下一步操作…',
+    thinkingNavigate: '正在定位「{nav}」页面…',
+    thinkingOpenChat: '正在查找与「{name}」的会话…',
+    thinkingOpenSearch: '正在打开搜索「{keyword}」…',
+    thinkingOpenSearchEmpty: '正在打开综合搜索…',
+    thinkingOpenCalendar: '正在打开日历…',
+    thinkingSendMessage: '正在定位输入框并准备发送…',
+    thinkingCreateEvent: '正在创建日程「{title}」…',
+    thinkingCreateEventEmpty: '正在打开日历并创建日程…',
+    thinkingAddFavorite: '正在添加收藏「{title}」…',
+    thinkingAddFavoriteEmpty: '正在打开收藏并添加…'
   },
   groupAi: {
     official: '官方 AI',

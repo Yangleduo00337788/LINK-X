@@ -315,6 +315,8 @@ function onContextMenuSelect(key: string) {
                 pinned: session.pinned,
                 important: session.important
               }"
+              :data-lm-session-id="session.id"
+              :data-lm-session-name="session.name"
               @click="onSelect(session)"
               @contextmenu="onSessionContext($event, session)"
             >

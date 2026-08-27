@@ -14,6 +14,11 @@ import type {
   LinkMateClientContext
 } from '../linkmateAgent/types'
 import { parseAgentAction } from '../linkmateAgent/types'
+import {
+  animateCursorPath,
+  buildCursorSteps,
+  getThinkingLabel
+} from '../linkmateAgent/cursorSim'
 import { useAppStore } from './app'
 import { t } from '../i18n'
 
@@ -41,6 +46,15 @@ function sleep(ms: number) {
   return new Promise<void>(resolve => setTimeout(resolve, ms))
 }
 
+function createDefaultCursor() {
+  return {
+    visible: false,
+    x: Math.round(window.innerWidth * 0.5),
+    y: Math.round(window.innerHeight * 0.45),
+    clicking: false
+  }
+}
+
 function settlePendingConfirm(approved: boolean) {
   const resolver = pendingConfirmResolver
   pendingConfirmResolver = null
@@ -55,7 +69,9 @@ export const useLinkMateAgentStore = defineStore('linkmateAgent', {
       currentAction: null,
       queue: [],
       completed: [],
-      cancelled: false
+      cancelled: false,
+      thinkingText: '',
+      cursor: createDefaultCursor()
     } as LinkMateAgentRunState
   }),
 
@@ -100,7 +116,9 @@ export const useLinkMateAgentStore = defineStore('linkmateAgent', {
         currentAction: null,
         queue: [],
         completed: [],
-        cancelled: false
+        cancelled: false,
+        thinkingText: '',
+        cursor: createDefaultCursor()
       }
     },
 
@@ -110,6 +128,43 @@ export const useLinkMateAgentStore = defineStore('linkmateAgent', {
       this.run.phase = 'idle'
       this.run.currentAction = null
       this.run.queue = []
+      this.run.thinkingText = ''
+      this.run.cursor.visible = false
+      this.run.cursor.clicking = false
+    },
+
+    setThinkingText(text: string) {
+      this.run.thinkingText = text
+    },
+
+    setCursorPosition(x: number, y: number) {
+      this.run.cursor.x = x
+      this.run.cursor.y = y
+    },
+
+    setCursorClicking(clicking: boolean) {
+      this.run.cursor.clicking = clicking
+    },
+
+    showAgentCursor() {
+      this.run.cursor.visible = true
+    },
+
+    hideAgentCursor() {
+      this.run.cursor.visible = false
+      this.run.cursor.clicking = false
+    },
+
+    async simulateActionCursor(action: LinkMateAgentAction) {
+      this.setThinkingText(getThinkingLabel(action))
+      this.showAgentCursor()
+      const steps = buildCursorSteps(action)
+      await animateCursorPath(steps, {
+        getPosition: () => ({ x: this.run.cursor.x, y: this.run.cursor.y }),
+        setPosition: point => this.setCursorPosition(point.x, point.y),
+        setClicking: clicking => this.setCursorClicking(clicking),
+        isCancelled: () => this.run.cancelled
+      })
     },
 
     approvePendingConfirm() {
@@ -149,6 +204,7 @@ export const useLinkMateAgentStore = defineStore('linkmateAgent', {
 
         const def = getActionDefinition(action.name)
         if (def.requireConfirm) {
+          this.setThinkingText(getThinkingLabel(action))
           this.run.phase = 'confirming'
           const approved = await this.waitForConfirm()
           if (!approved) {
@@ -162,6 +218,9 @@ export const useLinkMateAgentStore = defineStore('linkmateAgent', {
           this.run.phase = 'executing'
         }
 
+        await this.simulateActionCursor(action)
+        if (this.run.cancelled) break
+
         const result = await executeLinkMateAction(action)
         this.run.completed.push({ action, result })
         if (this.run.queue.length > 0 && !this.run.cancelled) {
@@ -170,6 +229,8 @@ export const useLinkMateAgentStore = defineStore('linkmateAgent', {
       }
 
       this.run.currentAction = null
+      this.run.thinkingText = ''
+      this.hideAgentCursor()
       this.run.phase = 'idle'
     },
 

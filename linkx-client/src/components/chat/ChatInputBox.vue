@@ -1443,6 +1443,7 @@ defineExpose({
             :placeholder="inputPlaceholder"
             :disabled="inputDisabled"
             class="message-input"
+            data-lm-chat-input
             :class="{
               'message-input--with-reply': replyingTo,
               'message-input--with-deep': showDeepThinkingWhenAt
@@ -1567,6 +1568,7 @@ defineExpose({
           <LxButton
             v-else
             variant="send"
+            data-lm-send-btn
             :disabled="!inputValue.trim()"
             @click="send"
           >

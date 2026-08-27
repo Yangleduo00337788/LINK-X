@@ -325,6 +325,7 @@ function handleSelfAvatarClick(e: MouseEvent) {
         :class="{ 'is-active': navKey === item.key }"
         :title="item.label"
         :aria-label="item.label"
+        :data-lm-nav="item.key"
         @click="handleClick(item.key)"
       >
         <n-icon :component="item.icon" :size="22" />

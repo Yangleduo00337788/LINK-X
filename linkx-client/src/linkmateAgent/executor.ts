@@ -251,5 +251,5 @@ export function describeLinkMateAction(action: LinkMateAgentAction): string {
 
 /** 动作间短暂停顿，便于用户感知自动操作 */
 export function actionStepDelayMs(): number {
-  return 420
+  return 980
 }

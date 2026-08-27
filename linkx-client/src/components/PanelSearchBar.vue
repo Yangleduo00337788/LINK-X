@@ -50,7 +50,7 @@ function onAdd(key: string) {
 
 <template>
   <!-- 搜索栏容器 -->
-  <div class="panel-search-bar">
+  <div class="panel-search-bar" data-lm-search-bar>
     <!-- 搜索输入框 -->
     <n-input
       :value="modelValue"

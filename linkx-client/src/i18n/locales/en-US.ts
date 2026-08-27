@@ -890,6 +890,7 @@ export default {
     enabled: 'LinkMate agent mode enabled',
     disabled: 'LinkMate agent mode disabled',
     executing: 'LinkMate is performing actions for you…',
+    helpingOperation: 'Helping with the operation…',
     waitConfirm: 'Waiting for your confirmation…',
     cancel: 'Cancel',
     confirmTitle: 'Confirm action',
@@ -927,7 +928,18 @@ export default {
     doneCreateEvent: 'Created event “{title}” ({date})',
     addFavoriteMissingTitle: 'Favorite title is required',
     addFavoriteFailed: 'Failed to add favorite',
-    doneAddFavorite: 'Added favorite “{title}”'
+    doneAddFavorite: 'Added favorite “{title}”',
+    thinkingPlanning: 'Analyzing the next step…',
+    thinkingNavigate: 'Locating the “{nav}” page…',
+    thinkingOpenChat: 'Finding chat with “{name}”…',
+    thinkingOpenSearch: 'Opening search for “{keyword}”…',
+    thinkingOpenSearchEmpty: 'Opening search…',
+    thinkingOpenCalendar: 'Opening calendar…',
+    thinkingSendMessage: 'Locating the input and preparing to send…',
+    thinkingCreateEvent: 'Creating event “{title}”…',
+    thinkingCreateEventEmpty: 'Opening calendar to create an event…',
+    thinkingAddFavorite: 'Adding favorite “{title}”…',
+    thinkingAddFavoriteEmpty: 'Opening favorites to add…'
   },
   groupAi: {
     official: 'Official AI',

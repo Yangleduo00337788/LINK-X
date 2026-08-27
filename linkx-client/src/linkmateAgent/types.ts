@@ -53,12 +53,21 @@ export interface LinkMateActionResult {
 
 export type LinkMateAgentPhase = 'idle' | 'planning' | 'executing' | 'confirming'
 
+export interface LinkMateAgentCursorState {
+  visible: boolean
+  x: number
+  y: number
+  clicking: boolean
+}
+
 export interface LinkMateAgentRunState {
   phase: LinkMateAgentPhase
   currentAction: LinkMateAgentAction | null
   queue: LinkMateAgentAction[]
   completed: Array<{ action: LinkMateAgentAction; result: LinkMateActionResult }>
   cancelled: boolean
+  thinkingText: string
+  cursor: LinkMateAgentCursorState
 }
 
 export const VALID_NAV_KEYS: NavKey[] = [
