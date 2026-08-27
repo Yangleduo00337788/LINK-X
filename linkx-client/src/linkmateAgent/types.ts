@@ -36,6 +36,8 @@ export interface LinkMateClientContext {
   currentNav?: NavKey
   currentSessionId?: string
   currentSessionTitle?: string
+  /** 近期会话摘要，供模型选择准确目标 */
+  recentSessions?: string
 }
 
 export interface LinkMateActionDefinition {

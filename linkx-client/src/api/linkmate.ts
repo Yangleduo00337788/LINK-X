@@ -263,6 +263,7 @@ export interface LinkMateClientContextPayload {
   currentNav?: string
   currentSessionId?: string
   currentSessionTitle?: string
+  recentSessions?: string
 }
 
 /**

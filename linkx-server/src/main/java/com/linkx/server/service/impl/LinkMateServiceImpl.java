@@ -1242,6 +1242,14 @@ public class LinkMateServiceImpl implements LinkMateService {
         if (StringUtils.hasText(clientContext.getCurrentSessionId())) {
             sb.append("当前会话ID：").append(clientContext.getCurrentSessionId().trim()).append('\n');
         }
+        if (StringUtils.hasText(clientContext.getRecentSessions())) {
+            sb.append("可操作的近期会话（格式：好友/群聊「名称」#会话ID）：")
+                    .append(clientContext.getRecentSessions().trim())
+                    .append('\n');
+            sb.append("给某位好友发消息时优先使用好友单聊，不要误选名称中包含该好友的群聊；")
+                    .append("请尽量填写 conversationId，或 name 配合 chatType=direct/group。")
+                    .append('\n');
+        }
         return sb.toString().trim();
     }
 

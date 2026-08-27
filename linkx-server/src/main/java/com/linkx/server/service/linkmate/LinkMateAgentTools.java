@@ -57,7 +57,9 @@ public class LinkMateAgentTools {
                 + "请调用提供的工具执行，不要只告诉用户去点哪里。"
                 + "若仅需文字回答、无需操作客户端，则正常回复即可。"
                 + "一次可调用多个工具；参数中的 nav 必须使用英文键名。"
-                + "发消息时 content 必填；创建日程时 title 与 date(YYYY-MM-DD) 必填；未指定会话时可对当前会话发消息。";
+                + "发消息时 content 必填；创建日程时 title 与 date(YYYY-MM-DD) 必填；未指定会话时可对当前会话发消息。"
+                + "给某位好友发消息时：name 填该好友昵称/备注，chatType 用 direct，优先使用 clientContext 中的 conversationId；"
+                + "不要误把名称中包含该好友的群聊当作目标。";
     }
 
     private ObjectNode emptyObjectSchema() {
@@ -72,7 +74,8 @@ public class LinkMateAgentTools {
         schema.put("type", "object");
         ObjectNode properties = objectMapper.createObjectNode();
         properties.set("conversationId", stringField("会话 ID，已知时优先使用"));
-        properties.set("name", stringField("联系人或群聊名称，用于模糊匹配"));
+        properties.set("name", stringField("联系人或群聊名称；给好友发消息填好友名，不要填群名"));
+        properties.set("chatType", stringField("会话类型：direct=好友单聊，group=群聊；给好友发消息时用 direct"));
         schema.set("properties", properties);
         return schema;
     }
@@ -82,7 +85,8 @@ public class LinkMateAgentTools {
         schema.put("type", "object");
         ObjectNode properties = objectMapper.createObjectNode();
         properties.set("conversationId", stringField("目标会话 ID，可留空表示当前会话"));
-        properties.set("name", stringField("联系人或群聊名称，用于模糊匹配"));
+        properties.set("name", stringField("好友昵称/备注或群名；给某位好友发消息时填该好友名"));
+        properties.set("chatType", stringField("direct=好友单聊，group=群聊；默认给好友发消息用 direct"));
         properties.set("content", stringField("要发送的文本内容"));
         schema.set("properties", properties);
         ArrayNode required = objectMapper.createArrayNode();

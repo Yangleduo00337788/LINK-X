@@ -21,4 +21,8 @@ public class LinkMateClientContextDTO {
 
     @Size(max = 200)
     private String currentSessionTitle;
+
+    /** 近期会话列表摘要（好友/群聊名称与 ID） */
+    @Size(max = 4000)
+    private String recentSessions;
 }
