@@ -2,6 +2,8 @@
  * 作者：yangleduo
  */
 import { t } from '../i18n'
+import { getTypingThinkingLabel, simulateTyping } from './uiBridge'
+import { resolveChatSessionId } from './sessionResolve'
 import type { LinkMateAgentAction } from './types'
 
 export interface LinkMateCursorPoint {
@@ -13,6 +15,8 @@ export interface LinkMateCursorStep {
   point: LinkMateCursorPoint
   click?: boolean
   pauseMs?: number
+  /** 点击后逐字输入 */
+  typeText?: string
 }
 
 /** 模拟真人操作的节奏参数 */
@@ -53,48 +57,76 @@ function getCenter(el: Element): LinkMateCursorPoint {
 }
 
 function findNavButton(nav: string): Element | null {
-  return document.querySelector(`[data-lm-nav="${nav}"]`)
+  const el = document.querySelector(`[data-lm-nav="${CSS.escape(nav)}"]`)
+  revealElement(el)
+  return el
 }
 
-function findSessionItem(conversationId: string, name: string): Element | null {
-  if (conversationId) {
-    const byId = document.querySelector(`[data-lm-session-id="${conversationId}"]`)
-    if (byId) return byId
+function revealElement(el: Element | null) {
+  if (!el) return
+  el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
+}
+
+function findSessionItem(conversationId: string, name: string, action?: LinkMateAgentAction): Element | null {
+  const resolvedId =
+    conversationId ||
+    (action?.name === 'send_message' || action?.name === 'open_chat'
+      ? resolveChatSessionId(action.arguments)
+      : resolveChatSessionId({ conversationId, name }))
+  if (resolvedId) {
+    const byId = document.querySelector(`[data-lm-session-id="${CSS.escape(resolvedId)}"]`)
+    if (byId) {
+      revealElement(byId)
+      return byId
+    }
   }
   if (name) {
     const items = document.querySelectorAll('[data-lm-session-id]')
     const lower = name.toLowerCase()
+    const exact: Element[] = []
+    const partial: Element[] = []
     for (const item of items) {
-      const label = item.getAttribute('data-lm-session-name') || item.textContent || ''
-      if (label.includes(name) || label.toLowerCase().includes(lower)) {
-        return item
-      }
+      const label = item.getAttribute('data-lm-session-name') || ''
+      const normalized = label.trim().toLowerCase()
+      if (normalized === lower || label === name) exact.push(item)
+      else if (label.includes(name) || normalized.includes(lower)) partial.push(item)
+    }
+    const pick = exact[0] ?? partial[0]
+    if (pick) {
+      revealElement(pick)
+      return pick
     }
   }
-  return document.querySelector('[data-lm-session-id].active') ?? document.querySelector('[data-lm-session-id]')
+  const fallback =
+    document.querySelector('[data-lm-session-id].active') ?? document.querySelector('[data-lm-session-id]')
+  revealElement(fallback)
+  return fallback
 }
 
 function findChatInput(): Element | null {
-  return (
+  const el =
     document.querySelector('[data-lm-chat-input]') ??
     document.querySelector('.message-input textarea') ??
     document.querySelector('.message-input')
-  )
+  revealElement(el)
+  return el
 }
 
 function findSendButton(): Element | null {
-  return (
+  const el =
     document.querySelector('[data-lm-send-btn]') ??
     document.querySelector('.toolbar-right .lx-btn--send')
-  )
+  revealElement(el)
+  return el
 }
 
 function findSearchBar(): Element | null {
-  return (
+  const el =
     document.querySelector('[data-lm-search-bar]') ??
     document.querySelector('.panel-search-bar .search-input') ??
     document.querySelector('.panel-search-bar')
-  )
+  revealElement(el)
+  return el
 }
 
 function viewportFallback(): LinkMateCursorPoint {
@@ -166,7 +198,7 @@ export function buildCursorSteps(action: LinkMateAgentAction): LinkMateCursorSte
   if (action.name === 'open_chat') {
     const conversationId = asString(action.arguments.conversationId)
     const name = asString(action.arguments.name)
-    push(findSessionItem(conversationId, name), true, 680)
+    push(findSessionItem(conversationId, name, action), true, 680)
     return steps
   }
 
@@ -183,9 +215,16 @@ export function buildCursorSteps(action: LinkMateAgentAction): LinkMateCursorSte
   if (action.name === 'send_message') {
     const conversationId = asString(action.arguments.conversationId)
     const name = asString(action.arguments.name)
-    const session = findSessionItem(conversationId, name)
+    const content = asString(action.arguments.content)
+    const session = findSessionItem(conversationId, name, action)
     if (session) push(session, true, 640)
-    push(findChatInput(), true, 820)
+    const input = findChatInput()
+    steps.push({
+      point: pointFromElement(input),
+      click: true,
+      pauseMs: 420,
+      typeText: content
+    })
     push(findSendButton(), true, 560)
     return steps
   }
@@ -210,6 +249,7 @@ export async function animateCursorPath(
     getPosition: () => LinkMateCursorPoint
     setPosition: (point: LinkMateCursorPoint) => void
     setClicking: (clicking: boolean) => void
+    setThinking?: (text: string) => void
     isCancelled: () => boolean
   }
 ): Promise<void> {
@@ -236,6 +276,16 @@ export async function animateCursorPath(
       handlers.setClicking(false)
       await sleep(clickUpSettleMs)
     }
+
+    if (step.typeText) {
+      handlers.setThinking?.(getTypingThinkingLabel())
+      await simulateTyping(step.typeText, {
+        isCancelled: handlers.isCancelled
+      })
+      if (handlers.isCancelled()) return
+      await sleep(320)
+    }
+
     await sleep(step.pauseMs ?? pauseAfterStepMs)
   }
 }

@@ -8,12 +8,14 @@ import { useChatModalsStore } from '../stores/chatModals'
 import { useFavoritesStore } from '../stores/favorites'
 import { t } from '../i18n'
 import { getActionDefinition } from './actions'
+import { resolveChatSession } from './sessionResolve'
 import type {
   LinkMateActionResult,
   LinkMateAgentAction,
   LinkMateAgentToolName
 } from './types'
 import { isNavKey } from './types'
+import { clearSimulatedInput } from './uiBridge'
 
 function asString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
@@ -24,31 +26,48 @@ function truncate(text: string, max = 40): string {
   return `${text.slice(0, max)}…`
 }
 
-function resolveChatSession(args: Record<string, unknown>): ChatSession | null {
-  const app = useAppStore()
-  const conversationId = asString(args.conversationId)
-  const name = asString(args.name)
-
-  if (conversationId) {
-    return app.sessions.find(s => s.id === conversationId) ?? null
-  }
-
-  if (name) {
-    const lower = name.toLowerCase()
-    return (
-      app.sessions.find(s => s.name === name) ??
-      app.sessions.find(s => s.name.toLowerCase().includes(lower)) ??
-      null
-    )
-  }
-
-  return app.currentSession ?? null
-}
-
 function openChatSession(session: ChatSession) {
   const app = useAppStore()
   app.setNav('chat')
   app.selectSession(session)
+}
+
+function sleep(ms: number) {
+  return new Promise<void>(resolve => setTimeout(resolve, ms))
+}
+
+/** 模拟鼠标前先准备好目标界面，避免点到不存在的 DOM */
+export async function prepareActionForSimulation(action: LinkMateAgentAction): Promise<void> {
+  const args = action.arguments
+  if (action.name === 'send_message' || action.name === 'open_chat') {
+    const session = resolveChatSession(args)
+    if (session) openChatSession(session)
+    await sleep(480)
+    return
+  }
+  if (action.name === 'open_search') {
+    const modals = useChatModalsStore()
+    modals.openComprehensiveSearch(asString(args.keyword) || undefined)
+    await sleep(380)
+    return
+  }
+  if (action.name === 'open_calendar' || action.name === 'create_calendar_event') {
+    useAppStore().setNav('calendar')
+    await sleep(380)
+    return
+  }
+  if (action.name === 'add_favorite') {
+    useAppStore().setNav('favorites')
+    await sleep(380)
+    return
+  }
+  if (action.name === 'navigate') {
+    const navRaw = asString(args.nav)
+    if (isNavKey(navRaw)) {
+      useAppStore().setNav(navRaw)
+      await sleep(380)
+    }
+  }
 }
 
 async function executeNavigate(args: Record<string, unknown>): Promise<LinkMateActionResult> {
@@ -115,6 +134,7 @@ async function executeSendMessage(args: Record<string, unknown>): Promise<LinkMa
   openChatSession(session)
   const app = useAppStore()
   await app.sendMessage(content, { type: 'text' })
+  clearSimulatedInput()
   return {
     ok: true,
     message: t('linkmateAgent.doneSendMessage', {
@@ -252,4 +272,20 @@ export function describeLinkMateAction(action: LinkMateAgentAction): string {
 /** 动作间短暂停顿，便于用户感知自动操作 */
 export function actionStepDelayMs(): number {
   return 980
+}
+
+export function summarizeAgentRun(
+  completed: Array<{ action: LinkMateAgentAction; result: LinkMateActionResult }>
+): string {
+  if (!completed.length) return ''
+  const last = completed[completed.length - 1]
+  if (last.result.message) return last.result.message
+  const okCount = completed.filter(item => item.result.ok).length
+  if (okCount === completed.length) {
+    return t('linkmateAgent.runAllDone', { count: okCount })
+  }
+  return t('linkmateAgent.runPartialDone', {
+    ok: okCount,
+    total: completed.length
+  })
 }

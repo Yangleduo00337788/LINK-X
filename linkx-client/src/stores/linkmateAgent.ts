@@ -6,7 +6,9 @@ import { getActionDefinition } from '../linkmateAgent/actions'
 import {
   actionStepDelayMs,
   describeLinkMateAction,
-  executeLinkMateAction
+  executeLinkMateAction,
+  prepareActionForSimulation,
+  summarizeAgentRun
 } from '../linkmateAgent/executor'
 import type {
   LinkMateAgentAction,
@@ -21,6 +23,7 @@ import {
 } from '../linkmateAgent/cursorSim'
 import { useAppStore } from './app'
 import { t } from '../i18n'
+import { OFFICIAL_NOTIFY_SESSION_ID, SYSTEM_NOTIFY_SESSION_ID } from '../types'
 
 const AGENT_MODE_STORAGE_KEY = 'linkx-linkmate-agent-mode'
 
@@ -102,10 +105,23 @@ export const useLinkMateAgentStore = defineStore('linkmateAgent', {
     buildClientContext(): LinkMateClientContext {
       const app = useAppStore()
       const session = app.currentSession
+      const recentSessions = app.sessions
+        .filter(
+          item =>
+            item.isReal &&
+            !item.isSystemNotify &&
+            !item.isOfficialNotify &&
+            item.id !== SYSTEM_NOTIFY_SESSION_ID &&
+            item.id !== OFFICIAL_NOTIFY_SESSION_ID
+        )
+        .slice(0, 25)
+        .map(item => `${item.isGroup ? '群聊' : '好友'}「${item.name}」#${item.id}`)
+        .join('；')
       return {
         currentNav: app.navKey,
         currentSessionId: session?.id,
-        currentSessionTitle: session?.name
+        currentSessionTitle: session?.name,
+        recentSessions: recentSessions || undefined
       }
     },
 
@@ -163,6 +179,7 @@ export const useLinkMateAgentStore = defineStore('linkmateAgent', {
         getPosition: () => ({ x: this.run.cursor.x, y: this.run.cursor.y }),
         setPosition: point => this.setCursorPosition(point.x, point.y),
         setClicking: clicking => this.setCursorClicking(clicking),
+        setThinking: text => this.setThinkingText(text),
         isCancelled: () => this.run.cancelled
       })
     },
@@ -218,6 +235,9 @@ export const useLinkMateAgentStore = defineStore('linkmateAgent', {
           this.run.phase = 'executing'
         }
 
+        await prepareActionForSimulation(action)
+        if (this.run.cancelled) break
+
         await this.simulateActionCursor(action)
         if (this.run.cancelled) break
 
@@ -226,6 +246,12 @@ export const useLinkMateAgentStore = defineStore('linkmateAgent', {
         if (this.run.queue.length > 0 && !this.run.cancelled) {
           await sleep(actionStepDelayMs())
         }
+      }
+
+      const summary = summarizeAgentRun(this.run.completed)
+      if (summary && !this.run.cancelled) {
+        this.setThinkingText(summary)
+        await sleep(1400)
       }
 
       this.run.currentAction = null
