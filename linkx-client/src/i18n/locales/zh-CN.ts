@@ -936,10 +936,13 @@ export default {
     thinkingOpenSearchEmpty: '正在打开综合搜索…',
     thinkingOpenCalendar: '正在打开日历…',
     thinkingSendMessage: '正在定位输入框并准备发送…',
+    thinkingTyping: '正在输入消息…',
     thinkingCreateEvent: '正在创建日程「{title}」…',
     thinkingCreateEventEmpty: '正在打开日历并创建日程…',
     thinkingAddFavorite: '正在添加收藏「{title}」…',
-    thinkingAddFavoriteEmpty: '正在打开收藏并添加…'
+    thinkingAddFavoriteEmpty: '正在打开收藏并添加…',
+    runAllDone: '已完成 {count} 项操作',
+    runPartialDone: '已完成 {ok}/{total} 项操作'
   },
   groupAi: {
     official: '官方 AI',

@@ -936,10 +936,13 @@ export default {
     thinkingOpenSearchEmpty: 'Opening search…',
     thinkingOpenCalendar: 'Opening calendar…',
     thinkingSendMessage: 'Locating the input and preparing to send…',
+    thinkingTyping: 'Typing the message…',
     thinkingCreateEvent: 'Creating event “{title}”…',
     thinkingCreateEventEmpty: 'Opening calendar to create an event…',
     thinkingAddFavorite: 'Adding favorite “{title}”…',
-    thinkingAddFavoriteEmpty: 'Opening favorites to add…'
+    thinkingAddFavoriteEmpty: 'Opening favorites to add…',
+    runAllDone: 'Completed {count} action(s)',
+    runPartialDone: 'Completed {ok} of {total} action(s)'
   },
   groupAi: {
     official: 'Official AI',

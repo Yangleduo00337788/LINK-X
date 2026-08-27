@@ -62,6 +62,7 @@ import {
   pickVoiceMimeType
 } from '../../utils/voiceRecorder'
 import { useI18n } from '../../i18n'
+import { registerAgentChatInputBridge } from '../../linkmateAgent/uiBridge'
 import AtMentionPicker from '../common/AtMentionPicker.vue'
 import QuoteReplyBar from './QuoteReplyBar.vue'
 import { chatMessagePreviewText } from '../../utils/messagePreviewText'
@@ -263,6 +264,24 @@ onMounted(() => {
     void linkMateStore.loadStatus()
     preloadLinkMateLogo()
   }
+  registerAgentChatInputBridge({
+    setInputText: text => {
+      inputValue.value = text
+    },
+    getInputText: () => inputValue.value,
+    focusInput: () => {
+      getTextareaEl()?.focus()
+    },
+    clearInput: () => {
+      inputValue.value = ''
+      if (draftSaveTimer) {
+        clearTimeout(draftSaveTimer)
+        draftSaveTimer = null
+      }
+      const sid = currentSessionId.value
+      if (sid) void appStore.clearSessionDraft(sid)
+    }
+  })
 })
 
 const { draftBySession } = storeToRefs(appStore)
@@ -1085,6 +1104,7 @@ watch(currentSessionId, () => {
 })
 
 onUnmounted(() => {
+  registerAgentChatInputBridge(null)
   linkMateReplyAbort?.abort()
   linkMateReplyAbort = null
   unbindMentionAnchorListeners()
