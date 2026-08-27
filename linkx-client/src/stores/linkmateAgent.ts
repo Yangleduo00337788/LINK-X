@@ -19,6 +19,8 @@ import { t } from '../i18n'
 
 const AGENT_MODE_STORAGE_KEY = 'linkx-linkmate-agent-mode'
 
+let pendingConfirmResolver: ((approved: boolean) => void) | null = null
+
 function loadAgentMode(): boolean {
   try {
     return localStorage.getItem(AGENT_MODE_STORAGE_KEY) === '1'
@@ -37,6 +39,12 @@ function persistAgentMode(enabled: boolean) {
 
 function sleep(ms: number) {
   return new Promise<void>(resolve => setTimeout(resolve, ms))
+}
+
+function settlePendingConfirm(approved: boolean) {
+  const resolver = pendingConfirmResolver
+  pendingConfirmResolver = null
+  resolver?.(approved)
 }
 
 export const useLinkMateAgentStore = defineStore('linkmateAgent', {
@@ -86,6 +94,7 @@ export const useLinkMateAgentStore = defineStore('linkmateAgent', {
     },
 
     resetRun() {
+      settlePendingConfirm(false)
       this.run = {
         phase: 'idle',
         currentAction: null,
@@ -97,9 +106,18 @@ export const useLinkMateAgentStore = defineStore('linkmateAgent', {
 
     cancelRun() {
       this.run.cancelled = true
+      settlePendingConfirm(false)
       this.run.phase = 'idle'
       this.run.currentAction = null
       this.run.queue = []
+    },
+
+    approvePendingConfirm() {
+      settlePendingConfirm(true)
+    },
+
+    rejectPendingConfirm() {
+      settlePendingConfirm(false)
     },
 
     parseActionsFromPayload(actions: unknown): LinkMateAgentAction[] {
@@ -132,7 +150,7 @@ export const useLinkMateAgentStore = defineStore('linkmateAgent', {
         const def = getActionDefinition(action.name)
         if (def.requireConfirm) {
           this.run.phase = 'confirming'
-          const approved = await this.requestConfirm(action, def.risk)
+          const approved = await this.waitForConfirm()
           if (!approved) {
             this.run.completed.push({
               action,
@@ -155,16 +173,10 @@ export const useLinkMateAgentStore = defineStore('linkmateAgent', {
       this.run.phase = 'idle'
     },
 
-    async requestConfirm(
-      action: LinkMateAgentAction,
-      risk: 'low' | 'medium' | 'high' | 'critical'
-    ): Promise<boolean> {
-      const label = describeLinkMateAction(action)
-      const confirmRisk = risk === 'high' || risk === 'critical' ? 'high' : 'medium'
+    waitForConfirm(): Promise<boolean> {
+      settlePendingConfirm(false)
       return new Promise(resolve => {
-        import('../utils/linkmateAgentConfirm').then(({ confirmLinkMateAction }) => {
-          void confirmLinkMateAction(label, confirmRisk).then(resolve)
-        })
+        pendingConfirmResolver = resolve
       })
     }
   }

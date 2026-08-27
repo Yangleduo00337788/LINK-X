@@ -1,7 +1,7 @@
 <!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
- * 灵伴 Agent 自动操作时的全局提示层。
+ * 灵伴 Agent 自动操作时的全局提示层（含内嵌二次确认）。
  */
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
@@ -9,6 +9,7 @@ import { NIcon } from 'naive-ui'
 import { SparklesOutline, CloseOutline } from '@vicons/ionicons5'
 import { useLinkMateAgentStore } from '../stores/linkmateAgent'
 import { useI18n } from '../i18n'
+import { lxZ } from '../theme/vars'
 
 const { t } = useI18n()
 const agentStore = useLinkMateAgentStore()
@@ -17,15 +18,29 @@ const { run, currentStepLabel } = storeToRefs(agentStore)
 const visible = computed(() => run.value.phase !== 'idle')
 const isConfirming = computed(() => run.value.phase === 'confirming')
 
-function cancel() {
+function cancelAll() {
   agentStore.cancelRun()
+}
+
+function approve() {
+  agentStore.approvePendingConfirm()
+}
+
+function reject() {
+  agentStore.rejectPendingConfirm()
 }
 </script>
 
 <template>
   <Transition name="lm-agent-fade">
-    <div v-if="visible" class="lm-agent-overlay" role="status" aria-live="polite">
-      <div class="lm-agent-banner">
+    <div
+      v-if="visible"
+      class="lm-agent-overlay"
+      :style="{ zIndex: lxZ.dialog }"
+      role="status"
+      aria-live="polite"
+    >
+      <div class="lm-agent-banner" :class="{ 'is-confirming': isConfirming }">
         <div class="lm-agent-banner__pulse" aria-hidden="true" />
         <NIcon class="lm-agent-banner__icon" :size="18">
           <SparklesOutline />
@@ -36,7 +51,15 @@ function cancel() {
           </p>
           <p v-if="currentStepLabel" class="lm-agent-banner__step">{{ currentStepLabel }}</p>
         </div>
-        <button type="button" class="lm-agent-banner__cancel" @click="cancel">
+        <div v-if="isConfirming" class="lm-agent-banner__actions">
+          <button type="button" class="lm-agent-banner__btn lm-agent-banner__btn--primary" @click="approve">
+            {{ t('linkmateAgent.confirmExecute') }}
+          </button>
+          <button type="button" class="lm-agent-banner__btn" @click="reject">
+            {{ t('linkmateAgent.skipAction') }}
+          </button>
+        </div>
+        <button v-else type="button" class="lm-agent-banner__cancel" @click="cancelAll">
           <NIcon :size="16"><CloseOutline /></NIcon>
           <span>{{ t('linkmateAgent.cancel') }}</span>
         </button>
@@ -49,7 +72,6 @@ function cancel() {
 .lm-agent-overlay {
   position: fixed;
   inset: 0;
-  z-index: var(--lx-z-overlay, 400);
   pointer-events: none;
 }
 
@@ -62,7 +84,7 @@ function cancel() {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-width: min(520px, calc(100vw - 32px));
+  min-width: min(560px, calc(100vw - 32px));
   max-width: calc(100vw - 32px);
   padding: 10px 14px;
   border-radius: 12px;
@@ -71,6 +93,10 @@ function cancel() {
   box-shadow: 0 8px 32px color-mix(in srgb, var(--lx-shadow) 24%, transparent);
   backdrop-filter: blur(12px);
   overflow: hidden;
+}
+
+.lm-agent-banner.is-confirming {
+  border-color: color-mix(in srgb, var(--lx-warning, #f0a020) 45%, var(--lx-border));
 }
 
 .lm-agent-banner__pulse {
@@ -113,6 +139,40 @@ function cancel() {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.lm-agent-banner__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.lm-agent-banner__btn {
+  padding: 5px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--lx-border);
+  background: var(--lx-bg-muted);
+  color: var(--lx-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.lm-agent-banner__btn:hover {
+  color: var(--lx-text-primary);
+}
+
+.lm-agent-banner__btn--primary {
+  border-color: color-mix(in srgb, var(--lx-accent) 50%, var(--lx-border));
+  background: color-mix(in srgb, var(--lx-accent) 18%, transparent);
+  color: var(--lx-accent);
+  font-weight: 600;
+}
+
+.lm-agent-banner__btn--primary:hover {
+  background: color-mix(in srgb, var(--lx-accent) 28%, transparent);
 }
 
 .lm-agent-banner__cancel {

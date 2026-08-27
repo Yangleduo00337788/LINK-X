@@ -47,8 +47,6 @@ import OfficialNotifyPanel from './OfficialNotifyPanel.vue'
 import OverlayHost from './overlay/OverlayHost.vue'
 import AiControlOverlay from './AiControlOverlay.vue'
 import { SYSTEM_NOTIFY_SESSION_ID, OFFICIAL_NOTIFY_SESSION_ID } from '../types'
-import { useDialog } from 'naive-ui'
-import { registerLinkMateAgentDialog } from '../utils/linkmateAgentConfirm'
 
 // 以下弹窗异步懒加载，减小首屏包体积
 const CreateGroupModal = defineAsyncComponent(() => import('./chat/CreateGroupModal.vue'))
@@ -80,7 +78,6 @@ import { useI18n } from '../i18n'
 import { isRealImChatSession } from '../utils/buildImChatContext'
 
 const { t } = useI18n()
-const dialog = useDialog()
 
 const appStore = useAppStore()
 const { navKey, currentSessionId, currentSession } = storeToRefs(appStore)
@@ -150,7 +147,6 @@ function stopDrag() {
 
 // 挂载时注册窗口焦点/失焦监听
 onMounted(() => {
-  registerLinkMateAgentDialog(dialog)
   window.addEventListener('focus', onWindowFocus)
   window.addEventListener('blur', onWindowBlur)
   if ((navKey.value as string) === 'groupAi') {

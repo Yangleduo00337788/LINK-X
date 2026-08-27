@@ -11,6 +11,7 @@ import { useOverlayStore } from '../stores/overlay'
 import { useChatModalsStore } from '../stores/chatModals'
 import { applyDocumentTheme, notifyElectronTheme } from '../utils/themeSync'
 import LinkMateSidePanel from '../components/LinkMateSidePanel.vue'
+import AiControlOverlay from '../components/AiControlOverlay.vue'
 import WindowCaptionButtons from '../components/WindowCaptionButtons.vue'
 import { syncDesktopChromeMode } from '../utils/electronChrome'
 import { useI18n } from '../i18n'
@@ -69,6 +70,7 @@ watch(
     <div class="standalone-content linkmate-standalone-content">
       <LinkMateSidePanel layout="page" standalone />
     </div>
+    <AiControlOverlay />
   </div>
 </template>
 

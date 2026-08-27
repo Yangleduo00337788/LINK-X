@@ -894,6 +894,8 @@ export default {
     cancel: '取消',
     confirmTitle: '确认执行操作',
     confirmTitleHigh: '确认高危操作',
+    confirmExecute: '确认执行',
+    skipAction: '跳过',
     confirmBody: '灵伴请求执行：{action}',
     userRejected: '你已取消该操作',
     unknownAction: '未知操作：{name}',

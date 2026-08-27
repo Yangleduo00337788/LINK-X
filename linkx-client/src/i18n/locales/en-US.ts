@@ -894,6 +894,8 @@ export default {
     cancel: 'Cancel',
     confirmTitle: 'Confirm action',
     confirmTitleHigh: 'Confirm sensitive action',
+    confirmExecute: 'Confirm',
+    skipAction: 'Skip',
     confirmBody: 'LinkMate wants to: {action}',
     userRejected: 'You cancelled this action',
     unknownAction: 'Unknown action: {name}',
