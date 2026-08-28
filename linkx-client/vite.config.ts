@@ -127,7 +127,17 @@ export default defineConfig(({ mode, command }) => {
     ].filter(Boolean),
     test: {
       environment: 'happy-dom',
-      include: ['src/**/*.test.ts']
+      include: ['src/**/*.test.ts'],
+      coverage: {
+        provider: 'v8',
+        reporter: ['text', 'text-summary', 'json-summary'],
+        include: ['src/linkmateAgent/**/*.ts', 'src/stores/linkmateAgent.ts'],
+        exclude: [
+          'src/linkmateAgent/**/*.test.ts',
+          'src/linkmateAgent/test/**',
+          'src/linkmateAgent/benchmark/**'
+        ]
+      }
     }
   }
 })

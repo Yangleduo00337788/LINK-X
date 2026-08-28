@@ -26,10 +26,13 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage src/linkmateAgent/ src/stores/linkmateAgent.test.ts src/stores/linkmateAgent.storage.test.ts",
     "test:watch": "vitest",
     "test:agent-benchmark": "vitest run src/linkmateAgent/benchmark/benchmark.test.ts",
     "test:e2e": "playwright test",
-    "test:e2e:install": "playwright install chromium"
+    "test:e2e:install": "playwright install chromium",
+    "test:e2e:install:cn": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/playwright-install-cn.ps1",
+    "test:e2e:install:system": "node -e \"console.log('E2E 已配置为使用本机 Edge/Chrome，一般无需 playwright install。直接运行: npm run test:e2e')\""
   },
   "dependencies": {
     "@vicons/ionicons5": "^0.12.0",
@@ -48,6 +51,7 @@
     "@types/dompurify": "^3.0.5",
     "@types/marked": "^5.0.2",
     "@vitejs/plugin-vue": "^5.0.4",
+    "@vitest/coverage-v8": "^2.1.9",
     "dompurify": "^3.4.11",
     "electron": "^43.4.0",
     "electron-builder": "^26.15.3",
