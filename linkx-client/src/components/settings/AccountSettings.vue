@@ -20,6 +20,7 @@ import { copyText } from '../../utils/clipboard'
 import { useI18n } from '../../i18n'
 import SliderCaptcha from '../SliderCaptcha.vue'
 import Avatar from '../Avatar.vue'
+import { resolveUserAvatarUrl } from '../../utils/defaultAvatar'
 
 const message = useMessage()
 const dialog = useDialog()
@@ -31,6 +32,10 @@ const { userProfile, savedLogin } = storeToRefs(appStore)
 
 const displayUsername = computed(
   () => userProfile.value.username || savedLogin.value.username || '—'
+)
+
+const profileAvatarUrl = computed(() =>
+  resolveUserAvatarUrl(userProfile.value.avatar, userProfile.value.userId) || undefined
 )
 
 const phoneDisplay = computed(() =>
@@ -619,7 +624,7 @@ onMounted(() => {
           :size="56"
           color="var(--lx-accent)"
           :text="userProfile.nickname || t('common.me')"
-          :image-url="userProfile.avatar"
+          :image-url="profileAvatarUrl"
           class="profile-avatar"
         />
         <div class="profile-meta">

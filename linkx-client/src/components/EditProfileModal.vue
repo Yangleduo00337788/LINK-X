@@ -16,8 +16,7 @@ import { CloseOutline, CameraOutline } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '../stores/app'
 import { useChatModalsStore } from '../stores/chatModals'
-import { generateDefaultAvatar } from '../utils/defaultAvatar'
-import { pickDisplayableImageUrl } from '../utils/displayImage'
+import { generateDefaultAvatar, resolveUserAvatarUrl } from '../utils/defaultAvatar'
 import { useI18n } from '../i18n'
 import { LxButton, LxIconButton, LxModal } from './ui'
 import {
@@ -45,7 +44,9 @@ const uploading = ref(false)
 const avatarInputRef = ref<HTMLInputElement | null>(null)
 
 const defaultAvatarUrl = computed(() => generateDefaultAvatar(profileNick.value || t('common.me')))
-const realAvatarUrl = computed(() => pickDisplayableImageUrl(userProfile.value.avatar))
+const realAvatarUrl = computed(() =>
+  resolveUserAvatarUrl(userProfile.value.avatar, userProfile.value.userId)
+)
 
 const genderOptions = computed(() => [
   { label: t('modals.male'), value: '男' },

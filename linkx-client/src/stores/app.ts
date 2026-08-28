@@ -2556,7 +2556,7 @@ export const useAppStore = defineStore('app', {
         const uid = this.userProfile.userId
         const proxied =
           uid && /^\d+$/.test(String(uid))
-            ? `${API_BASE_URL}/media/avatars/${uid}?v=${Date.now()}`
+            ? `/media/avatars/${uid}?v=${Date.now()}`
             : normalizeMediaUrl(res.data)
         this.userProfile.avatar = proxied || normalizeMediaUrl(res.data) || ''
         if (this.savedLogin.rememberMe) {

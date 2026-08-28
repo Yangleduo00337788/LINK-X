@@ -21,6 +21,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '../stores/app'
 import { useMomentsStore } from '../stores/moments'
 import { useContactsStore } from '../stores/contacts'
+import { resolveUserAvatarUrl } from '../utils/defaultAvatar'
 import { readFileAsDataUrl, dataUrlToFile, MAX_IMAGE_BYTES } from '../utils/file'
 import AtMentionPicker from './common/AtMentionPicker.vue'
 import { useI18n } from '../i18n'
@@ -96,7 +97,9 @@ const friends = computed(() =>
   )
 )
 
-const myAvatar = computed(() => userProfile.value.avatar || undefined)
+const myAvatar = computed(() =>
+  resolveUserAvatarUrl(userProfile.value.avatar, userProfile.value.userId) || undefined
+)
 
 /** 关闭 */
 function close() {

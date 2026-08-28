@@ -16,6 +16,7 @@ import { useGroupMetaStore } from '../../stores/groupMeta'
 import { storeToRefs } from 'pinia'
 import { useI18n } from '../../i18n'
 import { isMyPhoneSessionName } from '../../utils/myPhoneSession'
+import { resolveUserAvatarUrl } from '../../utils/defaultAvatar'
 import * as chatApi from '../../api/chat'
 
 import FileBubble from './bubbles/FileBubble.vue'
@@ -204,7 +205,8 @@ const peerAvatarProps = computed(() => {
 const selfAvatarProps = computed(() => ({
   color: 'var(--lx-bg-card)',
   size: 36,
-  imageUrl: userProfile.value.avatar || undefined,
+  imageUrl:
+    resolveUserAvatarUrl(userProfile.value.avatar, userProfile.value.userId) || undefined,
   fallback: 'logo' as const
 }))
 

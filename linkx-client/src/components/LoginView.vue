@@ -25,6 +25,7 @@ import { useI18n } from '../i18n'
 import { preloadClientResources } from '../utils/preloadClientResources'
 import { openLegalPageInBrowser } from '../utils/legalPage'
 import { CHROME_BRAND_LOGO_URL } from '../utils/projectLogo'
+import { resolveUserAvatarUrl } from '../utils/defaultAvatar'
 
 const message = useMessage()
 const router = useRouter()
@@ -96,7 +97,8 @@ const displayNickname = computed(() => {
 
 const displayAvatarUrl = computed(() => {
   if (!matchedSavedAccount.value) return undefined
-  return savedLogin.value.avatar || userProfile.value.avatar || undefined
+  const raw = savedLogin.value.avatar || userProfile.value.avatar
+  return resolveUserAvatarUrl(raw, userProfile.value.userId) || undefined
 })
 
 const passwordModeAvatarUrl = computed(() =>

@@ -235,7 +235,11 @@ async function uploadBannerDirectly(file: File) {
   try {
     const res = await uploadMomentsBackground(file)
     if (res.code === 200 && res.data?.momentsBackground) {
-      momentsBanner.value = res.data.momentsBackground
+      const uid = myUserId.value
+      momentsBanner.value =
+        uid && /^\d+$/.test(uid)
+          ? `/media/moments-background/${uid}?v=${Date.now()}`
+          : res.data.momentsBackground
       bannerLoaded.value = true
       message.success(t('moments.bannerUpdated'))
     } else {

@@ -70,7 +70,14 @@ function primeCustomImageCache() {
   primeAvatarImageCache(url)
 }
 
-watch(() => props.imageUrl, primeCustomImageCache, { immediate: true })
+watch(
+  customImageUrl,
+  (url, prev) => {
+    if (url !== prev) imgFailed.value = false
+    primeCustomImageCache()
+  },
+  { immediate: true }
+)
 
 function onImgLoad() {
   markAvatarImageCached(customImageUrl.value)
@@ -112,6 +119,7 @@ const containerBg = computed(() => {
 
     <img
       v-if="showCustomImageTag"
+      :key="customImageUrl"
       :src="customImageUrl"
       alt=""
       class="avatar-img"

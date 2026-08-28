@@ -9,6 +9,21 @@ import { getLinkMateLogoUrl, isLinkMateBotSender } from './linkmateLogo'
 /** 客户端默认头像：无头像时展示项目 Logo */
 export const DEFAULT_AVATAR_URL: string = PROJECT_LOGO_URL
 
+/** 头像缓存破坏参数（上传后追加 ?v= 时间戳，避免复用组件不重载） */
+function mediaVersionSuffix(url: string): string {
+  const match = url.match(/[?&]v=([^&#]+)/)
+  return match ? `?v=${decodeURIComponent(match[1])}` : ''
+}
+
+/** 从任意形式的地址还原同源代理路径（保留 ?v=） */
+function mediaProxyPath(url: string, userId: string, segment: 'avatars' | 'moments-background'): string {
+  const prefix = `/media/${segment}/`
+  if (url.startsWith(prefix)) return url
+  const embedded = url.match(new RegExp(`/media/${segment}/\\d+(?:\\?v=[^&#]+)?`))
+  if (embedded) return embedded[0]
+  return `${prefix}${userId}${mediaVersionSuffix(url)}`
+}
+
 /** 第三方 CDN 头像（非本系统 OSS/MinIO 存储） */
 function isExternalAvatarCdn(url: string): boolean {
   if (/[?&]X-Amz-/i.test(url)) return false
@@ -35,12 +50,12 @@ export function resolveUserAvatarUrl(
   if (v.startsWith('data:') || v.startsWith('blob:')) return v
 
   const uid = userId != null ? String(userId).trim() : ''
-  if (uid && /^\d+$/.test(uid)) {
-    if (v && isExternalAvatarCdn(v)) {
+  if (uid && /^\d+$/.test(uid) && v) {
+    if (isExternalAvatarCdn(v)) {
       const external = normalizeMediaUrl(v)
       if (external && isDisplayableMediaUrl(external)) return external
     }
-    const proxyPath = v.startsWith('/media/avatars/') ? v : `/media/avatars/${uid}`
+    const proxyPath = mediaProxyPath(v, uid, 'avatars')
     const proxied = normalizeMediaUrl(`${API_BASE_URL}${proxyPath}`)
     if (proxied && isDisplayableMediaUrl(proxied)) return proxied
   }
@@ -61,10 +76,8 @@ export function resolveMomentsBackgroundUrl(
   if (v.startsWith('data:') || v.startsWith('blob:')) return v
 
   const uid = userId != null ? String(userId).trim() : ''
-  if (uid && /^\d+$/.test(uid)) {
-    const proxyPath = v.startsWith('/media/moments-background/')
-      ? v
-      : `/media/moments-background/${uid}`
+  if (uid && /^\d+$/.test(uid) && v) {
+    const proxyPath = mediaProxyPath(v, uid, 'moments-background')
     const proxied = normalizeMediaUrl(`${API_BASE_URL}${proxyPath}`)
     if (proxied && isDisplayableMediaUrl(proxied)) return proxied
   }
