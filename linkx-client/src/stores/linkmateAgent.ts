@@ -7,6 +7,7 @@ import {
   actionStepDelayMs,
   describeLinkMateAction,
   executeLinkMateAction,
+  normalizeAgentAction,
   prepareActionForSimulation,
   summarizeAgentRun
 } from '../linkmateAgent/executor'
@@ -16,11 +17,9 @@ import type {
   LinkMateClientContext
 } from '../linkmateAgent/types'
 import { parseAgentAction } from '../linkmateAgent/types'
-import {
-  animateCursorPath,
-  buildCursorSteps,
-  getThinkingLabel
-} from '../linkmateAgent/cursorSim'
+import { getThinkingLabel, simulateActionCursor } from '../linkmateAgent/cursorSim'
+import { clearSimulatedInput } from '../linkmateAgent/uiBridge'
+import { todayDateKey } from '../linkmateAgent/dateResolve'
 import { useAppStore } from './app'
 import { t } from '../i18n'
 import { OFFICIAL_NOTIFY_SESSION_ID, SYSTEM_NOTIFY_SESSION_ID } from '../types'
@@ -128,6 +127,7 @@ export const useLinkMateAgentStore = defineStore('linkmateAgent', {
         currentNav: app.navKey,
         currentSessionId: session?.id,
         currentSessionTitle: session?.name,
+        todayDate: todayDateKey(),
         recentSessions: recentSessions || undefined
       }
     },
@@ -215,17 +215,17 @@ export const useLinkMateAgentStore = defineStore('linkmateAgent', {
       this.run.cursor.clicking = false
     },
 
-    async simulateActionCursor(action: LinkMateAgentAction) {
+    async runActionCursorSimulation(action: LinkMateAgentAction): Promise<boolean> {
       this.setThinkingText(getThinkingLabel(action))
       this.showAgentCursor()
-      const steps = buildCursorSteps(action)
-      await animateCursorPath(steps, {
+      const result = await simulateActionCursor(action, {
         getPosition: () => ({ x: this.run.cursor.x, y: this.run.cursor.y }),
         setPosition: point => this.setCursorPosition(point.x, point.y),
         setClicking: clicking => this.setCursorClicking(clicking),
         setThinking: text => this.setThinkingText(text),
         isCancelled: () => this.run.cancelled
       })
+      return result.uiHandled
     },
 
     approvePendingConfirm() {
@@ -260,7 +260,8 @@ export const useLinkMateAgentStore = defineStore('linkmateAgent', {
 
       while (this.run.queue.length > 0) {
         if (this.run.cancelled) break
-        const action = this.run.queue.shift()!
+        const rawAction = this.run.queue.shift()!
+        const action = normalizeAgentAction(rawAction)
         this.run.currentAction = action
 
         const def = getActionDefinition(action.name)
@@ -282,10 +283,14 @@ export const useLinkMateAgentStore = defineStore('linkmateAgent', {
         await prepareActionForSimulation(action)
         if (this.run.cancelled) break
 
-        await this.simulateActionCursor(action)
+        const uiHandled = await this.runActionCursorSimulation(action)
         if (this.run.cancelled) break
 
-        const result = await executeLinkMateAction(action)
+        if (uiHandled && action.name === 'send_message') {
+          clearSimulatedInput()
+        }
+
+        const result = await executeLinkMateAction(action, { uiHandled })
         this.run.completed.push({ action, result })
         if (this.run.queue.length > 0 && !this.run.cancelled) {
           await sleep(actionStepDelayMs())

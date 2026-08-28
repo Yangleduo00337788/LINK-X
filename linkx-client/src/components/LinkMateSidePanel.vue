@@ -72,6 +72,7 @@ const {
   deepThinking,
   deepThinkingSupported,
   voiceCallSupported,
+  agentEnabled,
   showHistory,
   attachedImContext,
   dailyQuotaExhausted,
@@ -513,6 +514,10 @@ function handleDeepThinkingClick() {
 
 function handleAgentModeClick() {
   if (streaming.value) return
+  if (!agentEnabled.value) {
+    message.info(t('linkmateAgent.globallyDisabled'))
+    return
+  }
   linkMateAgent.toggleAgentMode()
   message.info(agentMode.value ? t('linkmateAgent.enabled') : t('linkmateAgent.disabled'))
 }
@@ -941,8 +946,14 @@ onUnmounted(() => {
             <button
               type="button"
               class="linkmate-deep-btn"
-              :class="{ active: agentMode, disabled: streaming }"
-              :title="agentMode ? t('linkmateAgent.modeOn') : t('linkmateAgent.modeOff')"
+              :class="{ active: agentMode, disabled: streaming || !agentEnabled }"
+              :title="
+                agentEnabled
+                  ? agentMode
+                    ? t('linkmateAgent.modeOn')
+                    : t('linkmateAgent.modeOff')
+                  : t('linkmateAgent.globallyDisabled')
+              "
               @click="handleAgentModeClick"
             >
               <NIcon :component="SparklesOutline" :size="14" />

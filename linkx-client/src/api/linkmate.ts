@@ -18,6 +18,8 @@ export interface LinkMateStatus {
   deepThinkingSupported: boolean
   /** 是否已配置 Realtime，可发起灵伴语音通话 */
   voiceCallSupported?: boolean
+  /** 是否允许客户端使用 Agent 代操模式 */
+  agentEnabled?: boolean
 }
 
 export interface LinkMateSession {
@@ -263,6 +265,8 @@ export interface LinkMateClientContextPayload {
   currentNav?: string
   currentSessionId?: string
   currentSessionTitle?: string
+  /** 客户端本地当天 YYYY-MM-DD */
+  todayDate?: string
   recentSessions?: string
 }
 

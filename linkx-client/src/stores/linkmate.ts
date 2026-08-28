@@ -140,6 +140,9 @@ export const useLinkMateStore = defineStore('linkmate', {
     voiceCallSupported(state): boolean {
       return state.status?.voiceCallSupported === true
     },
+    agentEnabled(state): boolean {
+      return state.status?.agentEnabled === true
+    },
     attachedImContext(state): LinkMateImContext | null {
       return state.imContextSnapshot
     },
@@ -188,7 +191,7 @@ export const useLinkMateStore = defineStore('linkmate', {
 
     getAgentRequestExtras() {
       const agentStore = useLinkMateAgentStore()
-      if (!agentStore.agentMode) {
+      if (!agentStore.agentMode || !this.agentEnabled) {
         return { agentMode: false as const, clientContext: undefined }
       }
       return {
@@ -434,6 +437,9 @@ export const useLinkMateStore = defineStore('linkmate', {
         const res = await linkmateApi.getStatus()
         if (res.code === 200 && res.data) {
           this.status = res.data
+          if (!res.data.agentEnabled) {
+            useLinkMateAgentStore().setAgentMode(false)
+          }
         }
       } catch {
         this.status = {
@@ -442,8 +448,10 @@ export const useLinkMateStore = defineStore('linkmate', {
           dailyTokenLimit: 0,
           dailyTokenUsed: 0,
           deepThinkingSupported: false,
-          voiceCallSupported: false
+          voiceCallSupported: false,
+          agentEnabled: false
         }
+        useLinkMateAgentStore().setAgentMode(false)
       }
     },
 
