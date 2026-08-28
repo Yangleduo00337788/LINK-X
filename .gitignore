@@ -72,6 +72,23 @@ docker-compose.*.local.yml
 playwright-report/
 test-results/
 blob-report/
+playwright/.cache/
+**/.last-run.json
+
+# Vitest / 单元测试产物（覆盖率报告、缓存）
+linkx-client/coverage/
+.vitest/
+**/vitest/results.json
+
+# linkx-client 测试源码（本地保留，不提交）
+linkx-client/**/*.test.ts
+linkx-client/**/*.spec.ts
+linkx-client/e2e/
+linkx-client/src/linkmateAgent/test/
+linkx-client/src/linkmateAgent/benchmark/
+linkx-client/playwright.config.ts
+linkx-client/scripts/playwright-install-cn.ps1
+linkx-client/scripts/playwright-install-cn.bat
 
 # 证书与私钥（勿提交）
 *.pem
