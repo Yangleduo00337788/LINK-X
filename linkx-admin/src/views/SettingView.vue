@@ -8,6 +8,8 @@ import {
   NDivider,
   NForm,
   NFormItem,
+  NGrid,
+  NGridItem,
   NIcon,
   NInput,
   NInputNumber,
@@ -16,6 +18,7 @@ import {
   NSlider,
   NSpace,
   NSpin,
+  NStatistic,
   NSwitch,
   NTabPane,
   NTabs,
@@ -47,6 +50,7 @@ import { useAuthStore } from '@/stores/auth'
 import { usePreferencesStore } from '@/stores/preferences'
 import { ensureVoices, listVoicesForLang, previewSpeech, unlockSpeech } from '@/utils/voiceNotify'
 import { useSecurityStore } from '@/stores/security'
+import { inferReasoningSupported } from '@/utils/linkMateModelCapability'
 
 const { t, locale } = useI18n()
 const route = useRoute()
@@ -287,6 +291,7 @@ const linkmateForm = reactive({
   baseUrl: 'https://api.deepseek.com',
   model: 'deepseek-chat',
   reasoningSupported: false,
+  agentEnabled: true,
   maxTokens: 4096,
   temperature: 0.7,
   dailyTokenLimit: 100000,
@@ -300,7 +305,21 @@ const linkmateForm = reactive({
   realtimeBaseUrl: '',
   realtimeModel: 'gpt-realtime',
   realtimeVoice: 'marin',
+  groupLinkmateDefaultEnabled: true,
+  groupAiProactiveDefaultEnabled: false,
+  groupAiSmartSummaryDefaultEnabled: false,
+  groupAiDefaultInterestTopics: '',
+  groupAiDefaultSummaryInstruction: '',
 })
+
+const groupAiOverview = reactive({
+  totalGroups: 0,
+  linkmateEnabledGroups: 0,
+  proactiveEnabledGroups: 0,
+  smartSummaryEnabledGroups: 0,
+})
+
+const inferredReasoningSupported = computed(() => inferReasoningSupported(linkmateForm.model))
 
 const storageProviderOptions = computed(() => [
   { label: t('setting.storageProviderMinio'), value: 'minio' },
@@ -312,6 +331,13 @@ watch(
   () => securityForm.apiEncryptEnabled,
   (enabled) => {
     if (enabled) securityForm.apiSignEnabled = true
+  }
+)
+
+watch(
+  () => linkmateForm.enabled,
+  (enabled) => {
+    if (!enabled) linkmateForm.agentEnabled = false
   }
 )
 
@@ -434,6 +460,7 @@ function applySettings(data: AdminSetting) {
   linkmateForm.baseUrl = data.linkmate?.baseUrl || 'https://api.deepseek.com'
   linkmateForm.model = data.linkmate?.model || 'deepseek-chat'
   linkmateForm.reasoningSupported = data.linkmate?.reasoningSupported === true
+  linkmateForm.agentEnabled = data.linkmate?.agentEnabled !== false
   linkmateForm.maxTokens = data.linkmate?.maxTokens ?? 4096
   linkmateForm.temperature = data.linkmate?.temperature ?? 0.7
   linkmateForm.dailyTokenLimit = data.linkmate?.dailyTokenLimit ?? 100000
@@ -447,6 +474,20 @@ function applySettings(data: AdminSetting) {
   linkmateForm.realtimeBaseUrl = data.linkmate?.realtimeBaseUrl || ''
   linkmateForm.realtimeModel = data.linkmate?.realtimeModel || 'gpt-realtime'
   linkmateForm.realtimeVoice = data.linkmate?.realtimeVoice || 'marin'
+  linkmateForm.groupLinkmateDefaultEnabled =
+    data.linkmate?.groupAiDefaults?.linkmateEnabled !== false
+  linkmateForm.groupAiProactiveDefaultEnabled =
+    data.linkmate?.groupAiDefaults?.proactiveEnabled === true
+  linkmateForm.groupAiSmartSummaryDefaultEnabled =
+    data.linkmate?.groupAiDefaults?.smartSummaryEnabled === true
+  linkmateForm.groupAiDefaultInterestTopics = data.linkmate?.groupAiDefaults?.interestTopics || ''
+  linkmateForm.groupAiDefaultSummaryInstruction =
+    data.linkmate?.groupAiDefaults?.summaryInstruction || ''
+  groupAiOverview.totalGroups = data.linkmate?.groupAiOverview?.totalGroups ?? 0
+  groupAiOverview.linkmateEnabledGroups = data.linkmate?.groupAiOverview?.linkmateEnabledGroups ?? 0
+  groupAiOverview.proactiveEnabledGroups = data.linkmate?.groupAiOverview?.proactiveEnabledGroups ?? 0
+  groupAiOverview.smartSummaryEnabledGroups =
+    data.linkmate?.groupAiOverview?.smartSummaryEnabledGroups ?? 0
 }
 
 function applyMailTemplate(key: 'register' | 'reset' | 'welcome', tpl?: MailTemplateSetting) {
@@ -668,6 +709,7 @@ function buildLinkMatePayload() {
     temperature: linkmateForm.temperature,
     dailyTokenLimit: linkmateForm.dailyTokenLimit,
     systemPrompt: linkmateForm.systemPrompt.trim() || undefined,
+    agentEnabled: linkmateForm.agentEnabled,
     sttApiKey: linkmateForm.sttApiKey.trim() || undefined,
     sttBaseUrl: linkmateForm.sttBaseUrl.trim(),
     sttModel: linkmateForm.sttModel.trim() || 'whisper-1',
@@ -675,6 +717,12 @@ function buildLinkMatePayload() {
     realtimeBaseUrl: linkmateForm.realtimeBaseUrl.trim(),
     realtimeModel: linkmateForm.realtimeModel.trim() || 'gpt-realtime',
     realtimeVoice: linkmateForm.realtimeVoice.trim() || 'marin',
+    groupLinkmateDefaultEnabled: linkmateForm.groupLinkmateDefaultEnabled,
+    groupAiProactiveDefaultEnabled: linkmateForm.groupAiProactiveDefaultEnabled,
+    groupAiSmartSummaryDefaultEnabled: linkmateForm.groupAiSmartSummaryDefaultEnabled,
+    groupAiDefaultInterestTopics: linkmateForm.groupAiDefaultInterestTopics.trim() || undefined,
+    groupAiDefaultSummaryInstruction:
+      linkmateForm.groupAiDefaultSummaryInstruction.trim() || undefined,
   }
 }
 
@@ -1496,6 +1544,10 @@ onMounted(load)
               <NFormItem :label="t('setting.linkmateEnabled')">
                 <NSwitch v-model:value="linkmateForm.enabled" />
               </NFormItem>
+              <NFormItem :label="t('setting.linkmateAgentEnabled')">
+                <NSwitch v-model:value="linkmateForm.agentEnabled" :disabled="!linkmateForm.enabled" />
+                <span class="field-hint">{{ t('setting.linkmateAgentEnabledHint') }}</span>
+              </NFormItem>
               <NFormItem :label="t('setting.linkmateBaseUrl')" required>
                 <NInput
                   v-model:value="linkmateForm.baseUrl"
@@ -1512,11 +1564,11 @@ onMounted(load)
                   />
                   <NTag
                     size="small"
-                    :type="linkmateForm.reasoningSupported ? 'success' : 'default'"
+                    :type="inferredReasoningSupported ? 'success' : 'default'"
                     :bordered="false"
                   >
                     {{
-                      linkmateForm.reasoningSupported
+                      inferredReasoningSupported
                         ? t('setting.linkmateReasoningSupported')
                         : t('setting.linkmateReasoningUnsupported')
                     }}
@@ -1666,6 +1718,66 @@ onMounted(load)
                     }}
                   </NTag>
                 </div>
+              </NFormItem>
+
+              <NDivider title-placement="left">{{ t('setting.linkmateGroupAiSection') }}</NDivider>
+              <p class="section-hint">{{ t('setting.linkmateGroupAiHint') }}</p>
+              <NGrid :cols="4" :x-gap="16" :y-gap="12" responsive="screen" item-responsive class="group-ai-overview">
+                <NGridItem span="4 m:1">
+                  <NStatistic :label="t('setting.groupAiTotalGroups')" :value="groupAiOverview.totalGroups" />
+                </NGridItem>
+                <NGridItem span="4 m:1">
+                  <NStatistic
+                    :label="t('setting.groupAiLinkmateEnabled')"
+                    :value="groupAiOverview.linkmateEnabledGroups"
+                  />
+                </NGridItem>
+                <NGridItem span="4 m:1">
+                  <NStatistic
+                    :label="t('setting.groupAiProactiveEnabled')"
+                    :value="groupAiOverview.proactiveEnabledGroups"
+                  />
+                </NGridItem>
+                <NGridItem span="4 m:1">
+                  <NStatistic
+                    :label="t('setting.groupAiSmartSummaryEnabled')"
+                    :value="groupAiOverview.smartSummaryEnabledGroups"
+                  />
+                </NGridItem>
+              </NGrid>
+
+              <NDivider title-placement="left">{{ t('setting.linkmateGroupAiDefaultsSection') }}</NDivider>
+              <p class="section-hint">{{ t('setting.linkmateGroupAiDefaultsHint') }}</p>
+              <NFormItem :label="t('setting.groupAiDefaultLinkmate')">
+                <NSwitch v-model:value="linkmateForm.groupLinkmateDefaultEnabled" />
+              </NFormItem>
+              <NFormItem :label="t('setting.groupAiDefaultProactive')">
+                <NSwitch v-model:value="linkmateForm.groupAiProactiveDefaultEnabled" />
+              </NFormItem>
+              <NFormItem :label="t('setting.groupAiDefaultSmartSummary')">
+                <NSwitch v-model:value="linkmateForm.groupAiSmartSummaryDefaultEnabled" />
+              </NFormItem>
+              <NFormItem :label="t('setting.groupAiDefaultInterestTopics')">
+                <NInput
+                  v-model:value="linkmateForm.groupAiDefaultInterestTopics"
+                  type="textarea"
+                  :rows="2"
+                  :maxlength="200"
+                  show-count
+                  :placeholder="t('setting.groupAiDefaultInterestTopicsPh')"
+                  style="max-width: 520px"
+                />
+              </NFormItem>
+              <NFormItem :label="t('setting.groupAiDefaultSummaryInstruction')">
+                <NInput
+                  v-model:value="linkmateForm.groupAiDefaultSummaryInstruction"
+                  type="textarea"
+                  :rows="3"
+                  :maxlength="500"
+                  show-count
+                  :placeholder="t('setting.groupAiDefaultSummaryInstructionPh')"
+                  style="max-width: 520px"
+                />
               </NFormItem>
 
               <NFormItem v-if="canEdit">

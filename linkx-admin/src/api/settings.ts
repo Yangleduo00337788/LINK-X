@@ -116,6 +116,7 @@ export interface LinkMateSideSetting {
   apiKeyConfigured?: boolean
   systemPrompt?: string
   reasoningSupported?: boolean
+  agentEnabled?: boolean
   sttBaseUrl?: string
   sttModel?: string
   sttApiKeyConfigured?: boolean
@@ -123,6 +124,23 @@ export interface LinkMateSideSetting {
   realtimeModel?: string
   realtimeVoice?: string
   realtimeApiKeyConfigured?: boolean
+  groupAiDefaults?: GroupAiDefaultsSetting
+  groupAiOverview?: GroupAiOverviewSetting
+}
+
+export interface GroupAiDefaultsSetting {
+  linkmateEnabled?: boolean
+  proactiveEnabled?: boolean
+  smartSummaryEnabled?: boolean
+  interestTopics?: string
+  summaryInstruction?: string
+}
+
+export interface GroupAiOverviewSetting {
+  totalGroups?: number
+  linkmateEnabledGroups?: number
+  proactiveEnabledGroups?: number
+  smartSummaryEnabledGroups?: number
 }
 
 export interface AdminSetting {
@@ -238,13 +256,32 @@ export type TestStorageConnectionPayload = StorageUpdatePayload
 export type LinkMateUpdatePayload = Required<
   Pick<
     LinkMateSideSetting,
-    'enabled' | 'baseUrl' | 'model' | 'maxTokens' | 'temperature' | 'dailyTokenLimit'
+    | 'enabled'
+    | 'baseUrl'
+    | 'model'
+    | 'maxTokens'
+    | 'temperature'
+    | 'dailyTokenLimit'
+    | 'agentEnabled'
   >
 > &
-  Pick<LinkMateSideSetting, 'systemPrompt' | 'sttBaseUrl' | 'sttModel' | 'realtimeBaseUrl' | 'realtimeModel' | 'realtimeVoice'> & {
+  Pick<
+    LinkMateSideSetting,
+    | 'systemPrompt'
+    | 'sttBaseUrl'
+    | 'sttModel'
+    | 'realtimeBaseUrl'
+    | 'realtimeModel'
+    | 'realtimeVoice'
+  > & {
     apiKey?: string
     sttApiKey?: string
     realtimeApiKey?: string
+    groupLinkmateDefaultEnabled: boolean
+    groupAiProactiveDefaultEnabled: boolean
+    groupAiSmartSummaryDefaultEnabled: boolean
+    groupAiDefaultInterestTopics?: string
+    groupAiDefaultSummaryInstruction?: string
   }
 
 export type TestLinkMateConnectionPayload = LinkMateUpdatePayload
