@@ -40,18 +40,23 @@ function scoreSessionMatch(session: ChatSession, query: string): number {
   if (!session.isGroup && displayName === q) score += 90
   if (session.isGroup && (displayName === q || groupName === q || groupRemark === q)) score += 70
 
-  if (displayName.includes(q) || groupName.includes(q) || groupRemark.includes(q)) {
+  const titleIncludes =
+    displayName.includes(q) || groupName.includes(q) || groupRemark.includes(q)
+  const partExact =
+    session.isGroup &&
+    splitGroupTitle(session.name).some(part => normalizeName(part) === q)
+
+  if (titleIncludes || partExact) {
     score += 28
     if (session.isGroup) {
-      const parts = splitGroupTitle(session.name)
-      const partExact = parts.some(part => normalizeName(part) === q)
       if (partExact) score += 12
-      else score -= 35
+      else if (!titleIncludes) score -= 35
+    } else if (query.length <= 10) {
+      score += 30
     }
+  } else if (session.isGroup && query.length <= 10) {
+    score -= 8
   }
-
-  if (!session.isGroup && query.length <= 10) score += 30
-  if (session.isGroup && query.length <= 10) score -= 8
 
   if (isVirtualSession(session)) score -= 1000
   return score

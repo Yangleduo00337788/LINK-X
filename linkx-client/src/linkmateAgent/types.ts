@@ -65,6 +65,8 @@ export interface LinkMateAgentCursorState {
 export interface LinkMateAgentRunState {
   phase: LinkMateAgentPhase
   currentAction: LinkMateAgentAction | null
+  /** SSE 流式 tool_call 预览（规划阶段） */
+  plannedActions: LinkMateAgentAction[]
   queue: LinkMateAgentAction[]
   completed: Array<{ action: LinkMateAgentAction; result: LinkMateActionResult }>
   cancelled: boolean

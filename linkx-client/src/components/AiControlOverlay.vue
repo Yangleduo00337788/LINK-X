@@ -8,21 +8,26 @@ import { storeToRefs } from 'pinia'
 import { NIcon } from 'naive-ui'
 import { SparklesOutline, CloseOutline } from '@vicons/ionicons5'
 import { useLinkMateAgentStore } from '../stores/linkmateAgent'
+import { useLinkMateStore } from '../stores/linkmate'
 import { useI18n } from '../i18n'
 import { lxZ } from '../theme/vars'
 
 const { t } = useI18n()
 const agentStore = useLinkMateAgentStore()
-const { run, currentStepLabel } = storeToRefs(agentStore)
+const linkMateStore = useLinkMateStore()
+const { run, currentStepLabel, plannedStepLabels } = storeToRefs(agentStore)
 
 const visible = computed(() => run.value.phase !== 'idle')
+const isPlanning = computed(() => run.value.phase === 'planning')
 const isConfirming = computed(() => run.value.phase === 'confirming')
 const isExecuting = computed(() => run.value.phase === 'executing')
 const showNeon = computed(() => isExecuting.value || isConfirming.value)
 
-const bannerTitle = computed(() =>
-  isConfirming.value ? t('linkmateAgent.waitConfirm') : t('linkmateAgent.helpingOperation')
-)
+const bannerTitle = computed(() => {
+  if (isPlanning.value) return t('linkmateAgent.planningTitle')
+  if (isConfirming.value) return t('linkmateAgent.waitConfirm')
+  return t('linkmateAgent.helpingOperation')
+})
 
 const bannerSubtitle = computed(() => currentStepLabel.value)
 
@@ -32,6 +37,11 @@ const cursorStyle = computed(() => ({
 }))
 
 function cancelAll() {
+  if (isPlanning.value) {
+    linkMateStore.abortStream()
+    agentStore.clearPlanning()
+    return
+  }
   agentStore.cancelRun()
 }
 
@@ -64,7 +74,7 @@ function reject() {
 
       <div
         class="lm-agent-banner"
-        :class="{ 'is-confirming': isConfirming, 'is-executing': isExecuting }"
+        :class="{ 'is-confirming': isConfirming, 'is-executing': isExecuting, 'is-planning': isPlanning }"
       >
         <div class="lm-agent-banner__neon" aria-hidden="true" />
         <div class="lm-agent-banner__pulse" aria-hidden="true" />
@@ -74,7 +84,10 @@ function reject() {
         <div class="lm-agent-banner__text">
           <p class="lm-agent-banner__title">{{ bannerTitle }}</p>
           <p v-if="bannerSubtitle" class="lm-agent-banner__step">{{ bannerSubtitle }}</p>
-          <p v-if="run.thinkingText && (isExecuting || isConfirming)" class="lm-agent-banner__thinking">
+          <ul v-if="isPlanning && plannedStepLabels.length" class="lm-agent-banner__plan-list">
+            <li v-for="(label, index) in plannedStepLabels" :key="index">{{ label }}</li>
+          </ul>
+          <p v-if="run.thinkingText && (isExecuting || isConfirming || isPlanning)" class="lm-agent-banner__thinking">
             <span class="lm-agent-banner__thinking-dot" />
             {{ run.thinkingText }}
           </p>
@@ -295,6 +308,26 @@ function reject() {
   font-size: 13px;
   font-weight: 600;
   color: var(--lx-text-primary);
+}
+
+.lm-agent-banner.is-planning {
+  border-color: color-mix(in srgb, var(--lx-accent) 40%, var(--lx-border));
+}
+
+.lm-agent-banner__plan-list {
+  margin: 4px 0 0;
+  padding: 0 0 0 16px;
+  font-size: 12px;
+  color: var(--lx-text-secondary);
+  line-height: 1.5;
+  max-height: 96px;
+  overflow-y: auto;
+}
+
+.lm-agent-banner__plan-list li {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .lm-agent-banner__step {

@@ -70,6 +70,7 @@ export const useLinkMateAgentStore = defineStore('linkmateAgent', {
     run: {
       phase: 'idle',
       currentAction: null,
+      plannedActions: [],
       queue: [],
       completed: [],
       cancelled: false,
@@ -82,8 +83,14 @@ export const useLinkMateAgentStore = defineStore('linkmateAgent', {
     isRunning(state): boolean {
       return state.run.phase === 'executing' || state.run.phase === 'confirming'
     },
+    isPlanning(state): boolean {
+      return state.run.phase === 'planning'
+    },
     isActive(state): boolean {
       return state.run.phase !== 'idle'
+    },
+    plannedStepLabels(state): string[] {
+      return state.run.plannedActions.map(action => describeLinkMateAction(action))
     },
     currentStepLabel(state): string {
       if (!state.run.currentAction) return ''
@@ -130,12 +137,49 @@ export const useLinkMateAgentStore = defineStore('linkmateAgent', {
       this.run = {
         phase: 'idle',
         currentAction: null,
+        plannedActions: [],
         queue: [],
         completed: [],
         cancelled: false,
         thinkingText: '',
         cursor: createDefaultCursor()
       }
+    },
+
+    beginPlanning() {
+      this.run.plannedActions = []
+      this.run.phase = 'planning'
+      this.run.thinkingText = t('linkmateAgent.planningActions')
+    },
+
+    clearPlanning() {
+      this.run.plannedActions = []
+      if (this.run.phase === 'planning') {
+        this.run.phase = 'idle'
+        this.run.thinkingText = ''
+      }
+    },
+
+    previewToolCall(payload: { id: string; name: string; arguments: string }) {
+      const action = parseAgentAction({
+        id: payload.id,
+        name: payload.name,
+        arguments: payload.arguments
+      })
+      if (!action) return
+      if (this.run.phase !== 'planning' && this.run.phase !== 'idle') return
+
+      if (this.run.phase === 'idle') {
+        this.beginPlanning()
+      }
+
+      const idx = this.run.plannedActions.findIndex(item => item.id === action.id)
+      if (idx >= 0) {
+        this.run.plannedActions[idx] = action
+      } else {
+        this.run.plannedActions.push(action)
+      }
+      this.run.thinkingText = t('linkmateAgent.planningActions')
     },
 
     cancelRun() {

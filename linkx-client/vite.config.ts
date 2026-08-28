@@ -126,7 +126,7 @@ export default defineConfig(({ mode, command }) => {
         : null
     ].filter(Boolean),
     test: {
-      environment: 'node',
+      environment: 'happy-dom',
       include: ['src/**/*.test.ts']
     }
   }

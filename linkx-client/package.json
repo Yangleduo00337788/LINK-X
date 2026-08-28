@@ -26,7 +26,10 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:agent-benchmark": "vitest run src/linkmateAgent/benchmark/benchmark.test.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install chromium"
   },
   "dependencies": {
     "@vicons/ionicons5": "^0.12.0",
@@ -41,12 +44,14 @@
     "vueuc": "^0.4.65"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@types/dompurify": "^3.0.5",
     "@types/marked": "^5.0.2",
     "@vitejs/plugin-vue": "^5.0.4",
     "dompurify": "^3.4.11",
     "electron": "^43.4.0",
     "electron-builder": "^26.15.3",
+    "happy-dom": "^15.11.7",
     "marked": "^18.0.5",
     "prettier": "^3.6.2",
     "rcedit": "^5.0.1",

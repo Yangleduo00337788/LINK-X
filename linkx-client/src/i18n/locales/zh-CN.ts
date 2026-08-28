@@ -889,6 +889,8 @@ export default {
     modeOff: '开启代操：允许灵伴执行页面操作',
     enabled: '已开启灵伴代操模式',
     disabled: '已关闭灵伴代操模式',
+    planningTitle: '灵伴正在规划操作',
+    planningActions: '正在规划操作步骤…',
     executing: '灵伴正在为你操作…',
     helpingOperation: '正在帮助操作',
     waitConfirm: '等待你确认操作…',

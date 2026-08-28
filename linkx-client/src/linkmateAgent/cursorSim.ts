@@ -129,6 +129,18 @@ function findSearchBar(): Element | null {
   return el
 }
 
+function findCalendarAddButton(): Element | null {
+  const el = document.querySelector('[data-lm-calendar-add]')
+  revealElement(el)
+  return el
+}
+
+function findFavoritesAddButton(): Element | null {
+  const el = document.querySelector('[data-lm-favorites-add]')
+  revealElement(el)
+  return el
+}
+
 function viewportFallback(): LinkMateCursorPoint {
   return {
     x: window.innerWidth * 0.55,
@@ -231,11 +243,13 @@ export function buildCursorSteps(action: LinkMateAgentAction): LinkMateCursorSte
 
   if (action.name === 'create_calendar_event') {
     push(findNavButton('calendar'), true, 620)
+    push(findCalendarAddButton(), true, 580)
     return steps
   }
 
   if (action.name === 'add_favorite') {
     push(findNavButton('favorites'), true, 620)
+    push(findFavoritesAddButton(), true, 580)
     return steps
   }
 

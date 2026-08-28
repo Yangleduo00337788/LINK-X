@@ -277,6 +277,7 @@ async function saveEvent() {
           <label class="form-label">{{ t('calendar.titlePh') }}</label>
           <n-input
             v-model:value="formTitle"
+            data-lm-calendar-event-title
             :placeholder="t('calendar.titlePh')"
             maxlength="100"
             show-count
@@ -335,7 +336,7 @@ async function saveEvent() {
 
       <footer class="modal-footer">
         <LxButton variant="modal" :disabled="saving" @click="closeModal">{{ t('common.cancel') }}</LxButton>
-        <LxButton variant="modal-primary" :disabled="saving" @click="saveEvent">
+        <LxButton variant="modal-primary" data-lm-calendar-event-save :disabled="saving" @click="saveEvent">
           {{ t('common.save') }}
         </LxButton>
       </footer>

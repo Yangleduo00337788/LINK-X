@@ -456,7 +456,7 @@ function onTagContextMenu(e: MouseEvent, tag: { id: string; key: string; preset:
             <n-icon :component="SearchOutline" :size="16" />
           </template>
         </n-input>
-        <LxButton variant="pill-primary" @click="openNewNote">
+        <LxButton variant="pill-primary" data-lm-favorites-add @click="openNewNote">
           <n-icon :component="AddOutline" :size="16" />
           {{ t('favorites.newNote') }}
         </LxButton>

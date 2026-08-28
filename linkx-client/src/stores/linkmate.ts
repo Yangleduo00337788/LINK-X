@@ -641,8 +641,13 @@ export const useLinkMateStore = defineStore('linkmate', {
         assistantContent += chunk
         this.updateAssistantContent(sessionId, assistantId, assistantContent)
       })
+      const agentMode = !!request.agentMode
 
       try {
+        if (agentMode) {
+          useLinkMateAgentStore().beginPlanning()
+        }
+
         await linkmateApi.streamChat(
           request,
           {
@@ -677,6 +682,15 @@ export const useLinkMateStore = defineStore('linkmate', {
                 }
               }
               batchContent.push(chunk)
+            },
+            onToolCall: payload => {
+              if (!agentMode) return
+              const id = typeof payload.id === 'string' ? payload.id : ''
+              const name = typeof payload.name === 'string' ? payload.name : ''
+              const args = typeof payload.arguments === 'string' ? payload.arguments : ''
+              if (id && name) {
+                useLinkMateAgentStore().previewToolCall({ id, name, arguments: args })
+              }
             },
             onDone: (messageId, sid, totalTokens, actions) => {
               batchReasoning.flush()
@@ -735,6 +749,12 @@ export const useLinkMateStore = defineStore('linkmate', {
         this.streaming = false
         if (this.streamAbort === abortController) {
           this.streamAbort = null
+        }
+        if (agentMode) {
+          const agentStore = useLinkMateAgentStore()
+          if (agentStore.run.phase === 'planning') {
+            agentStore.clearPlanning()
+          }
         }
         void this.loadStatus()
       }

@@ -889,6 +889,8 @@ export default {
     modeOff: 'Enable agent mode to allow UI actions',
     enabled: 'LinkMate agent mode enabled',
     disabled: 'LinkMate agent mode disabled',
+    planningTitle: 'LinkMate is planning actions',
+    planningActions: 'Planning operation steps…',
     executing: 'LinkMate is performing actions for you…',
     helpingOperation: 'Helping with the operation…',
     waitConfirm: 'Waiting for your confirmation…',

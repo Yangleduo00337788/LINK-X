@@ -65,4 +65,18 @@ describe('linkmateSse', () => {
     parseLinkMateSseEvent('event: delta\ndata: "{\\"content\\":\\"ok\\"}"\n\n', { onDelta })
     expect(onDelta).toHaveBeenCalledWith('ok')
   })
+
+  it('parses done event with agent actions', () => {
+    const onDone = vi.fn()
+    parseLinkMateSseEvent(
+      'event: done\ndata: {"messageId":"m1","sessionId":"s1","totalTokens":"64","actions":[{"id":"c1","name":"navigate","arguments":"{\\"nav\\":\\"chat\\"}"}]}\n\n',
+      { onDone }
+    )
+    expect(onDone).toHaveBeenCalledWith({
+      messageId: 'm1',
+      sessionId: 's1',
+      totalTokens: '64',
+      actions: [{ id: 'c1', name: 'navigate', arguments: '{"nav":"chat"}' }]
+    })
+  })
 })

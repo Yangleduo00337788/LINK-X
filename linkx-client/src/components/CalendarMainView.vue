@@ -317,7 +317,7 @@ const agendaList = computed(() => (showWeekList.value ? weekEvents.value : event
       <div class="toolbar-left">
         <n-icon :component="CalendarOutline" :size="20" class="brand-icon" />
         <span class="page-name">{{ t('calendar.title') }}</span>
-        <LxButton variant="sm-primary" class="create-btn" @click="openAddForm">
+        <LxButton variant="sm-primary" class="create-btn" data-lm-calendar-add @click="openAddForm">
           <n-icon :component="AddOutline" />
           {{ t('calendar.newEvent') }}
         </LxButton>
