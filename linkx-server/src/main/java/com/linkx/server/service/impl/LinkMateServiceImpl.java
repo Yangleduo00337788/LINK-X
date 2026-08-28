@@ -188,6 +188,7 @@ public class LinkMateServiceImpl implements LinkMateService {
                 .dailyTokenUsed(getDailyTokenUsed(userId))
                 .deepThinkingSupported(cfg.isReasoningSupported())
                 .voiceCallSupported(enabled && realtimeClient.isConfigured())
+                .agentEnabled(enabled && cfg.isAgentEnabled())
                 .build();
     }
 
@@ -275,7 +276,7 @@ public class LinkMateServiceImpl implements LinkMateService {
             saveUserMessage(userId, session, userMessage);
         }
         List<LlmMessage> context = buildLlmContext(
-                session.getId(), dto.getImContext(), Boolean.TRUE.equals(dto.getAgentMode()), dto.getClientContext());
+                session.getId(), dto.getImContext(), resolveAgentMode(dto), dto.getClientContext());
         int estimatedTokens = estimatePromptTokens(context);
         int reservedTokens = reserveDailyTokens(userId, estimatedTokens);
         try {
@@ -308,7 +309,7 @@ public class LinkMateServiceImpl implements LinkMateService {
             userMessageId = saveUserMessage(userId, session, userMessage).getId();
         }
         List<LlmMessage> context = buildLlmContext(
-                session.getId(), dto.getImContext(), Boolean.TRUE.equals(dto.getAgentMode()), dto.getClientContext());
+                session.getId(), dto.getImContext(), resolveAgentMode(dto), dto.getClientContext());
         int estimatedTokens = estimatePromptTokens(context);
         int reservedTokens;
         try {
@@ -356,7 +357,7 @@ public class LinkMateServiceImpl implements LinkMateService {
                 sendSse(emitter, "start", startPayload);
                 boolean deepThinking = Boolean.TRUE.equals(dto.getDeepThinking())
                         && linkxProperties.getLinkmate().isReasoningSupported();
-                boolean agentMode = Boolean.TRUE.equals(dto.getAgentMode());
+                boolean agentMode = resolveAgentMode(dto);
                 ArrayNode tools = agentMode ? linkMateAgentTools.buildToolsArray() : null;
                 StreamResult result = llmClient.streamChat(
                         context,
@@ -1139,6 +1140,11 @@ public class LinkMateServiceImpl implements LinkMateService {
         }
     }
 
+    private boolean resolveAgentMode(LinkMateChatDTO dto) {
+        return Boolean.TRUE.equals(dto.getAgentMode())
+                && linkxProperties.getLinkmate().isAgentEnabled();
+    }
+
     private List<LlmMessage> buildLlmContext(
             Long sessionId,
             LinkMateImContextDTO imContext,
@@ -1228,11 +1234,15 @@ public class LinkMateServiceImpl implements LinkMateService {
             return null;
         }
         if (!StringUtils.hasText(clientContext.getCurrentNav())
-                && !StringUtils.hasText(clientContext.getCurrentSessionId())) {
+                && !StringUtils.hasText(clientContext.getCurrentSessionId())
+                && !StringUtils.hasText(clientContext.getTodayDate())) {
             return null;
         }
         StringBuilder sb = new StringBuilder();
         sb.append("用户当前 LinkX 客户端状态：\n");
+        if (StringUtils.hasText(clientContext.getTodayDate())) {
+            sb.append("客户端本地今天：").append(clientContext.getTodayDate().trim()).append('\n');
+        }
         if (StringUtils.hasText(clientContext.getCurrentNav())) {
             sb.append("当前页面：").append(clientContext.getCurrentNav().trim()).append('\n');
         }

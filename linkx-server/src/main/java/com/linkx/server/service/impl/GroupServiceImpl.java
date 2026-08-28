@@ -4,6 +4,7 @@ package com.linkx.server.service.impl;
 /**
  * 作者：yangleduo
  */
+import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.controller.dto.AddGroupMembersDTO;
 import com.linkx.server.controller.dto.CreateGroupDTO;
 import com.linkx.server.controller.dto.MuteAllDTO;
@@ -82,6 +83,7 @@ public class GroupServiceImpl implements GroupService {
     private final GroupInvitationMapper groupInvitationMapper;
     private final com.linkx.server.repository.ImMessageRepository imMessageRepository;
     private final com.linkx.server.service.FileStorageService fileStorageService;
+    private final LinkxProperties linkxProperties;
 
     private static final String NOTIFY_TYPE_GROUP_JOIN_REQUEST = "group_join_request";
     /** 群成员上限（默认 500，与审查建议一致） */
@@ -121,13 +123,18 @@ public class GroupServiceImpl implements GroupService {
             throw new CustomException(400, "群成员不得超过 " + MAX_GROUP_MEMBERS + " 人");
         }
 
-        // 创建群会话
+        // 创建群会话（应用管理端默认策略）
+        LinkxProperties.GroupAi groupAiDefaults = linkxProperties.getGroupAi();
         ImConversation group = ImConversation.builder()
                 .type(ImConversation.TYPE_GROUP)
                 .name(dto.getName())
                 .ownerId(userId)
                 .muteAll(0)
-                .linkmateEnabled(1)
+                .linkmateEnabled(groupAiDefaults.isLinkmateDefaultEnabled() ? 1 : 0)
+                .groupAiProactiveEnabled(groupAiDefaults.isProactiveDefaultEnabled() ? 1 : 0)
+                .groupAiSmartSummaryEnabled(groupAiDefaults.isSmartSummaryDefaultEnabled() ? 1 : 0)
+                .groupAiInterestTopics(trimToNull(groupAiDefaults.getDefaultInterestTopics()))
+                .groupAiSummaryInstruction(trimToNull(groupAiDefaults.getDefaultSummaryInstruction()))
                 .deleted(0)
                 .build();
         conversationMapper.insert(group);
@@ -1586,5 +1593,13 @@ public class GroupServiceImpl implements GroupService {
 
         SysUser owner = sysUserMapper.selectOneById(group.getOwnerId());
         return toGroupConversationVO(group, owner, userId);
+    }
+
+    private static String trimToNull(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 }

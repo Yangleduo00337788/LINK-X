@@ -21,8 +21,10 @@ import com.linkx.server.controller.admin.dto.SecuritySettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.StorageSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.TestStorageConnectionDTO;
 import com.linkx.server.controller.admin.vo.AdminSettingVO;
+import com.linkx.server.entity.ImConversation;
 import com.linkx.server.entity.SysRuntimeSetting;
 import com.linkx.server.exception.CustomException;
+import com.linkx.server.mapper.ImConversationMapper;
 import com.linkx.server.mapper.SysRuntimeSettingMapper;
 import com.linkx.server.service.EmailService;
 import com.linkx.server.service.admin.AdminSettingService;
@@ -32,6 +34,7 @@ import com.linkx.server.service.linkmate.LinkMateModelCapability;
 import com.linkx.server.storage.ObjectStorageRouter;
 import com.linkx.server.storage.StorageProviderType;
 import com.linkx.server.util.AppVersionUtils;
+import com.mybatisflex.core.query.QueryWrapper;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -54,6 +57,7 @@ public class AdminSettingServiceImpl implements AdminSettingService {
     private final Environment environment;
     private final ObjectStorageRouter objectStorageRouter;
     private final LinkMateLlmClient linkMateLlmClient;
+    private final ImConversationMapper conversationMapper;
 
     @PostConstruct
     public void loadOverridesFromDb() {
@@ -477,9 +481,16 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         if (StringUtils.hasText(dto.getRealtimeApiKey())) {
             row.setLinkmateRealtimeApiKey(dto.getRealtimeApiKey().trim());
         }
+        row.setLinkmateAgentEnabled(Boolean.TRUE.equals(dto.getAgentEnabled()));
+        row.setGroupLinkmateDefaultEnabled(Boolean.TRUE.equals(dto.getGroupLinkmateDefaultEnabled()));
+        row.setGroupAiProactiveDefaultEnabled(Boolean.TRUE.equals(dto.getGroupAiProactiveDefaultEnabled()));
+        row.setGroupAiSmartSummaryDefaultEnabled(Boolean.TRUE.equals(dto.getGroupAiSmartSummaryDefaultEnabled()));
+        row.setGroupAiDefaultInterestTopics(trimOrNull(dto.getGroupAiDefaultInterestTopics()));
+        row.setGroupAiDefaultSummaryInstruction(trimOrNull(dto.getGroupAiDefaultSummaryInstruction()));
         row.setUpdateBy(operatorId);
         persist(row);
         applyLinkMateSide(row);
+        applyGroupAiSide(row);
         return getSettings();
     }
 
@@ -813,6 +824,12 @@ public class AdminSettingServiceImpl implements AdminSettingService {
                 .linkmateRealtimeVoice(StringUtils.hasText(linkxProperties.getLinkmate().getRealtimeVoice())
                         ? linkxProperties.getLinkmate().getRealtimeVoice()
                         : "marin")
+                .linkmateAgentEnabled(linkxProperties.getLinkmate().isAgentEnabled())
+                .groupLinkmateDefaultEnabled(linkxProperties.getGroupAi().isLinkmateDefaultEnabled())
+                .groupAiProactiveDefaultEnabled(linkxProperties.getGroupAi().isProactiveDefaultEnabled())
+                .groupAiSmartSummaryDefaultEnabled(linkxProperties.getGroupAi().isSmartSummaryDefaultEnabled())
+                .groupAiDefaultInterestTopics(trimOrNull(linkxProperties.getGroupAi().getDefaultInterestTopics()))
+                .groupAiDefaultSummaryInstruction(trimOrNull(linkxProperties.getGroupAi().getDefaultSummaryInstruction()))
                 .updateBy(operatorId)
                 .build();
     }
@@ -838,6 +855,7 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         applySecuritySide(row);
         applyStorageSide(row);
         applyLinkMateSide(row);
+        applyGroupAiSide(row);
         if (row.getMailHost() != null) {
             mailSenderHolder.reload();
         }
@@ -1150,6 +1168,7 @@ public class AdminSettingServiceImpl implements AdminSettingService {
 
     private AdminSettingVO.LinkMateSide buildLinkMateSide() {
         LinkxProperties.LinkMate cfg = linkxProperties.getLinkmate();
+        LinkxProperties.GroupAi groupAi = linkxProperties.getGroupAi();
         return AdminSettingVO.LinkMateSide.builder()
                 .enabled(cfg.isEnabled())
                 .baseUrl(cfg.getBaseUrl())
@@ -1170,7 +1189,38 @@ public class AdminSettingServiceImpl implements AdminSettingService {
                 .realtimeApiKeyConfigured(StringUtils.hasText(cfg.getRealtimeApiKey())
                         || (StringUtils.hasText(cfg.getRealtimeBaseUrl())
                         && StringUtils.hasText(cfg.getApiKey())))
+                .agentEnabled(cfg.isAgentEnabled())
+                .groupAiDefaults(AdminSettingVO.GroupAiDefaultsSide.builder()
+                        .linkmateEnabled(groupAi.isLinkmateDefaultEnabled())
+                        .proactiveEnabled(groupAi.isProactiveDefaultEnabled())
+                        .smartSummaryEnabled(groupAi.isSmartSummaryDefaultEnabled())
+                        .interestTopics(groupAi.getDefaultInterestTopics())
+                        .summaryInstruction(groupAi.getDefaultSummaryInstruction())
+                        .build())
+                .groupAiOverview(buildGroupAiOverview())
                 .build();
+    }
+
+    private AdminSettingVO.GroupAiOverviewSide buildGroupAiOverview() {
+        long total = conversationMapper.selectCountByQuery(groupConversationQuery());
+        long linkmateEnabled = conversationMapper.selectCountByQuery(
+                groupConversationQuery().eq(ImConversation::getLinkmateEnabled, 1));
+        long proactiveEnabled = conversationMapper.selectCountByQuery(
+                groupConversationQuery().eq(ImConversation::getGroupAiProactiveEnabled, 1));
+        long smartSummaryEnabled = conversationMapper.selectCountByQuery(
+                groupConversationQuery().eq(ImConversation::getGroupAiSmartSummaryEnabled, 1));
+        return AdminSettingVO.GroupAiOverviewSide.builder()
+                .totalGroups(total)
+                .linkmateEnabledGroups(linkmateEnabled)
+                .proactiveEnabledGroups(proactiveEnabled)
+                .smartSummaryEnabledGroups(smartSummaryEnabled)
+                .build();
+    }
+
+    private QueryWrapper groupConversationQuery() {
+        return QueryWrapper.create()
+                .eq(ImConversation::getType, ImConversation.TYPE_GROUP)
+                .eq(ImConversation::getDeleted, 0);
     }
 
     private void applyLinkMateSide(SysRuntimeSetting row) {
@@ -1231,8 +1281,31 @@ public class AdminSettingServiceImpl implements AdminSettingService {
                     ? row.getLinkmateRealtimeVoice().trim()
                     : "marin");
         }
-        log.info("Applied linkmate settings: enabled={}, model={}, baseUrl={}, sttBaseUrl={}, realtimeBaseUrl={}",
-                cfg.isEnabled(), cfg.getModel(), cfg.getBaseUrl(), cfg.getSttBaseUrl(), cfg.getRealtimeBaseUrl());
+        if (row.getLinkmateAgentEnabled() != null) {
+            cfg.setAgentEnabled(Boolean.TRUE.equals(row.getLinkmateAgentEnabled()));
+        }
+        log.info("Applied linkmate settings: enabled={}, model={}, baseUrl={}, sttBaseUrl={}, realtimeBaseUrl={}, agentEnabled={}",
+                cfg.isEnabled(), cfg.getModel(), cfg.getBaseUrl(), cfg.getSttBaseUrl(), cfg.getRealtimeBaseUrl(),
+                cfg.isAgentEnabled());
+    }
+
+    private void applyGroupAiSide(SysRuntimeSetting row) {
+        LinkxProperties.GroupAi groupAi = linkxProperties.getGroupAi();
+        if (row.getGroupLinkmateDefaultEnabled() != null) {
+            groupAi.setLinkmateDefaultEnabled(Boolean.TRUE.equals(row.getGroupLinkmateDefaultEnabled()));
+        }
+        if (row.getGroupAiProactiveDefaultEnabled() != null) {
+            groupAi.setProactiveDefaultEnabled(Boolean.TRUE.equals(row.getGroupAiProactiveDefaultEnabled()));
+        }
+        if (row.getGroupAiSmartSummaryDefaultEnabled() != null) {
+            groupAi.setSmartSummaryDefaultEnabled(Boolean.TRUE.equals(row.getGroupAiSmartSummaryDefaultEnabled()));
+        }
+        if (row.getGroupAiDefaultInterestTopics() != null) {
+            groupAi.setDefaultInterestTopics(nullToEmpty(row.getGroupAiDefaultInterestTopics()));
+        }
+        if (row.getGroupAiDefaultSummaryInstruction() != null) {
+            groupAi.setDefaultSummaryInstruction(nullToEmpty(row.getGroupAiDefaultSummaryInstruction()));
+        }
     }
 
     private void applyLinkMateForTest(LinkMateSettingUpdateDTO dto) {

@@ -79,6 +79,42 @@ public class AdminSettingVO {
         private String realtimeVoice;
         @Schema(description = "Realtime API Key 是否已配置（不回传明文）")
         private Boolean realtimeApiKeyConfigured;
+        @Schema(description = "是否允许客户端使用 Agent 模式")
+        private Boolean agentEnabled;
+        @Schema(description = "群 AI 新建群默认策略")
+        private GroupAiDefaultsSide groupAiDefaults;
+        @Schema(description = "群 AI 功能启用概览（只读）")
+        private GroupAiOverviewSide groupAiOverview;
+    }
+
+    @Data
+    @Builder
+    @Schema(description = "群 AI 新建群默认策略")
+    public static class GroupAiDefaultsSide {
+        @Schema(description = "新建群是否默认开启灵伴")
+        private Boolean linkmateEnabled;
+        @Schema(description = "新建群是否默认开启主动发言")
+        private Boolean proactiveEnabled;
+        @Schema(description = "新建群是否默认开启智能总结")
+        private Boolean smartSummaryEnabled;
+        @Schema(description = "新建群默认关注话题")
+        private String interestTopics;
+        @Schema(description = "新建群默认总结指令")
+        private String summaryInstruction;
+    }
+
+    @Data
+    @Builder
+    @Schema(description = "群 AI 功能启用概览")
+    public static class GroupAiOverviewSide {
+        @Schema(description = "群聊总数")
+        private Long totalGroups;
+        @Schema(description = "已开启灵伴的群数")
+        private Long linkmateEnabledGroups;
+        @Schema(description = "已开启主动发言的群数")
+        private Long proactiveEnabledGroups;
+        @Schema(description = "已开启智能总结的群数")
+        private Long smartSummaryEnabledGroups;
     }
 
     @Data

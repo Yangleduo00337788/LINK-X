@@ -28,4 +28,7 @@ public class LinkMateStatusVO {
 
     /** 是否已配置 Realtime，可发起灵伴语音通话 */
     private boolean voiceCallSupported;
+
+    /** 是否允许客户端使用 Agent 模式 */
+    private boolean agentEnabled;
 }

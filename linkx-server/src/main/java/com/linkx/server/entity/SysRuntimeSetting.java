@@ -196,6 +196,24 @@ public class SysRuntimeSetting implements Serializable {
     /** Realtime 音色 */
     private String linkmateRealtimeVoice;
 
+    /** 灵伴 Agent 全局开关 */
+    private Boolean linkmateAgentEnabled;
+
+    /** 新建群默认开启灵伴 */
+    private Boolean groupLinkmateDefaultEnabled;
+
+    /** 新建群默认开启群 AI 主动发言 */
+    private Boolean groupAiProactiveDefaultEnabled;
+
+    /** 新建群默认开启群 AI 智能总结 */
+    private Boolean groupAiSmartSummaryDefaultEnabled;
+
+    /** 新建群默认关注话题 */
+    private String groupAiDefaultInterestTopics;
+
+    /** 新建群默认总结指令 */
+    private String groupAiDefaultSummaryInstruction;
+
     private Long updateBy;
 
     @Column(onInsertValue = "NOW()")

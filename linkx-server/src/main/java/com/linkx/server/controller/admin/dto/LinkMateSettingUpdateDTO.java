@@ -11,6 +11,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 @Data
@@ -73,4 +74,28 @@ public class LinkMateSettingUpdateDTO {
 
     @Schema(description = "Realtime 输出音色，如 marin")
     private String realtimeVoice;
+
+    @NotNull
+    @Schema(description = "是否允许客户端使用 Agent 模式")
+    private Boolean agentEnabled;
+
+    @NotNull
+    @Schema(description = "新建群是否默认开启灵伴")
+    private Boolean groupLinkmateDefaultEnabled;
+
+    @NotNull
+    @Schema(description = "新建群是否默认开启群 AI 主动发言")
+    private Boolean groupAiProactiveDefaultEnabled;
+
+    @NotNull
+    @Schema(description = "新建群是否默认开启群 AI 智能总结")
+    private Boolean groupAiSmartSummaryDefaultEnabled;
+
+    @Size(max = 200)
+    @Schema(description = "新建群默认关注话题")
+    private String groupAiDefaultInterestTopics;
+
+    @Size(max = 500)
+    @Schema(description = "新建群默认总结指令")
+    private String groupAiDefaultSummaryInstruction;
 }

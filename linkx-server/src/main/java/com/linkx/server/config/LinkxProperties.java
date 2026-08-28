@@ -35,7 +35,25 @@ public class LinkxProperties {
     private final RiskPolicy riskPolicy = new RiskPolicy();
     private final MessageEncryption messageEncryption = new MessageEncryption();
     private final LinkMate linkmate = new LinkMate();
+    private final GroupAi groupAi = new GroupAi();
     private final ShortVideo shortVideo = new ShortVideo();
+
+    /**
+     * 群聊灵伴 / 群 AI 新建群默认策略（管理端配置）。
+     */
+    @Data
+    public static class GroupAi {
+        /** 新建群是否默认开启 @灵伴 */
+        private boolean linkmateDefaultEnabled = true;
+        /** 新建群是否默认开启主动发言 */
+        private boolean proactiveDefaultEnabled = false;
+        /** 新建群是否默认开启智能总结 */
+        private boolean smartSummaryDefaultEnabled = false;
+        /** 新建群默认关注话题 */
+        private String defaultInterestTopics = "";
+        /** 新建群默认总结指令 */
+        private String defaultSummaryInstruction = "";
+    }
 
     @Data
     public static class ShortVideo {
@@ -89,6 +107,8 @@ public class LinkxProperties {
         private String systemPrompt = LinkMatePromptTemplate.DEFAULT_SYSTEM.getTemplate();
         /** 当前模型是否支持深度思考（管理端保存时检测） */
         private boolean reasoningSupported;
+        /** Agent 模式全局开关（管理端可关闭） */
+        private boolean agentEnabled = true;
 
         public void setMaxTokens(int maxTokens) {
             this.maxTokens = Math.max(256, Math.min(32768, maxTokens));
