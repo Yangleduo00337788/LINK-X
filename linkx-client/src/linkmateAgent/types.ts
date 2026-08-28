@@ -9,21 +9,61 @@ export type LinkMateActionRisk = 'low' | 'medium' | 'high' | 'critical'
 /** Agent 支持的工具名 */
 export type LinkMateAgentToolName =
   | 'navigate'
+  | 'open_linkmate'
   | 'open_chat'
   | 'open_search'
   | 'open_calendar'
+  | 'open_contacts'
   | 'send_message'
+  | 'add_friend'
+  | 'handle_friend_request'
+  | 'handle_group_invitation'
   | 'create_calendar_event'
+  | 'update_calendar_event'
+  | 'delete_calendar_event'
   | 'add_favorite'
+  | 'update_favorite'
+  | 'delete_favorite'
+  | 'tag_favorite'
+  | 'create_folder'
+  | 'upload_file'
+  | 'publish_moment'
+  | 'publish_short_video'
+  | 'send_red_packet'
+  | 'start_call'
+  | 'create_group'
+  | 'add_group_members'
+  | 'update_setting'
+  | 'recharge_balance'
 
 export const LINKMATE_AGENT_TOOL_NAMES: LinkMateAgentToolName[] = [
   'navigate',
+  'open_linkmate',
   'open_chat',
   'open_search',
   'open_calendar',
+  'open_contacts',
   'send_message',
+  'add_friend',
+  'handle_friend_request',
+  'handle_group_invitation',
   'create_calendar_event',
-  'add_favorite'
+  'update_calendar_event',
+  'delete_calendar_event',
+  'add_favorite',
+  'update_favorite',
+  'delete_favorite',
+  'tag_favorite',
+  'create_folder',
+  'upload_file',
+  'publish_moment',
+  'publish_short_video',
+  'send_red_packet',
+  'start_call',
+  'create_group',
+  'add_group_members',
+  'update_setting',
+  'recharge_balance'
 ]
 
 export interface LinkMateAgentAction {
@@ -36,6 +76,8 @@ export interface LinkMateClientContext {
   currentNav?: NavKey
   currentSessionId?: string
   currentSessionTitle?: string
+  /** 客户端本地当天 YYYY-MM-DD，供模型计算「明天」等相对日期 */
+  todayDate?: string
   /** 近期会话摘要，供模型选择准确目标 */
   recentSessions?: string
 }

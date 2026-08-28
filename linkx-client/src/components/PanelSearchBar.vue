@@ -71,7 +71,7 @@ function onAdd(key: string) {
       class="add-dropdown"
       @select="onAdd"
     >
-      <LxIconButton variant="filled" :title="addTitle">
+      <LxIconButton variant="filled" data-lm-chat-add-btn :title="addTitle">
         <n-icon :component="AddOutline" :size="18" />
       </LxIconButton>
     </n-dropdown>

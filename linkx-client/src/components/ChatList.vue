@@ -187,8 +187,13 @@ function renderAddIcon(icon: Component) {
 
 const addOptions = computed(() => [
   { label: t('chat.createGroup'), key: 'group', icon: renderAddIcon(PeopleOutline) },
-  { label: t('chat.addFriendGroup'), key: 'friend', icon: renderAddIcon(PersonAddOutline) },
-  { label: t('chat.openLinkmate'), key: 'linkmate', icon: renderAddIcon(SparklesOutline) }
+  {
+    label: t('chat.addFriendGroup'),
+    key: 'friend',
+    icon: renderAddIcon(PersonAddOutline),
+    props: { 'data-lm-add-friend': '1' }
+  },
+  { label: t('chat.openLinkmate'), key: 'linkmate', icon: renderAddIcon(SparklesOutline), props: { 'data-lm-open-linkmate': '1' } }
 ])
 
 function isMyPhoneSession(name?: string): boolean {

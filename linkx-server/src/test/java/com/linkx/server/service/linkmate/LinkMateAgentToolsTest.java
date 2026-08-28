@@ -29,9 +29,9 @@ class LinkMateAgentToolsTest {
     }
 
     @Test
-    void buildToolsArray_containsAllSevenAgentTools() {
+    void buildToolsArray_containsAllAgentTools() {
         JsonNode toolsArray = tools.buildToolsArray();
-        assertEquals(7, toolsArray.size());
+        assertEquals(27, toolsArray.size());
 
         Set<String> names = new HashSet<>();
         for (JsonNode tool : toolsArray) {
@@ -42,12 +42,32 @@ class LinkMateAgentToolsTest {
         assertEquals(
                 Set.of(
                         "navigate",
+                        "open_linkmate",
                         "open_chat",
                         "open_search",
                         "open_calendar",
+                        "open_contacts",
                         "send_message",
+                        "add_friend",
+                        "handle_friend_request",
+                        "handle_group_invitation",
                         "create_calendar_event",
-                        "add_favorite"),
+                        "update_calendar_event",
+                        "delete_calendar_event",
+                        "add_favorite",
+                        "update_favorite",
+                        "delete_favorite",
+                        "tag_favorite",
+                        "create_folder",
+                        "upload_file",
+                        "publish_moment",
+                        "publish_short_video",
+                        "send_red_packet",
+                        "start_call",
+                        "create_group",
+                        "add_group_members",
+                        "update_setting",
+                        "recharge_balance"),
                 names);
     }
 
@@ -58,8 +78,8 @@ class LinkMateAgentToolsTest {
         assertTrue(required.isArray());
         assertEquals(1, required.size());
         assertEquals("content", required.get(0).asText());
-        assertTrue(sendMessage.path("function").path("parameters").path("properties").has("name"));
-        assertTrue(sendMessage.path("function").path("parameters").path("properties").has("chatType"));
+        assertTrue(sendMessage.path("function").path("parameters").path("properties").has("replyToMessageId"));
+        assertTrue(sendMessage.path("function").path("parameters").path("properties").has("mentionNames"));
     }
 
     @Test
@@ -77,6 +97,7 @@ class LinkMateAgentToolsTest {
         JsonNode required = tool.path("function").path("parameters").path("required");
         assertEquals(1, required.size());
         assertEquals("nav", required.get(0).asText());
+        assertTrue(tool.path("function").path("parameters").path("properties").has("settingsTab"));
     }
 
     @Test
@@ -84,12 +105,11 @@ class LinkMateAgentToolsTest {
         String suffix = tools.agentSystemSuffix();
         assertNotNull(suffix);
         assertTrue(suffix.contains("工具"));
-        assertTrue(suffix.contains("conversationId"));
-        assertTrue(suffix.contains("chatType"));
+        assertTrue(suffix.contains("replyToMessageId"));
         assertFalse(suffix.isBlank());
     }
 
-  private JsonNode findTool(String name) {
+    private JsonNode findTool(String name) {
         for (JsonNode tool : tools.buildToolsArray()) {
             if (tool.path("function").path("name").asText().equals(name)) {
                 return tool;

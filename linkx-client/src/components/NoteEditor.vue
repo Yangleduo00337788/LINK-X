@@ -42,6 +42,7 @@ import {
 import { formatFileSize } from '../utils/file'
 import { emptyFormatState, type NoteFormatAction, type NoteFormatState } from '../utils/noteEditorFormat'
 import { LxIconButton } from './ui'
+import { registerAgentNoteEditorBridge } from '../linkmateAgent/uiBridge'
 
 const props = withDefaults(
   defineProps<{
@@ -478,6 +479,20 @@ onMounted(async () => {
   requestAnimationFrame(() => {
     getActiveTextBlockEditor()?.focus()
   })
+
+  registerAgentNoteEditorBridge({
+    isOpen: () => noteStore.openTabIds.length > 0,
+    focusContent: () => {
+      getActiveTextBlockEditor()?.focus()
+    },
+    setContent: (text: string) => {
+      content.value = serializeNoteBlocks([{ type: 'text', value: text }])
+    },
+    save: async () => {
+      await handleSaveNote()
+      return true
+    }
+  })
 })
 
 watch(activeTabId, async (tabId, prev) => {
@@ -497,6 +512,7 @@ watch(theme, t => {
 })
 
 onUnmounted(() => {
+  registerAgentNoteEditorBridge(null)
   void flushPendingSave()
   if (historyTimer) clearTimeout(historyTimer)
 })
@@ -525,7 +541,7 @@ onUnmounted(() => {
         <LxIconButton variant="editor" :title="t('noteEditor.newNote')" @click="handleNewNote">
           <n-icon :component="AddOutline" :size="16" />
         </LxIconButton>
-        <LxIconButton variant="editor" :title="t('noteEditor.saveNote')" @click="handleSaveNote">
+        <LxIconButton variant="editor" data-lm-note-save :title="t('noteEditor.saveNote')" @click="handleSaveNote">
           <n-icon :component="CloudUploadOutline" :size="16" />
         </LxIconButton>
         <n-dropdown trigger="click" :options="noteListOptions" @select="onNoteSelect">
@@ -556,7 +572,7 @@ onUnmounted(() => {
         <n-icon :component="AddOutline" :size="15" />
         <span>{{ t('noteEditor.newNote') }}</span>
       </button>
-      <button type="button" class="note-action-btn" :title="t('noteEditor.saveNote')" @click="handleSaveNote">
+      <button type="button" class="note-action-btn" data-lm-note-save :title="t('noteEditor.saveNote')" @click="handleSaveNote">
         <n-icon :component="CloudUploadOutline" :size="15" />
         <span>{{ t('noteEditor.saveNote') }}</span>
       </button>
@@ -642,7 +658,7 @@ onUnmounted(() => {
       </LxIconButton>
     </div>
 
-    <main ref="documentEl" class="editor-area" @click="focusLastTextBlock">
+    <main ref="documentEl" class="editor-area" data-lm-note-content @click="focusLastTextBlock">
       <div class="note-document">
         <template v-for="(block, index) in noteBlocks" :key="index">
           <NoteTextBlockEditor

@@ -1,228 +1,203 @@
 /**
  * 作者：yangleduo
  */
-import type { ChatSession, FavoriteItem } from '../types'
-import { useAppStore } from '../stores/app'
-import { useCalendarStore } from '../stores/calendar'
-import { useChatModalsStore } from '../stores/chatModals'
-import { useFavoritesStore } from '../stores/favorites'
 import { t } from '../i18n'
 import { getActionDefinition } from './actions'
+import { asString, truncate } from './agentUtils'
+import {
+  inferDefaultEndTime,
+  inferDefaultStartTime,
+  resolveEventDate
+} from './dateResolve'
 import { resolveChatSession } from './sessionResolve'
+import { TOOL_EXECUTORS } from './toolExecutors'
 import type {
   LinkMateActionResult,
   LinkMateAgentAction,
   LinkMateAgentToolName
 } from './types'
-import { isNavKey } from './types'
-import { clearSimulatedInput } from './uiBridge'
-
-function asString(value: unknown): string {
-  return typeof value === 'string' ? value.trim() : ''
-}
-
-function truncate(text: string, max = 40): string {
-  if (text.length <= max) return text
-  return `${text.slice(0, max)}…`
-}
-
-function openChatSession(session: ChatSession) {
-  const app = useAppStore()
-  app.setNav('chat')
-  app.selectSession(session)
-}
 
 function sleep(ms: number) {
   return new Promise<void>(resolve => setTimeout(resolve, ms))
 }
 
-/** 模拟鼠标前先准备好目标界面，避免点到不存在的 DOM */
+/** 模拟鼠标前仅做不影响界面的准备（不再提前切换页面） */
 export async function prepareActionForSimulation(action: LinkMateAgentAction): Promise<void> {
   const args = action.arguments
   if (action.name === 'send_message' || action.name === 'open_chat') {
     const session = resolveChatSession(args)
-    if (session) openChatSession(session)
-    await sleep(480)
-    return
-  }
-  if (action.name === 'open_search') {
-    const modals = useChatModalsStore()
-    modals.openComprehensiveSearch(asString(args.keyword) || undefined)
-    await sleep(380)
-    return
-  }
-  if (action.name === 'open_calendar' || action.name === 'create_calendar_event') {
-    useAppStore().setNav('calendar')
-    await sleep(380)
-    return
-  }
-  if (action.name === 'add_favorite') {
-    useAppStore().setNav('favorites')
-    await sleep(380)
-    return
-  }
-  if (action.name === 'navigate') {
-    const navRaw = asString(args.nav)
-    if (isNavKey(navRaw)) {
-      useAppStore().setNav(navRaw)
-      await sleep(380)
+    if (session) {
+      revealSessionInList(session.id)
     }
+    await sleep(120)
   }
 }
 
-async function executeNavigate(args: Record<string, unknown>): Promise<LinkMateActionResult> {
-  const navRaw = asString(args.nav)
-  if (!isNavKey(navRaw)) {
-    return { ok: false, message: t('linkmateAgent.invalidNav', { nav: navRaw || '?' }) }
-  }
-  const app = useAppStore()
-  app.setNav(navRaw)
-  return { ok: true, message: t('linkmateAgent.doneNavigate', { nav: t(`nav.${navRaw}`) }) }
+function revealSessionInList(sessionId: string) {
+  const el = document.querySelector(`[data-lm-session-id="${CSS.escape(sessionId)}"]`)
+  el?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
 }
 
-async function executeOpenChat(args: Record<string, unknown>): Promise<LinkMateActionResult> {
-  const conversationId = asString(args.conversationId)
-  const name = asString(args.name)
-  if (!conversationId && !name) {
-    return { ok: false, message: t('linkmateAgent.openChatMissingArgs') }
-  }
-  const session = resolveChatSession(args)
-  if (!session) {
-    if (name) {
-      return { ok: false, message: t('linkmateAgent.chatNotFoundByName', { name }) }
+export function normalizeAgentAction(action: LinkMateAgentAction): LinkMateAgentAction {
+  if (
+    action.name === 'create_calendar_event' ||
+    action.name === 'update_calendar_event'
+  ) {
+    const rawDate = asString(action.arguments.date)
+    if (!rawDate) return action
+    const resolved = resolveEventDate(rawDate)
+    const nextArgs = { ...action.arguments, date: resolved ?? rawDate }
+    if (action.name === 'create_calendar_event') {
+      const time = asString(action.arguments.time) || inferDefaultStartTime(rawDate)
+      const endTime = asString(action.arguments.endTime) || inferDefaultEndTime(time)
+      nextArgs.time = time
+      nextArgs.endTime = endTime
     }
-    return { ok: false, message: t('linkmateAgent.chatNotFound') }
+    return { ...action, arguments: nextArgs }
   }
-  openChatSession(session)
-  return { ok: true, message: t('linkmateAgent.doneOpenChat', { name: session.name }) }
+  return action
 }
 
-async function executeOpenSearch(args: Record<string, unknown>): Promise<LinkMateActionResult> {
-  const keyword = asString(args.keyword)
-  const modals = useChatModalsStore()
-  modals.openComprehensiveSearch(keyword || undefined)
-  if (keyword) {
-    return { ok: true, message: t('linkmateAgent.doneOpenSearch', { keyword }) }
-  }
-  return { ok: true, message: t('linkmateAgent.doneOpenSearchEmpty') }
-}
-
-async function executeOpenCalendar(): Promise<LinkMateActionResult> {
-  const app = useAppStore()
-  app.setNav('calendar')
-  return { ok: true, message: t('linkmateAgent.doneOpenCalendar') }
-}
-
-async function executeSendMessage(args: Record<string, unknown>): Promise<LinkMateActionResult> {
-  const content = asString(args.content)
-  if (!content) {
-    return { ok: false, message: t('linkmateAgent.sendMessageEmpty') }
-  }
-
-  const session = resolveChatSession(args)
-  if (!session) {
-    const name = asString(args.name)
-    if (name) {
-      return { ok: false, message: t('linkmateAgent.chatNotFoundByName', { name }) }
+function successResultForUiHandled(action: LinkMateAgentAction): LinkMateActionResult {
+  const args = action.arguments
+  switch (action.name) {
+    case 'navigate': {
+      const nav = asString(args.nav)
+      return { ok: true, message: t('linkmateAgent.doneNavigate', { nav: t(`nav.${nav}`) }) }
     }
-    return { ok: false, message: t('linkmateAgent.sendMessageNoSession') }
-  }
-  if (session.blocked) {
-    return { ok: false, message: t('linkmateAgent.sendMessageBlocked') }
-  }
-
-  openChatSession(session)
-  const app = useAppStore()
-  await app.sendMessage(content, { type: 'text' })
-  clearSimulatedInput()
-  return {
-    ok: true,
-    message: t('linkmateAgent.doneSendMessage', {
-      name: session.name,
-      preview: truncate(content)
-    })
+    case 'open_linkmate':
+      return { ok: true, message: t('linkmateAgent.doneOpenLinkmate') }
+    case 'open_calendar':
+      return { ok: true, message: t('linkmateAgent.doneOpenCalendar') }
+    case 'open_contacts':
+      return { ok: true, message: t('linkmateAgent.doneOpenContacts') }
+    case 'open_chat': {
+      const session = resolveChatSession(args)
+      const name =
+        session?.name || asString(args.name) || asString(args.conversationId)
+      return { ok: true, message: t('linkmateAgent.doneOpenChat', { name }) }
+    }
+    case 'send_message': {
+      const session = resolveChatSession(args)
+      const content = asString(args.content)
+      return {
+        ok: true,
+        message: t('linkmateAgent.doneSendMessage', {
+          name: session?.name ?? t('linkmateAgent.currentChat'),
+          preview: truncate(content)
+        })
+      }
+    }
+    case 'open_search': {
+      const keyword = asString(args.keyword)
+      return keyword
+        ? { ok: true, message: t('linkmateAgent.doneOpenSearch', { keyword }) }
+        : { ok: true, message: t('linkmateAgent.doneOpenSearchEmpty') }
+    }
+    case 'create_calendar_event': {
+      const title = asString(args.title)
+      const date = asString(args.date)
+      return { ok: true, message: t('linkmateAgent.doneCreateEvent', { title, date }) }
+    }
+    case 'update_calendar_event': {
+      const title = asString(args.title) || asString(args.eventId)
+      return { ok: true, message: t('linkmateAgent.doneUpdateEvent', { title }) }
+    }
+    case 'delete_calendar_event': {
+      const title = asString(args.title) || asString(args.eventId)
+      return { ok: true, message: t('linkmateAgent.doneDeleteEvent', { title }) }
+    }
+    case 'add_favorite': {
+      const title = asString(args.title)
+      return { ok: true, message: t('linkmateAgent.doneAddFavorite', { title }) }
+    }
+    case 'update_favorite': {
+      const title = asString(args.title)
+      return { ok: true, message: t('linkmateAgent.doneUpdateFavorite', { title }) }
+    }
+    case 'delete_favorite': {
+      const title = asString(args.title)
+      return { ok: true, message: t('linkmateAgent.doneDeleteFavorite', { title }) }
+    }
+    case 'tag_favorite': {
+      const title = asString(args.title)
+      return { ok: true, message: t('linkmateAgent.doneTagFavorite', { title }) }
+    }
+    case 'create_folder': {
+      const name = asString(args.name)
+      return { ok: true, message: t('linkmateAgent.doneCreateFolder', { name }) }
+    }
+    case 'add_friend': {
+      const username = asString(args.username)
+      return { ok: true, message: t('linkmateAgent.doneAddFriend', { name: username }) }
+    }
+    case 'handle_friend_request':
+      return {
+        ok: true,
+        message:
+          asString(args.action) === 'reject'
+            ? t('linkmateAgent.doneRejectFriendRequest')
+            : t('linkmateAgent.doneAcceptFriendRequest')
+      }
+    case 'handle_group_invitation':
+      return {
+        ok: true,
+        message:
+          asString(args.action) === 'reject'
+            ? t('linkmateAgent.doneRejectGroupInvitation')
+            : t('linkmateAgent.doneAcceptGroupInvitation')
+      }
+    case 'publish_moment':
+      return { ok: true, message: t('linkmateAgent.donePublishMoment') }
+    case 'publish_short_video':
+      return { ok: true, message: t('linkmateAgent.doneOpenShortVideoPublish') }
+    case 'send_red_packet': {
+      const amount = asString(args.amount) || '0'
+      return { ok: true, message: t('linkmateAgent.doneSendRedPacket', { amount }) }
+    }
+    case 'start_call': {
+      const session = resolveChatSession(args)
+      const name = session?.name ?? t('linkmateAgent.currentChat')
+      return asString(args.callType) === 'video'
+        ? { ok: true, message: t('linkmateAgent.doneStartVideoCall', { name }) }
+        : { ok: true, message: t('linkmateAgent.doneStartVoiceCall', { name }) }
+    }
+    case 'create_group': {
+      const groupName = asString(args.groupName) || t('defaults.group')
+      return { ok: true, message: t('linkmateAgent.doneCreateGroup', { name: groupName }) }
+    }
+    case 'add_group_members':
+      return {
+        ok: true,
+        message: t('linkmateAgent.doneAddGroupMembers', {
+          count: asStringArray(args.memberNames).length || 1
+        })
+      }
+    case 'update_setting':
+      return { ok: true, message: t('linkmateAgent.doneUpdateSetting', { key: asString(args.key) }) }
+    case 'recharge_balance': {
+      const amount = asString(args.amount) || '0'
+      return { ok: true, message: t('linkmateAgent.doneRecharge', { amount }) }
+    }
+    default:
+      return { ok: true, message: t('linkmateAgent.runAllDone', { count: 1 }) }
   }
 }
 
-async function executeCreateCalendarEvent(args: Record<string, unknown>): Promise<LinkMateActionResult> {
-  const title = asString(args.title)
-  const date = asString(args.date)
-  if (!title) {
-    return { ok: false, message: t('linkmateAgent.createEventMissingTitle') }
-  }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    return { ok: false, message: t('linkmateAgent.createEventInvalidDate') }
-  }
-
-  const app = useAppStore()
-  const calendar = useCalendarStore()
-  app.setNav('calendar')
-
-  const eventId = await calendar.addEvent({
-    title,
-    date,
-    time: asString(args.time) || undefined,
-    endTime: asString(args.endTime) || undefined,
-    color: asString(args.color) || undefined
-  })
-  if (!eventId) {
-    return { ok: false, message: t('linkmateAgent.createEventFailed') }
-  }
-
-  const [year, month, day] = date.split('-').map(Number)
-  await calendar.setSelectedDate(new Date(year, month - 1, day).getTime())
-  return {
-    ok: true,
-    message: t('linkmateAgent.doneCreateEvent', { title, date })
-  }
+function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.map(item => asString(item)).filter(Boolean)
 }
 
-function parseFavoriteType(raw: string): FavoriteItem['type'] {
-  if (raw === 'link' || raw === 'image' || raw === 'file' || raw === 'message' || raw === 'note') {
-    return raw
+export async function executeLinkMateAction(
+  action: LinkMateAgentAction,
+  options?: { uiHandled?: boolean }
+): Promise<LinkMateActionResult> {
+  if (options?.uiHandled) {
+    return successResultForUiHandled(action)
   }
-  return 'note'
-}
 
-async function executeAddFavorite(args: Record<string, unknown>): Promise<LinkMateActionResult> {
-  const title = asString(args.title)
-  if (!title) {
-    return { ok: false, message: t('linkmateAgent.addFavoriteMissingTitle') }
-  }
-  const content = asString(args.content) || title
-  const type = parseFavoriteType(asString(args.type) || 'note')
-
-  const app = useAppStore()
-  const favorites = useFavoritesStore()
-  app.setNav('favorites')
-
-  const ok = await favorites.add({
-    title,
-    content,
-    preview: content,
-    type
-  })
-  if (!ok) {
-    return { ok: false, message: t('linkmateAgent.addFavoriteFailed') }
-  }
-  return { ok: true, message: t('linkmateAgent.doneAddFavorite', { title }) }
-}
-
-const EXECUTORS: Record<
-  LinkMateAgentToolName,
-  (args: Record<string, unknown>) => Promise<LinkMateActionResult>
-> = {
-  navigate: executeNavigate,
-  open_chat: executeOpenChat,
-  open_search: executeOpenSearch,
-  open_calendar: () => executeOpenCalendar(),
-  send_message: executeSendMessage,
-  create_calendar_event: executeCreateCalendarEvent,
-  add_favorite: executeAddFavorite
-}
-
-export async function executeLinkMateAction(action: LinkMateAgentAction): Promise<LinkMateActionResult> {
-  const executor = EXECUTORS[action.name]
+  const executor = TOOL_EXECUTORS[action.name as LinkMateAgentToolName]
   if (!executor) {
     return { ok: false, message: t('linkmateAgent.unknownAction', { name: action.name }) }
   }
@@ -237,34 +212,69 @@ export async function executeLinkMateAction(action: LinkMateAgentAction): Promis
 export function describeLinkMateAction(action: LinkMateAgentAction): string {
   const def = getActionDefinition(action.name)
   const base = t(def.labelKey)
+  const args = action.arguments
+
   if (action.name === 'navigate') {
-    const nav = asString(action.arguments.nav)
+    const nav = asString(args.nav)
     return nav ? `${base}: ${t(`nav.${nav}`)}` : base
   }
   if (action.name === 'open_chat') {
-    const name = asString(action.arguments.name) || asString(action.arguments.conversationId)
+    const name = asString(args.name) || asString(args.conversationId)
     return name ? `${base}: ${name}` : base
   }
   if (action.name === 'open_search') {
-    const keyword = asString(action.arguments.keyword)
+    const keyword = asString(args.keyword)
     return keyword ? `${base}: ${keyword}` : base
   }
   if (action.name === 'send_message') {
     const target =
-      asString(action.arguments.name) ||
-      asString(action.arguments.conversationId) ||
+      asString(args.name) ||
+      asString(args.conversationId) ||
       t('linkmateAgent.currentChat')
-    const preview = truncate(asString(action.arguments.content))
+    const preview = truncate(asString(args.content))
     return preview ? `${base} → ${target}: ${preview}` : `${base} → ${target}`
   }
-  if (action.name === 'create_calendar_event') {
-    const title = asString(action.arguments.title)
-    const date = asString(action.arguments.date)
+  if (
+    action.name === 'create_calendar_event' ||
+    action.name === 'update_calendar_event' ||
+    action.name === 'delete_calendar_event'
+  ) {
+    const title = asString(args.title) || asString(args.eventId)
+    const date = asString(args.date)
     return title && date ? `${base}: ${title} (${date})` : title ? `${base}: ${title}` : base
   }
-  if (action.name === 'add_favorite') {
-    const title = asString(action.arguments.title)
+  if (
+    action.name === 'add_favorite' ||
+    action.name === 'update_favorite' ||
+    action.name === 'delete_favorite' ||
+    action.name === 'tag_favorite'
+  ) {
+    const title = asString(args.title) || asString(args.favoriteId)
     return title ? `${base}: ${title}` : base
+  }
+  if (action.name === 'add_friend') {
+    const username = asString(args.username)
+    return username ? `${base}: ${username}` : base
+  }
+  if (action.name === 'create_folder') {
+    const name = asString(args.name)
+    return name ? `${base}: ${name}` : base
+  }
+  if (action.name === 'create_group') {
+    const groupName = asString(args.groupName)
+    return groupName ? `${base}: ${groupName}` : base
+  }
+  if (action.name === 'send_red_packet' || action.name === 'recharge_balance') {
+    const amount = asString(args.amount)
+    return amount ? `${base}: ${amount}` : base
+  }
+  if (action.name === 'update_setting') {
+    const key = asString(args.key)
+    return key ? `${base}: ${key}` : base
+  }
+  if (action.name === 'publish_moment') {
+    const content = truncate(asString(args.content), 24)
+    return content ? `${base}: ${content}` : base
   }
   return base
 }

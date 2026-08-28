@@ -4,7 +4,7 @@
  * 添加好友/群聊搜索模态框。
  * 保留原有综合搜索 UI，用户搜索对接后端 API。
  */
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import DOMPurify from 'dompurify'
 import Avatar from '../Avatar.vue'
 import { useMessage } from 'naive-ui'
@@ -22,6 +22,7 @@ import { useI18n } from '../../i18n'
 import { LxButton } from '../ui'
 import ModalOverlayCaption from '../ModalOverlayCaption.vue'
 import { lxColorHex } from '../../theme/vars'
+import { registerAgentComprehensiveSearchBridge } from '../../linkmateAgent/uiBridge'
 
 interface SearchGroupItem {
   id: string
@@ -328,6 +329,29 @@ async function handleUserAction(user: SearchUserItem) {
     message.error((error as Error).message || t('modals.openSessionFail'))
   }
 }
+
+onMounted(() => {
+  registerAgentComprehensiveSearchBridge({
+    isOpen: () => comprehensiveSearchOpen.value,
+    focusKeyword: () => {
+      const el = document.querySelector(
+        '[data-lm-comprehensive-search-input]'
+      ) as HTMLInputElement | null
+      el?.focus()
+    },
+    setKeyword: (text: string) => {
+      keyword.value = text
+    },
+    search: async () => {
+      await doSearch()
+      return true
+    }
+  })
+})
+
+onUnmounted(() => {
+  registerAgentComprehensiveSearchBridge(null)
+})
 </script>
 
 <template>
@@ -341,10 +365,16 @@ async function handleUserAction(user: SearchUserItem) {
             v-model="keyword"
             type="text"
             class="search-input"
+            data-lm-comprehensive-search-input
             :placeholder="t('modals.searchKeywordPh')"
             @keydown.enter="doSearch"
           />
-          <LxButton variant="search" :disabled="searching" @click="doSearch">
+          <LxButton
+            variant="search"
+            data-lm-comprehensive-search-submit
+            :disabled="searching"
+            @click="doSearch"
+          >
             {{ searching ? t('modals.searching') : t('modals.search') }}
           </LxButton>
         </div>

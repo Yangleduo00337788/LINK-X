@@ -30,7 +30,7 @@ public class LinkMateChatDTO {
   @Valid
   private LinkMateImContextDTO imContext;
 
-  /** Agent 模式：允许 AI 通过工具控制客户端（Phase 1 只读操作） */
+  /** Agent 模式：允许 AI 通过工具控制客户端 */
   private Boolean agentMode;
 
   /** Agent 模式下客户端当前 UI 状态（可选） */

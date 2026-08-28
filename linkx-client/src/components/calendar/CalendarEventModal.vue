@@ -3,7 +3,7 @@
 /**
  * 新建 / 编辑日程独立弹窗。
  */
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
 import {
   NInput,
   NDatePicker,
@@ -19,6 +19,7 @@ import type { CalendarEvent } from '../../stores/calendar'
 import { useI18n } from '../../i18n'
 import { LxButton, LxIconButton, LxModal } from '../ui'
 import { lxEventColors } from '../../theme/vars'
+import { registerAgentCalendarModalBridge } from '../../linkmateAgent/uiBridge'
 
 const EVENT_COLORS = lxEventColors
 
@@ -242,6 +243,38 @@ async function saveEvent() {
     saving.value = false
   }
 }
+
+onMounted(() => {
+  registerAgentCalendarModalBridge({
+    isOpen: () => props.show,
+    focusTitle: () => {
+      const el = document.querySelector('[data-lm-calendar-event-title] input') as HTMLInputElement | null
+      el?.focus()
+    },
+    setTitle: (title: string) => {
+      formTitle.value = title
+    },
+    setDate: (dateKey: string) => {
+      formDateTs.value = tsFromDateKey(dateKey)
+    },
+    setStartTime: (hm: string) => {
+      const ts = parseHm(hm)
+      if (ts != null) onStartTimeChange(ts)
+    },
+    setEndTime: (hm: string) => {
+      const ts = parseHm(hm)
+      if (ts != null) onEndTimeChange(ts)
+    },
+    save: async () => {
+      await saveEvent()
+      return true
+    }
+  })
+})
+
+onUnmounted(() => {
+  registerAgentCalendarModalBridge(null)
+})
 </script>
 
 <template>
@@ -292,6 +325,7 @@ async function saveEvent() {
             type="date"
             clearable
             class="form-control"
+            data-lm-calendar-event-date
             to="body"
           />
         </div>
@@ -304,6 +338,7 @@ async function saveEvent() {
               format="HH:mm"
               clearable
               class="time-picker"
+              data-lm-calendar-event-start-time
               to="body"
               :actions="null"
               :placeholder="t('calendar.timePh')"
@@ -316,6 +351,7 @@ async function saveEvent() {
               :clearable="false"
               :disabled="!formStartTs"
               class="time-picker"
+              data-lm-calendar-event-end-time
               to="body"
               :actions="null"
               :placeholder="t('calendar.endTimePh')"
