@@ -91,6 +91,10 @@
 
   const contentI18n = {
     zh: {
+      secOverviewP1:
+        "LinkX 是一套前后端分离的企业级即时通讯（IM）解决方案，由桌面客户端、运营管理后台与单体后端服务组成，适用于团队内部沟通、协同办公与后台运营场景。",
+      secOverviewP2:
+        "当前已发布 Windows 桌面端（v1.0.1）。下一版 1.1.0 计划交付 Linux 桌面端与 Android 移动端；再下一版 1.2.0 将聚焦灵伴知识库与 Agent 策略、本地搜索与消息同步优化、短视频推荐与运营后台。macOS 与 iOS 仍在路线图中。",
       secArchL5: "可选消息落库加密（AES-256-GCM，默认关闭，非端到端加密）",
       secMessageEncryptTitle: "消息落库加密",
       secMessageEncryptP1:
@@ -131,6 +135,7 @@
       secUpdatesL1: "在管理端「版本发布」创建草稿，填写版本号、渠道、平台与更新说明（releaseNotes）。",
       secUpdatesL2: "上传 Windows 安装包（或填写 MinIO / CDN 下载地址与 SHA-256）。",
       secUpdatesL3: "发布后立即对客户端生效；旧版同平台记录自动归档。",
+      secUpdatesL3b: "官网下载：配置 site-config.js 的 apiBaseUrl 后，首页与版本日志通过 GET /app/version 获取 R2 公网直链（可在 installerDirectUrl 配置兜底地址）。",
       secUpdatesH2: "客户端行为",
       secUpdatesL4: "有新版本：Electron 在后台静默下载安装包；可选更新下载完成后提示「立即安装」，强制更新则自动静默安装并重启。",
       secUpdatesL5: "已是最新：若当前版本有发布说明且用户未读过，展示「本次更新」弹窗（currentReleaseNotes）。",
@@ -143,6 +148,10 @@
         "桌面端启动时会自动请求 /app/version 检查更新并后台下载；也可在「设置 → 关于」手动检查。更新说明由管理端版本发布填写，官网 changelog 与客户端弹窗内容应保持一致。",
     },
     en: {
+      secOverviewP1:
+        "LinkX is an enterprise instant messaging (IM) stack with a separated frontend and backend: desktop client, admin console, and a monolithic API service for team communication, collaboration, and operations.",
+      secOverviewP2:
+        "Windows desktop (v1.0.1) is available today. v1.1.0 will ship Linux desktop and Android mobile clients; v1.2.0 will focus on LinkMate knowledge base & agent policies, local search & message sync, and short-video recommendations with an admin ops console. macOS and iOS remain on the roadmap.",
       secArchL5: "Optional at-rest message encryption (AES-256-GCM, off by default; not E2EE)",
       secMessageEncryptTitle: "Message At-Rest Encryption",
       secMessageEncryptP1:
@@ -183,6 +192,8 @@
       secUpdatesL1: "Create a draft under Version releases with version, channel, platform, and release notes.",
       secUpdatesL2: "Upload the Windows installer (or set MinIO / CDN URL and SHA-256).",
       secUpdatesL3: "Publishing takes effect immediately; previous releases for the same platform are archived.",
+      secUpdatesL3b:
+        "Website download: set apiBaseUrl in site-config.js; the homepage and changelog use GET /app/version for the R2 public installer URL (optional installerDirectUrl fallback).",
       secUpdatesH2: "Client behavior",
       secUpdatesL4: "When an update exists: Electron downloads silently in the background; optional updates prompt to install, forced updates install silently and restart.",
       secUpdatesL5: "When up to date: show the What's New dialog if currentReleaseNotes exist and the user has not dismissed it.",

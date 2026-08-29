@@ -1,4 +1,70 @@
 window.ChangelogData = {
+  /** 与根目录 CHANGELOG.md「版本规划」保持一致 */
+  roadmap: [
+    {
+      version: "1.1.0",
+      status: { zh: "下一版", en: "Next" },
+      summary: {
+        zh: "Linux 桌面端、Android 移动端",
+        en: "Linux desktop and Android mobile clients",
+      },
+      sections: [
+        {
+          title: { zh: "规划", en: "Planned" },
+          items: {
+            zh: [
+              "Linux 安装包构建与发布（AppImage / deb 等）",
+              "官网与管理端版本记录支持 Linux 平台下载与自动更新",
+              "Android 客户端 IM 核心链路（登录、单聊 / 群聊、推送、多媒体）",
+            ],
+            en: [
+              "Linux installer builds and releases (AppImage / deb, etc.)",
+              "Website and admin version records for Linux download and auto-update",
+              "Android client IM essentials: login, chat, push, and rich media",
+            ],
+          },
+        },
+      ],
+    },
+    {
+      version: "1.2.0",
+      status: { zh: "再下一版", en: "Following" },
+      summary: {
+        zh: "灵伴知识库与 Agent 策略、本地搜索与消息同步、短视频推荐与运营",
+        en: "LinkMate knowledge base & policies, local search & sync, short-video ops",
+      },
+      sections: [
+        {
+          title: { zh: "规划 — 灵伴 Agent", en: "Planned — LinkMate Agent" },
+          items: {
+            zh: [
+              "企业知识库（RAG）与 @灵伴 问答",
+              "Agent 写操作确认卡与管理端策略（模型、额度、工具白名单、审计）",
+            ],
+            en: [
+              "Enterprise knowledge base (RAG) and @LinkMate Q&A",
+              "Agent confirmation cards and admin policies (models, quotas, tools, audit)",
+            ],
+          },
+        },
+        {
+          title: { zh: "规划 — IM 与短视频", en: "Planned — IM & Short Video" },
+          items: {
+            zh: [
+              "本地聊天全文搜索",
+              "消息同步与已读回执优化",
+              "短视频推荐流与管理端运营后台",
+            ],
+            en: [
+              "Local full-text chat search",
+              "Message sync and read-receipt improvements",
+              "Short-video feed recommendations and admin operations console",
+            ],
+          },
+        },
+      ],
+    },
+  ],
   highlights: [
     {
       image: "assets/changelog-illust-1.png",
@@ -51,7 +117,28 @@ window.ChangelogData = {
       icon: "assets/icon-linux.svg",
       name: { zh: "Linux", en: "Linux" },
       comingSoon: true,
-      releases: [],
+      releases: [
+        {
+          version: "1.1.0",
+          date: "",
+          badge: { zh: "计划中", en: "Planned" },
+          sections: [
+            {
+              title: { zh: "规划", en: "Planned" },
+              items: {
+                zh: [
+                  "Linux 安装包构建与发布",
+                  "官网与管理端版本记录、自动更新",
+                ],
+                en: [
+                  "Linux installer build and release",
+                  "Website, admin version records, and auto-update",
+                ],
+              },
+            },
+          ],
+        },
+      ],
     },
     macos: {
       icon: "assets/icon-macos.svg",
@@ -63,10 +150,6 @@ window.ChangelogData = {
       icon: "assets/icon-windows.svg",
       name: { zh: "Windows", en: "Windows" },
       versionLabel: { zh: "v1.0.1 · x64 · 安装包", en: "v1.0.1 · x64 · Installer" },
-      download: {
-        url: "https://yangleduo1.oss-cn-beijing.aliyuncs.com/releases/2026/08/29/LinkX-Installer-1.0.1.exe",
-        file: "LinkX-Installer-1.0.1.exe",
-      },
       releases: [
         {
           version: "1.0.1",
@@ -148,7 +231,28 @@ window.ChangelogData = {
       icon: "assets/icon-android.svg",
       name: { zh: "Android", en: "Android" },
       comingSoon: true,
-      releases: [],
+      releases: [
+        {
+          version: "1.1.0",
+          date: "",
+          badge: { zh: "计划中", en: "Planned" },
+          sections: [
+            {
+              title: { zh: "规划", en: "Planned" },
+              items: {
+                zh: [
+                  "Android 客户端 IM 核心链路",
+                  "与服务端 REST + WebSocket 协议对齐",
+                ],
+                en: [
+                  "Android client IM essentials",
+                  "Aligned with server REST + WebSocket APIs",
+                ],
+              },
+            },
+          ],
+        },
+      ],
     },
     ios: {
       icon: "assets/icon-ios.svg",

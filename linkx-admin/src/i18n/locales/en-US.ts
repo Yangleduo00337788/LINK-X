@@ -2092,6 +2092,9 @@ export default {
     r2AccessKeyId: 'R2 access key ID',
     r2SecretAccessKey: 'R2 secret access key',
     r2CnameDomain: 'R2 public domain',
+    r2CnameDomainPh: 'pub-xxxx.r2.dev or media.example.com',
+    r2CnameDomainHint:
+      'Enable Public access on the R2 bucket and enter the r2.dev or custom domain for permanent installer URLs. Leave empty to use presigned R2 links (expire after a while).',
     storageSecretPh: 'Leave blank to keep the current secret',
     saveStorage: 'Save storage settings',
     storageSaved: 'Storage settings saved',
@@ -2189,10 +2192,13 @@ export default {
     downloadUrlPh: 'Filled automatically after upload, or paste an external URL',
     uploadPackage: 'Upload installer',
     uploadPackageHint:
-      'Supports .exe / .msi / .dmg / .deb / .rpm / .AppImage. Windows installers are ~200MB+; set server upload limit and storage max to at least 300MB.',
+      'Supports .exe / .msi, etc. Windows installers are ~200MB+; set storage max upload to at least 300MB. MinIO/R2 use browser direct upload (10 concurrent parts); OSS/COS proxy via server. Configure R2 bucket CORS for admin origin PUT.',
     packageUploadSuccess: 'Installer uploaded',
     packageUploadFail: 'Installer upload failed',
     uploadPartFailed: 'Chunk {part}/{total} upload failed',
+    uploadProgress: 'Uploading {percent}%',
+    uploadCorsFail:
+      'Direct upload blocked by CORS. Add bucket CORS: allow admin origin, methods PUT/GET, headers *.',
     uploadTimeout:
       'Upload timed out (package ~{sizeMb}MB). Check network and OSS connectivity; a 220MB package on a slow link may take several minutes.',
     uploadNetworkFail:

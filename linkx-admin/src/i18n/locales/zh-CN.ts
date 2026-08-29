@@ -2064,6 +2064,9 @@ export default {
     r2AccessKeyId: 'R2 Access Key ID',
     r2SecretAccessKey: 'R2 Secret Access Key',
     r2CnameDomain: 'R2 公开域名',
+    r2CnameDomainPh: 'pub-xxxx.r2.dev 或 media.example.com',
+    r2CnameDomainHint:
+      '在 Cloudflare R2 控制台为桶开启 Public access 后填写 r2.dev 或自定义域名；安装包将展示永久公网直链。留空则使用 R2 预签名链接（有时效）。',
     storageSecretPh: '留空则不修改已有密钥',
     saveStorage: '保存存储配置',
     storageSaved: '对象存储配置已保存',
@@ -2160,10 +2163,14 @@ export default {
     downloadUrl: '下载地址',
     downloadUrlPh: '上传安装包后自动填入，也可手动填写外链',
     uploadPackage: '上传安装包',
-    uploadPackageHint: '支持 .exe / .msi / .dmg / .deb / .rpm / .AppImage。Windows 安装包约 200MB+，请将服务端上传上限与存储设置调至 300MB 以上。',
+    uploadPackageHint:
+      '支持 .exe / .msi 等。Windows 安装包约 200MB+，存储单文件上限建议 ≥300MB。MinIO/R2 浏览器直传对象存储（10 路并发）；OSS/COS 经后端中转。R2 需在桶 CORS 允许管理端域名 PUT。',
     packageUploadSuccess: '安装包上传成功',
     packageUploadFail: '安装包上传失败',
     uploadPartFailed: '分片 {part}/{total} 上传失败',
+    uploadProgress: '上传中 {percent}%',
+    uploadCorsFail:
+      '直传 R2/MinIO 被浏览器 CORS 拦截。请在对象存储桶设置 CORS：允许管理端来源、方法 PUT/GET、头 *。',
     uploadTimeout: '上传超时（安装包约 {sizeMb}MB）。请检查网络与 OSS 连通性后重试；慢速网络下 220MB 可能需要数分钟。',
     uploadNetworkFail: '上传失败（安装包约 {sizeMb}MB）。分片会直连 8080，请确认 linkx-server 已启动且 CORS 已生效。',
     packageTypeInvalid: '请选择有效的安装包文件',

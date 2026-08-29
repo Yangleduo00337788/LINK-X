@@ -58,6 +58,17 @@ npm run electron:build:linux    # Linux AppImage
 - 启动时自动检查更新（`startupVersion.ts`），Electron 后台静默下载；更新说明由管理端版本发布配置
 - 打包后可用 `scripts/publish-release.mjs` 上传安装包并发布至管理端
 
+### 版本规划
+
+与根目录 [CHANGELOG.md](../CHANGELOG.md) 保持一致：
+
+| 版本 | 主题 |
+|------|------|
+| **1.1.0** | Linux 桌面端（`electron:build:linux`）、Android 移动端（新工程） |
+| **1.2.0** | 灵伴知识库与 Agent 策略、本地搜索与消息同步、短视频推荐与运营 |
+
+当前已发布：**1.0.1**（Windows 桌面端）。
+
 ## UI 与样式
 
 新增或改版页面须遵循 Design Token（`--lx-*`）与公共组件规范，详见根 README **[8.5 客户端 UI 与样式规范](../README.md#85-客户端-ui-与样式规范)**。

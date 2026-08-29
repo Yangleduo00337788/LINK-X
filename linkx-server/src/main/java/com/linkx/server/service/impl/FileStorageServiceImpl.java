@@ -11,8 +11,10 @@ import com.linkx.server.exception.CustomException;
 import com.linkx.server.service.FileStorageService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linkx.server.storage.DirectMultipartCapableBackend;
 import com.linkx.server.storage.ObjectStorageBackend;
 import com.linkx.server.storage.ObjectStorageRouter;
+import com.linkx.server.storage.S3NativeMultipartSupport;
 import com.linkx.server.storage.StorageProviderType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -96,6 +98,9 @@ public class FileStorageServiceImpl implements FileStorageService {
     private static final String HASH_KEY_PREFIX = "linkx:filehash:";
     private static final String MP_META_PREFIX = "linkx:mp:meta:";
     private static final String MP_PARTS_PREFIX = "linkx:mp:parts:";
+    private static final String DIRECT_MP_PREFIX = "linkx:installer-direct-mp:";
+
+    public static final int INSTALLER_UPLOAD_MAX_CONCURRENCY = 10;
 
     private final ObjectStorageRouter objectStorageRouter;
     private final LinkxProperties linkxProperties;
@@ -281,6 +286,124 @@ public class FileStorageServiceImpl implements FileStorageService {
             log.error("完成安装包分片上传失败: uploadId={}, objectKey={}", uploadId, objectKey, e);
             throw new RuntimeException("完成安装包分片上传失败");
         }
+    }
+
+    @Override
+    public InstallerMultipartSession initiateInstallerDirectMultipart(String originalFileName) {
+        if (!objectStorageRouter.supportsDirectMultipartUpload()) {
+            throw new CustomException(400, "当前存储后端不支持浏览器直传分片");
+        }
+        assertInstallerFileName(originalFileName);
+        String objectKey = buildInstallerObjectName(originalFileName);
+        DirectMultipartCapableBackend backend = objectStorageRouter.requireDirectMultipartBackend();
+        try {
+            String uploadId = backend.beginNativeMultipartUpload(objectKey, "application/octet-stream");
+            Map<String, String> meta = new LinkedHashMap<>();
+            meta.put("objectKey", objectKey);
+            meta.put("direct", "true");
+            redisTemplate.opsForValue().set(
+                    DIRECT_MP_PREFIX + uploadId, objectMapper.writeValueAsString(meta), MULTIPART_TTL);
+            return new InstallerMultipartSession(uploadId, objectKey);
+        } catch (CustomException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("初始化安装包直传分片失败: objectKey={}", objectKey, e);
+            throw new RuntimeException("初始化安装包直传失败");
+        }
+    }
+
+    @Override
+    public List<DirectPartPresign> presignInstallerDirectParts(String objectKey, String uploadId, int totalParts) {
+        requireDirectInstallerSession(objectKey, uploadId);
+        if (totalParts < 1 || totalParts > 10_000) {
+            throw new CustomException(400, "分片数量无效");
+        }
+        long maxSize = linkxProperties.getMinio().getMaxFileSize();
+        long estimatedSize = (long) totalParts * S3NativeMultipartSupport.INSTALLER_CHUNK_BYTES;
+        if (estimatedSize > maxSize * 2L) {
+            throw new CustomException(400, "安装包过大");
+        }
+        DirectMultipartCapableBackend backend = objectStorageRouter.requireDirectMultipartBackend();
+        List<DirectPartPresign> presigned = new ArrayList<>(totalParts);
+        try {
+            for (int partNumber = 1; partNumber <= totalParts; partNumber++) {
+                String url = backend.presignNativeUploadPart(objectKey, uploadId, partNumber);
+                presigned.add(new DirectPartPresign(partNumber, url));
+            }
+            return presigned;
+        } catch (Exception e) {
+            log.error("签发安装包直传分片 URL 失败: uploadId={}, parts={}", uploadId, totalParts, e);
+            throw new RuntimeException("签发分片上传地址失败");
+        }
+    }
+
+    @Override
+    public InstallerUploadResult completeInstallerDirectMultipart(
+            String objectKey,
+            String uploadId,
+            String fileName,
+            long fileSize,
+            String packageSha256,
+            List<PartETag> parts) {
+        requireDirectInstallerSession(objectKey, uploadId);
+        if (!StringUtils.hasText(objectKey) || !objectKey.startsWith("releases/")) {
+            throw new CustomException(400, "非法安装包对象路径");
+        }
+        long maxSize = linkxProperties.getMinio().getMaxFileSize();
+        if (fileSize > maxSize) {
+            throw new CustomException(400, "安装包大小超过限制: " + (maxSize / 1024 / 1024) + "MB");
+        }
+        if (parts == null || parts.isEmpty()) {
+            throw new CustomException(400, "分片列表不能为空");
+        }
+        DirectMultipartCapableBackend backend = objectStorageRouter.requireDirectMultipartBackend();
+        try {
+            List<S3NativeMultipartSupport.UploadedPart> nativeParts = parts.stream()
+                    .map(p -> new S3NativeMultipartSupport.UploadedPart(p.partNumber(), normalizeEtag(p.etag())))
+                    .toList();
+            backend.completeNativeMultipartUpload(objectKey, uploadId, nativeParts);
+            redisTemplate.delete(DIRECT_MP_PREFIX + uploadId);
+            String contentHash = resolveInstallerSha256(objectKey, packageSha256);
+            saveContentHash(contentHash, objectKey);
+            String displayName = StringUtils.hasText(fileName) ? sanitizeFilename(fileName) : objectKey;
+            return new InstallerUploadResult(objectKey, contentHash, displayName, fileSize);
+        } catch (CustomException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("完成安装包直传分片失败: uploadId={}, objectKey={}", uploadId, objectKey, e);
+            throw new RuntimeException("完成安装包直传失败: " + e.getMessage());
+        }
+    }
+
+    private void requireDirectInstallerSession(String objectKey, String uploadId) {
+        if (!StringUtils.hasText(uploadId) || !StringUtils.hasText(objectKey)) {
+            throw new CustomException(400, "分片会话无效");
+        }
+        String json = redisTemplate.opsForValue().get(DIRECT_MP_PREFIX + uploadId);
+        if (!StringUtils.hasText(json)) {
+            throw new CustomException(400, "分片会话已过期或不存在");
+        }
+        try {
+            Map<String, String> meta = objectMapper.readValue(json, new TypeReference<>() {});
+            if (!objectKey.equals(meta.get("objectKey"))) {
+                throw new CustomException(400, "objectKey 与分片会话不匹配");
+            }
+        } catch (CustomException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new CustomException(400, "分片会话无效");
+        }
+    }
+
+    private static String normalizeEtag(String etag) {
+        if (!StringUtils.hasText(etag)) {
+            return "";
+        }
+        String s = etag.trim();
+        if (s.length() >= 2 && s.startsWith("\"") && s.endsWith("\"")) {
+            return s.substring(1, s.length() - 1);
+        }
+        return s;
     }
 
     private String resolveInstallerSha256(String mergedKey, String packageSha256) throws Exception {

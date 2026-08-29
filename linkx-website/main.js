@@ -177,8 +177,6 @@
       icon: "assets/icon-windows.svg",
       name: { zh: "Windows", en: "Windows" },
       version: { zh: "v1.0.1 · x64 · 安装包", en: "v1.0.1 · x64 · Installer" },
-      url: "https://yangleduo1.oss-cn-beijing.aliyuncs.com/releases/2026/08/29/LinkX-Installer-1.0.1.exe",
-      file: "LinkX-Installer-1.0.1.exe",
     },
     android: {
       icon: "assets/icon-android.svg",
@@ -215,8 +213,14 @@
     } else {
       panel.classList.remove("is-coming-soon");
       versionEl.textContent = info.version[lang];
-      downloadEl.href = info.url;
-      downloadEl.setAttribute("download", info.file);
+      const installer =
+        window.LinkXAppDownload && window.LinkXAppDownload.installerUrl
+          ? window.LinkXAppDownload.installerUrl(platform === "windows" ? "windows" : "windows")
+          : "";
+      if (installer) {
+        downloadEl.href = installer;
+        downloadEl.removeAttribute("download");
+      }
       comingEl.hidden = true;
     }
 

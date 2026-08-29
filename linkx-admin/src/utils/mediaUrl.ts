@@ -77,3 +77,12 @@ function resolveOpsMediaSrc(url?: string | null): string {
   if (/^https?:\/\//i.test(v)) return v
   return ''
 }
+
+/** 版本安装包下载地址：同源 /media/stored?... 或外链补全为可访问的绝对 URL */
+export function resolveDownloadUrl(url?: string | null): string {
+  const v = (url || '').trim()
+  if (!v) return ''
+  if (/^https?:\/\//i.test(v)) return v
+  if (v.startsWith('/media/')) return `${API_BASE()}${v}`
+  return v
+}

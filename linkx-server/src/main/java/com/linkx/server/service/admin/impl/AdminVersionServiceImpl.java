@@ -9,9 +9,14 @@ import com.linkx.server.common.admin.AdminKeywordQuery;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.controller.admin.dto.AdminVersionDTO;
 import com.linkx.server.controller.admin.dto.AdminVersionQueryDTO;
+import com.linkx.server.controller.admin.dto.AdminVersionDirectMultipartCompleteDTO;
+import com.linkx.server.controller.admin.dto.AdminVersionDirectPresignPartsDTO;
 import com.linkx.server.controller.admin.dto.AdminVersionMultipartCompleteDTO;
 import com.linkx.server.controller.admin.dto.AdminVersionMultipartInitDTO;
+import com.linkx.server.controller.admin.vo.AdminVersionDirectMultipartInitVO;
+import com.linkx.server.controller.admin.vo.AdminVersionDirectPresignPartsVO;
 import com.linkx.server.controller.admin.vo.AdminVersionMultipartInitVO;
+import com.linkx.server.controller.admin.vo.AdminVersionUploadCapabilityVO;
 import com.linkx.server.controller.admin.vo.AdminVersionUploadVO;
 import com.linkx.server.controller.admin.vo.AdminVersionVO;
 import com.linkx.server.entity.admin.SysAppVersion;
@@ -22,6 +27,8 @@ import com.linkx.server.service.FileStorageService;
 import com.linkx.server.service.ObjectKeyOwnershipService;
 import com.linkx.server.service.admin.AdminSettingService;
 import com.linkx.server.service.admin.AdminVersionService;
+import com.linkx.server.storage.ObjectStorageRouter;
+import com.linkx.server.storage.S3NativeMultipartSupport;
 import com.linkx.server.util.AppVersionUtils;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
@@ -51,6 +58,7 @@ public class AdminVersionServiceImpl implements AdminVersionService {
     private final FileStorageService fileStorageService;
     private final ObjectKeyOwnershipService objectKeyOwnershipService;
     private final AppDownloadUrlResolver appDownloadUrlResolver;
+    private final ObjectStorageRouter objectStorageRouter;
 
     @Override
     public PageResultVO<AdminVersionVO> list(AdminVersionQueryDTO query) {
@@ -265,6 +273,72 @@ public class AdminVersionServiceImpl implements AdminVersionService {
                 dto.getFileName(),
                 dto.getFileSize(),
                 dto.getPackageSha256());
+        if (operatorId != null) {
+            objectKeyOwnershipService.claim(operatorId, uploaded.objectKey());
+        }
+        return AdminVersionUploadVO.builder()
+                .objectKey(uploaded.objectKey())
+                .url(appDownloadUrlResolver.resolveForAdmin(uploaded.objectKey()))
+                .sha256(uploaded.sha256())
+                .fileName(uploaded.fileName())
+                .fileSize(uploaded.size())
+                .build();
+    }
+
+    @Override
+    public AdminVersionUploadCapabilityVO uploadCapability() {
+        return AdminVersionUploadCapabilityVO.builder()
+                .directMultipart(objectStorageRouter.supportsDirectMultipartUpload())
+                .provider(objectStorageRouter.activeProvider().toWire())
+                .chunkSize(S3NativeMultipartSupport.INSTALLER_CHUNK_BYTES)
+                .maxConcurrency(S3NativeMultipartSupport.INSTALLER_UPLOAD_MAX_CONCURRENCY)
+                .build();
+    }
+
+    @Override
+    public AdminVersionDirectMultipartInitVO initInstallerDirectMultipart(
+            AdminVersionMultipartInitDTO dto, Long operatorId) {
+        FileStorageService.InstallerMultipartSession session =
+                fileStorageService.initiateInstallerDirectMultipart(dto.getFileName());
+        if (operatorId != null) {
+            objectKeyOwnershipService.claim(operatorId, session.objectKey());
+        }
+        return AdminVersionDirectMultipartInitVO.builder()
+                .uploadId(session.uploadId())
+                .objectKey(session.objectKey())
+                .chunkSize(S3NativeMultipartSupport.INSTALLER_CHUNK_BYTES)
+                .maxConcurrency(S3NativeMultipartSupport.INSTALLER_UPLOAD_MAX_CONCURRENCY)
+                .build();
+    }
+
+    @Override
+    public AdminVersionDirectPresignPartsVO presignInstallerDirectParts(AdminVersionDirectPresignPartsDTO dto) {
+        List<FileStorageService.DirectPartPresign> parts = fileStorageService.presignInstallerDirectParts(
+                dto.getObjectKey(), dto.getUploadId(), dto.getTotalParts());
+        return AdminVersionDirectPresignPartsVO.builder()
+                .chunkSize(S3NativeMultipartSupport.INSTALLER_CHUNK_BYTES)
+                .parts(parts.stream()
+                        .map(p -> AdminVersionDirectPresignPartsVO.PartUrl.builder()
+                                .partNumber(p.partNumber())
+                                .url(p.url())
+                                .build())
+                        .toList())
+                .build();
+    }
+
+    @Override
+    public AdminVersionUploadVO completeInstallerDirectMultipart(
+            AdminVersionDirectMultipartCompleteDTO dto, Long operatorId) {
+        List<FileStorageService.PartETag> parts = dto.getParts().stream()
+                .map(p -> new FileStorageService.PartETag(p.getPartNumber(), p.getEtag()))
+                .toList();
+        FileStorageService.InstallerUploadResult uploaded = fileStorageService.completeInstallerDirectMultipart(
+                dto.getObjectKey(),
+                dto.getUploadId(),
+                dto.getFileName(),
+                dto.getFileSize(),
+                dto.getPackageSha256(),
+                parts);
         if (operatorId != null) {
             objectKeyOwnershipService.claim(operatorId, uploaded.objectKey());
         }

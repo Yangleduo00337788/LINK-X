@@ -123,6 +123,24 @@ public interface FileStorageService {
     InstallerUploadResult completeInstallerMultipart(
             String objectKey, String uploadId, String fileName, long fileSize, String packageSha256);
 
+    /** 浏览器直传对象存储：初始化 S3 原生分片会话（MinIO / R2） */
+    InstallerMultipartSession initiateInstallerDirectMultipart(String originalFileName);
+
+    /** 浏览器直传：批量签发分片 PUT 预签名 URL */
+    List<DirectPartPresign> presignInstallerDirectParts(String objectKey, String uploadId, int totalParts);
+
+    record DirectPartPresign(int partNumber, String url) {
+    }
+
+    /** 浏览器直传：合并 S3 分片并完成安装包登记 */
+    InstallerUploadResult completeInstallerDirectMultipart(
+            String objectKey,
+            String uploadId,
+            String fileName,
+            long fileSize,
+            String packageSha256,
+            List<PartETag> parts);
+
     /** 初始化分片上传，返回 uploadId + objectName */
     MultipartSession initiateMultipartUpload(String objectName, String contentType);
 

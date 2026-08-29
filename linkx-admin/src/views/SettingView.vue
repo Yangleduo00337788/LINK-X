@@ -1987,9 +1987,10 @@ onMounted(load)
                 <NFormItem :label="t('setting.r2CnameDomain')">
                   <NInput
                     v-model:value="storageForm.r2CnameDomain"
-                    placeholder="media.example.com"
+                    :placeholder="t('setting.r2CnameDomainPh')"
                     style="max-width: 420px"
                   />
+                  <p class="field-hint">{{ t('setting.r2CnameDomainHint') }}</p>
                 </NFormItem>
               </template>
 

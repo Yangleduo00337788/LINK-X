@@ -6,7 +6,10 @@ package com.linkx.server.storage.impl;
  */
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.service.FileStorageService;
+import com.linkx.server.storage.DirectMultipartCapableBackend;
 import com.linkx.server.storage.ObjectStorageBackend;
+import com.linkx.server.storage.ExtendedMinioAsyncClient;
+import com.linkx.server.storage.S3NativeMultipartSupport;
 import com.linkx.server.storage.StorageProviderType;
 import io.minio.ComposeObjectArgs;
 import io.minio.ComposeSource;
@@ -14,6 +17,7 @@ import io.minio.CopyObjectArgs;
 import io.minio.CopySource;
 import io.minio.GetObjectArgs;
 import io.minio.GetPresignedObjectUrlArgs;
+import io.minio.MinioAsyncClient;
 import io.minio.MinioClient;
 import io.minio.ObjectWriteResponse;
 import io.minio.PutObjectArgs;
@@ -33,10 +37,11 @@ import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Component
-public class R2ObjectStorageBackend implements ObjectStorageBackend {
+public class R2ObjectStorageBackend implements ObjectStorageBackend, DirectMultipartCapableBackend {
 
     private final LinkxProperties linkxProperties;
     private volatile MinioClient client;
+    private volatile ExtendedMinioAsyncClient asyncClient;
 
     public R2ObjectStorageBackend(LinkxProperties linkxProperties) {
         this.linkxProperties = linkxProperties;
@@ -91,6 +96,35 @@ public class R2ObjectStorageBackend implements ObjectStorageBackend {
             log.error("R2 预签名失败: key={}, err={}", objectKey, e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * R2 公网直链：优先 r2.dev / 自定义公开域名；未配置时签发预签名 GET URL。
+     */
+    public String resolveDirectDownloadUrl(String objectKey, int expirySeconds) {
+        String publicUrl = buildPublicObjectUrl(objectKey);
+        if (StringUtils.hasText(publicUrl)) {
+            return publicUrl;
+        }
+        return presignGet(objectKey, expirySeconds);
+    }
+
+    private String buildPublicObjectUrl(String objectKey) {
+        String cname = linkxProperties.getR2().getCnameDomain();
+        if (!StringUtils.hasText(cname)) {
+            return null;
+        }
+        String host = cname.trim();
+        if (host.startsWith("https://")) {
+            host = host.substring(8);
+        } else if (host.startsWith("http://")) {
+            host = host.substring(7);
+        }
+        while (host.endsWith("/")) {
+            host = host.substring(0, host.length() - 1);
+        }
+        String key = objectKey.startsWith("/") ? objectKey.substring(1) : objectKey;
+        return "https://" + host + "/" + key;
     }
 
     @Override
@@ -218,9 +252,32 @@ public class R2ObjectStorageBackend implements ObjectStorageBackend {
         return prefixes;
     }
 
+    @Override
+    public String beginNativeMultipartUpload(String objectKey, String contentType) throws Exception {
+        return asyncClient().createMultipartUpload(bucketName(), objectKey, contentType);
+    }
+
+    @Override
+    public String presignNativeUploadPart(String objectKey, String uploadId, int partNumber) throws Exception {
+        return S3NativeMultipartSupport.presignUploadPart(
+                client(),
+                bucketName(),
+                objectKey,
+                uploadId,
+                partNumber,
+                S3NativeMultipartSupport.PRESIGN_PART_EXPIRY_SECONDS);
+    }
+
+    @Override
+    public void completeNativeMultipartUpload(
+            String objectKey, String uploadId, List<S3NativeMultipartSupport.UploadedPart> parts) throws Exception {
+        asyncClient().completeMultipartUpload(bucketName(), objectKey, uploadId, parts);
+    }
+
     public void reloadClient() {
         synchronized (this) {
             client = buildClient();
+            asyncClient = buildAsyncClient();
         }
     }
 
@@ -229,10 +286,46 @@ public class R2ObjectStorageBackend implements ObjectStorageBackend {
             synchronized (this) {
                 if (client == null) {
                     client = buildClient();
+                    asyncClient = buildAsyncClient();
                 }
             }
         }
         return client;
+    }
+
+    private ExtendedMinioAsyncClient asyncClient() {
+        if (asyncClient == null) {
+            synchronized (this) {
+                if (asyncClient == null) {
+                    asyncClient = buildAsyncClient();
+                }
+            }
+        }
+        return asyncClient;
+    }
+
+    private ExtendedMinioAsyncClient buildAsyncClient() {
+        LinkxProperties.R2 r2 = linkxProperties.getR2();
+        if (!StringUtils.hasText(r2.getAccessKeyId()) || !StringUtils.hasText(r2.getSecretAccessKey())) {
+            throw new IllegalStateException("R2 凭证未配置");
+        }
+        String endpoint = normalizeEndpoint(r2.getEndpoint());
+        if (!StringUtils.hasText(endpoint)) {
+            throw new IllegalStateException("R2 Endpoint 未配置");
+        }
+        OkHttpClient httpClient = new OkHttpClient.Builder()
+                .connectTimeout(10, TimeUnit.SECONDS)
+                .writeTimeout(60, TimeUnit.SECONDS)
+                .readTimeout(60, TimeUnit.SECONDS)
+                .callTimeout(120, TimeUnit.SECONDS)
+                .build();
+        return ExtendedMinioAsyncClient.wrap(
+                MinioAsyncClient.builder()
+                        .endpoint("https://" + endpoint)
+                        .credentials(r2.getAccessKeyId().trim(), r2.getSecretAccessKey().trim())
+                        .region("auto")
+                        .httpClient(httpClient)
+                        .build());
     }
 
     private MinioClient buildClient() {

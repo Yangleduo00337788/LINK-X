@@ -11,9 +11,14 @@ import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.config.aspect.AuditAction;
 import com.linkx.server.controller.admin.dto.AdminVersionDTO;
 import com.linkx.server.controller.admin.dto.AdminVersionQueryDTO;
+import com.linkx.server.controller.admin.dto.AdminVersionDirectMultipartCompleteDTO;
+import com.linkx.server.controller.admin.dto.AdminVersionDirectPresignPartsDTO;
 import com.linkx.server.controller.admin.dto.AdminVersionMultipartCompleteDTO;
 import com.linkx.server.controller.admin.dto.AdminVersionMultipartInitDTO;
+import com.linkx.server.controller.admin.vo.AdminVersionDirectMultipartInitVO;
+import com.linkx.server.controller.admin.vo.AdminVersionDirectPresignPartsVO;
 import com.linkx.server.controller.admin.vo.AdminVersionMultipartInitVO;
+import com.linkx.server.controller.admin.vo.AdminVersionUploadCapabilityVO;
 import com.linkx.server.controller.admin.vo.AdminVersionUploadVO;
 import com.linkx.server.controller.admin.vo.AdminVersionVO;
 import com.linkx.server.service.admin.AdminVersionService;
@@ -104,6 +109,42 @@ public class AdminVersionController {
                                              HttpServletRequest request) {
         Long operatorId = (Long) request.getAttribute("userId");
         return Result.success(adminVersionService.uploadPackage(file, operatorId));
+    }
+
+    @Operation(summary = "安装包上传能力（直传 / 分片参数）")
+    @GetMapping("/upload/capability")
+    @RequirePermission("admin:version:create")
+    public Result<AdminVersionUploadCapabilityVO> uploadCapability() {
+        return Result.success(adminVersionService.uploadCapability());
+    }
+
+    @Operation(summary = "初始化安装包直传分片（浏览器 → 对象存储）")
+    @PostMapping("/upload/direct/init")
+    @RequirePermission("admin:version:create")
+    public Result<AdminVersionDirectMultipartInitVO> initDirectMultipartUpload(
+            @Valid @RequestBody AdminVersionMultipartInitDTO dto,
+            HttpServletRequest request) {
+        Long operatorId = (Long) request.getAttribute("userId");
+        return Result.success(adminVersionService.initInstallerDirectMultipart(dto, operatorId));
+    }
+
+    @Operation(summary = "签发安装包直传分片预签名 URL")
+    @PostMapping("/upload/direct/presign-parts")
+    @RequirePermission("admin:version:create")
+    public Result<AdminVersionDirectPresignPartsVO> presignDirectMultipartParts(
+            @Valid @RequestBody AdminVersionDirectPresignPartsDTO dto) {
+        return Result.success(adminVersionService.presignInstallerDirectParts(dto));
+    }
+
+    @Operation(summary = "完成安装包直传分片")
+    @AuditAction(operationType = "VERSION_UPDATE", description = "完成安装包直传分片")
+    @PostMapping("/upload/direct/complete")
+    @RequirePermission("admin:version:create")
+    public Result<AdminVersionUploadVO> completeDirectMultipartUpload(
+            @Valid @RequestBody AdminVersionDirectMultipartCompleteDTO dto,
+            HttpServletRequest request) {
+        Long operatorId = (Long) request.getAttribute("userId");
+        return Result.success(adminVersionService.completeInstallerDirectMultipart(dto, operatorId));
     }
 
     @Operation(summary = "初始化安装包分片上传")

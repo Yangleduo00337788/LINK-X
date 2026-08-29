@@ -9,6 +9,7 @@ import com.linkx.server.storage.impl.CosObjectStorageBackend;
 import com.linkx.server.storage.impl.MinioObjectStorageBackend;
 import com.linkx.server.storage.impl.OssObjectStorageBackend;
 import com.linkx.server.storage.impl.R2ObjectStorageBackend;
+import com.linkx.server.storage.DirectMultipartCapableBackend;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -68,6 +69,19 @@ public class ObjectStorageRouter {
         ossBackend.reloadClient();
         cosBackend.reloadClient();
         r2Backend.reloadClient();
+    }
+
+    /** 当前活跃后端是否支持浏览器直传分片（MinIO / R2） */
+    public boolean supportsDirectMultipartUpload() {
+        return activeBackend() instanceof DirectMultipartCapableBackend;
+    }
+
+    public DirectMultipartCapableBackend requireDirectMultipartBackend() {
+        ObjectStorageBackend backend = activeBackend();
+        if (backend instanceof DirectMultipartCapableBackend direct) {
+            return direct;
+        }
+        throw new IllegalStateException("当前存储后端不支持直传分片: " + backend.providerType());
     }
 
     /** 该存储后端是否已配置凭证（未配置则跳过探测，避免无意义连接） */

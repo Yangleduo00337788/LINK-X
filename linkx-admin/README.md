@@ -60,3 +60,12 @@ npm run format:check
 3. 同步更新官网 `linkx-website/shared/changelog-data.js` 与根目录 `CHANGELOG.md`
 
 也可使用 `linkx-client/scripts/publish-release.mjs` 在打包后自动上传并发布。
+
+### 版本规划
+
+与根目录 [CHANGELOG.md](../CHANGELOG.md) 保持一致：
+
+| 版本 | 主题 |
+|------|------|
+| **1.1.0** | Linux 桌面端、Android 移动端 |
+| **1.2.0** | 灵伴知识库与 Agent 策略、本地搜索与消息同步、短视频推荐与运营 |

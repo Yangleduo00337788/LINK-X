@@ -10,6 +10,7 @@ import {
   NForm,
   NFormItem,
   NInput,
+  NProgress,
   NSelect,
   NSpace,
   NSpin,
@@ -32,6 +33,7 @@ import {
   type VersionPayload,
 } from '@/api/versions'
 import { formatTime } from '@/utils/format'
+import { resolveDownloadUrl } from '@/utils/mediaUrl'
 import { useAuthStore } from '@/stores/auth'
 import SearchAutoComplete from '@/components/SearchAutoComplete.vue'
 
@@ -58,6 +60,7 @@ const editing = ref<VersionItem | null>(null)
 const formRef = ref<FormInst | null>(null)
 const saving = ref(false)
 const packageUploading = ref(false)
+const uploadProgress = ref(0)
 const packageInputRef = ref<HTMLInputElement | null>(null)
 const form = reactive({
   version: '',
@@ -139,7 +142,9 @@ function statusType(status?: string): 'default' | 'success' | 'warning' | 'error
 }
 
 function resolveRowDownloadLink(row: VersionItem): string {
-  return (row.downloadUrl || row.downloadKey || '').trim()
+  const signed = (row.downloadUrl || '').trim()
+  if (signed) return resolveDownloadUrl(signed)
+  return (row.downloadKey || '').trim()
 }
 
 async function copyDownloadLink(row: VersionItem) {
@@ -175,7 +180,11 @@ function fillFormFromRow(row: VersionItem) {
   form.channel = row.channel || 'stable'
   form.platform = (row.platform as 'windows' | 'macos' | 'linux') || 'windows'
   form.releaseNotes = row.releaseNotes || ''
-  form.downloadUrl = row.downloadKey || row.downloadUrl || ''
+  const signed = (row.downloadUrl || '').trim()
+  form.downloadUrl =
+    formReadonly.value && signed
+      ? resolveDownloadUrl(signed)
+      : row.downloadKey || row.downloadUrl || ''
   form.packageFileName =
     row.packageFileName || (row.downloadKey ? row.downloadKey.split('/').pop() || '' : '')
   form.packageSha256 = row.packageSha256 || ''
@@ -207,9 +216,9 @@ const columns = computed<DataTableColumns<VersionItem>>(() => {
     {
       title: t('version.downloadUrl'),
       key: 'downloadUrl',
-      width: 160,
+      width: 280,
       ellipsis: { tooltip: true },
-      render: (row) => row.downloadUrl || row.downloadKey || '-',
+      render: (row) => resolveRowDownloadLink(row) || '-',
     },
     {
       title: t('setting.forceUpdate'),
@@ -343,8 +352,11 @@ async function onPackageSelected(ev: Event) {
     return
   }
   packageUploading.value = true
+  uploadProgress.value = 0
   try {
-    const result = await uploadVersionPackage(file)
+    const result = await uploadVersionPackage(file, (percent) => {
+      uploadProgress.value = percent
+    })
     form.downloadUrl = result.objectKey
     form.packageFileName = result.fileName || file.name
     form.packageSha256 = result.sha256 || ''
@@ -355,6 +367,7 @@ async function onPackageSelected(ev: Event) {
     message.error((e as Error).message || t('version.packageUploadFail'))
   } finally {
     packageUploading.value = false
+    uploadProgress.value = 0
   }
 }
 
@@ -577,6 +590,16 @@ onMounted(() => {
               :disabled="formReadonly"
             />
             <p v-if="!formReadonly" class="field-hint">{{ t('version.uploadPackageHint') }}</p>
+            <NProgress
+              v-if="packageUploading && uploadProgress > 0"
+              type="line"
+              :percentage="uploadProgress"
+              :show-indicator="true"
+              style="margin-top: 8px"
+            />
+            <p v-if="packageUploading && uploadProgress > 0" class="field-hint">
+              {{ t('version.uploadProgress', { percent: uploadProgress }) }}
+            </p>
             <p v-if="form.packageSha256" class="field-hint sha-hint">
               SHA-256: {{ form.packageSha256 }}
             </p>

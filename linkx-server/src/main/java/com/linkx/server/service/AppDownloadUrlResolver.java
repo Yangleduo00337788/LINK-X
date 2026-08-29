@@ -4,7 +4,9 @@ package com.linkx.server.service;
 /**
  * 作者：yangleduo
  */
-import com.linkx.server.config.LinkxProperties;
+import com.linkx.server.storage.ObjectStorageRouter;
+import com.linkx.server.storage.StorageProviderType;
+import com.linkx.server.storage.impl.R2ObjectStorageBackend;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -21,6 +23,8 @@ public class AppDownloadUrlResolver {
     private static final int ADMIN_PREVIEW_EXPIRY_SECONDS = 3600;
 
     private final MediaUrlService mediaUrlService;
+    private final StoredMediaProxyService storedMediaProxyService;
+    private final ObjectStorageRouter objectStorageRouter;
 
     public String resolveForClient(String downloadUrlOrKey) {
         return resolve(downloadUrlOrKey, INSTALLER_PROXY_EXPIRY_SECONDS);
@@ -47,7 +51,24 @@ public class AppDownloadUrlResolver {
         if (value.startsWith("/")) {
             return value;
         }
+        if (value.startsWith("releases/")) {
+            String direct = tryResolveR2DirectUrl(value, proxyExpirySeconds);
+            if (StringUtils.hasText(direct)) {
+                return direct;
+            }
+            return storedMediaProxyService.wrapObjectKey(value, proxyExpirySeconds);
+        }
         return mediaUrlService.resolve(value, proxyExpirySeconds);
+    }
+
+    private String tryResolveR2DirectUrl(String objectKey, int expirySeconds) {
+        if (objectStorageRouter.activeProvider() != StorageProviderType.R2) {
+            return null;
+        }
+        if (objectStorageRouter.activeBackend() instanceof R2ObjectStorageBackend r2) {
+            return r2.resolveDirectDownloadUrl(objectKey, expirySeconds);
+        }
+        return null;
     }
 
     public boolean isStoredObjectKey(String downloadUrlOrKey) {

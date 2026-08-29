@@ -11,15 +11,21 @@ import com.linkx.server.common.Result;
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.controller.vo.AppVersionVO;
 import com.linkx.server.entity.admin.SysAppVersion;
+import com.linkx.server.exception.CustomException;
 import com.linkx.server.service.AppDownloadUrlResolver;
 import com.linkx.server.service.AppVersionService;
 import com.linkx.server.util.AppVersionUtils;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import java.net.URI;
 import java.util.Optional;
 
 /**
@@ -62,6 +68,67 @@ public class VersionController {
             return Result.success(buildFromPublished(published.get(), currentVersion, hasCurrent, clientPlatform, channel));
         }
         return Result.success(buildFromRuntimeConfig(currentVersion, hasCurrent, channel, clientPlatform));
+    }
+
+    /**
+     * 官网 / 外链下载最新安装包：从管理端版本发布 + MinIO（releases/）解析，302 至同源媒体代理或外链。
+     */
+    @Operation(summary = "下载最新安装包")
+    @GetMapping("/installer")
+    public org.springframework.http.ResponseEntity<Void> downloadInstaller(
+            HttpServletRequest request,
+            @RequestParam(value = "platform", defaultValue = "windows") String platform,
+            @RequestParam(value = "channel", required = false) String channel) {
+        String clientPlatform = AppVersionUtils.normalizePlatform(platform);
+        Optional<SysAppVersion> published = appVersionService.findLatestPublished(clientPlatform, channel);
+
+        String downloadKey = "";
+        String fileName = "LinkX-Installer.exe";
+        if (published.isPresent()) {
+            SysAppVersion row = published.get();
+            downloadKey = nullToEmpty(row.getDownloadUrl());
+            if (StringUtils.hasText(row.getPackageFileName())) {
+                fileName = row.getPackageFileName().trim();
+            }
+        }
+        if (!StringUtils.hasText(downloadKey)) {
+            downloadKey = nullToEmpty(linkxProperties.getApp().getDownloadUrl());
+        }
+        if (!StringUtils.hasText(downloadKey)) {
+            throw new CustomException(404, "暂无可用安装包");
+        }
+
+        String resolved = appDownloadUrlResolver.resolveForClient(downloadKey);
+        if (!StringUtils.hasText(resolved)) {
+            throw new CustomException(404, "安装包地址无效");
+        }
+
+        URI location = toAbsoluteDownloadUri(request, resolved);
+        return org.springframework.http.ResponseEntity.status(HttpStatus.FOUND)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
+                .location(location)
+                .build();
+    }
+
+    private URI toAbsoluteDownloadUri(HttpServletRequest request, String resolved) {
+        if (resolved.startsWith("http://") || resolved.startsWith("https://")) {
+            return URI.create(resolved);
+        }
+        String path = resolved;
+        String query = null;
+        int q = resolved.indexOf('?');
+        if (q >= 0) {
+            path = resolved.substring(0, q);
+            query = resolved.substring(q + 1);
+        }
+        if (!path.startsWith("/")) {
+            path = "/" + path;
+        }
+        return ServletUriComponentsBuilder.fromRequest(request)
+                .replacePath(request.getContextPath() + path)
+                .replaceQuery(query)
+                .build(true)
+                .toUri();
     }
 
     private AppVersionVO buildFromPublished(SysAppVersion row,

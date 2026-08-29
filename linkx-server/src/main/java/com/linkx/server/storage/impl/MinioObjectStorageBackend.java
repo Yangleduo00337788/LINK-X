@@ -6,14 +6,18 @@ package com.linkx.server.storage.impl;
  */
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.service.FileStorageService;
+import com.linkx.server.storage.DirectMultipartCapableBackend;
 import com.linkx.server.storage.ObjectStorageBackend;
+import com.linkx.server.storage.S3NativeMultipartSupport;
 import com.linkx.server.storage.StorageProviderType;
+import com.linkx.server.storage.ExtendedMinioAsyncClient;
 import io.minio.ComposeObjectArgs;
 import io.minio.ComposeSource;
 import io.minio.CopyObjectArgs;
 import io.minio.CopySource;
 import io.minio.GetObjectArgs;
 import io.minio.GetPresignedObjectUrlArgs;
+import io.minio.MinioAsyncClient;
 import io.minio.MinioClient;
 import io.minio.ObjectWriteResponse;
 import io.minio.PutObjectArgs;
@@ -33,10 +37,11 @@ import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Component
-public class MinioObjectStorageBackend implements ObjectStorageBackend {
+public class MinioObjectStorageBackend implements ObjectStorageBackend, DirectMultipartCapableBackend {
 
     private final LinkxProperties linkxProperties;
     private volatile MinioClient client;
+    private volatile ExtendedMinioAsyncClient asyncClient;
 
     public MinioObjectStorageBackend(LinkxProperties linkxProperties) {
         this.linkxProperties = linkxProperties;
@@ -214,11 +219,34 @@ public class MinioObjectStorageBackend implements ObjectStorageBackend {
         return prefixes;
     }
 
+    @Override
+    public String beginNativeMultipartUpload(String objectKey, String contentType) throws Exception {
+        return asyncClient().createMultipartUpload(bucketName(), objectKey, contentType);
+    }
+
+    @Override
+    public String presignNativeUploadPart(String objectKey, String uploadId, int partNumber) throws Exception {
+        return S3NativeMultipartSupport.presignUploadPart(
+                client(),
+                bucketName(),
+                objectKey,
+                uploadId,
+                partNumber,
+                S3NativeMultipartSupport.PRESIGN_PART_EXPIRY_SECONDS);
+    }
+
+    @Override
+    public void completeNativeMultipartUpload(
+            String objectKey, String uploadId, List<S3NativeMultipartSupport.UploadedPart> parts) throws Exception {
+        asyncClient().completeMultipartUpload(bucketName(), objectKey, uploadId, parts);
+    }
+
     private MinioClient client() {
         if (client == null) {
             synchronized (this) {
                 if (client == null) {
                     client = buildClient();
+                    asyncClient = buildAsyncClient();
                 }
             }
         }
@@ -229,6 +257,7 @@ public class MinioObjectStorageBackend implements ObjectStorageBackend {
     public void reloadClient() {
         synchronized (this) {
             client = buildClient();
+            asyncClient = buildAsyncClient();
         }
     }
 
@@ -248,6 +277,36 @@ public class MinioObjectStorageBackend implements ObjectStorageBackend {
                 .credentials(minio.getAccessKey(), minio.getSecretKey())
                 .httpClient(httpClient)
                 .build();
+    }
+
+    private ExtendedMinioAsyncClient asyncClient() {
+        if (asyncClient == null) {
+            synchronized (this) {
+                if (asyncClient == null) {
+                    asyncClient = buildAsyncClient();
+                }
+            }
+        }
+        return asyncClient;
+    }
+
+    private ExtendedMinioAsyncClient buildAsyncClient() {
+        LinkxProperties.Minio minio = linkxProperties.getMinio();
+        if (!StringUtils.hasText(minio.getAccessKey()) || !StringUtils.hasText(minio.getSecretKey())) {
+            throw new IllegalStateException("MinIO 凭证未配置");
+        }
+        OkHttpClient httpClient = new OkHttpClient.Builder()
+                .connectTimeout(10, TimeUnit.SECONDS)
+                .writeTimeout(60, TimeUnit.SECONDS)
+                .readTimeout(60, TimeUnit.SECONDS)
+                .callTimeout(120, TimeUnit.SECONDS)
+                .build();
+        return ExtendedMinioAsyncClient.wrap(
+                MinioAsyncClient.builder()
+                        .endpoint(minio.getEndpoint())
+                        .credentials(minio.getAccessKey(), minio.getSecretKey())
+                        .httpClient(httpClient)
+                        .build());
     }
 
     private String bucketName() {

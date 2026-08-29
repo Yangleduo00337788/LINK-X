@@ -743,8 +743,8 @@ $env:CSC_IDENTITY_AUTO_DISCOVERY="true"
 
 1. **管理端**：登录 `linkx-admin` →「版本发布」→ 新建草稿 → 填写版本号、渠道（`stable`）、平台（`windows`）、**更新说明**、下载地址与 SHA-256 → 发布。
 2. **脚本**（可选）：打包后执行 `node linkx-client/scripts/publish-release.mjs --file release/installer/LinkX-Installer-{version}.exe`，自动上传并调用管理端 API 发布。
-3. **官网**：同步更新 `linkx-website/shared/changelog-data.js` 与 `main.js` 中的下载链接，部署至 Cloudflare Pages。
-4. **客户端 API**：`GET /app/version?current=&channel=&platform=` 返回 `hasUpdate`、`releaseNotes`（升级提示）与 `currentReleaseNotes`（本次更新弹窗）。
+3. **官网**：更新 `linkx-website/shared/changelog-data.js` 版本说明；确认 `shared/site-config.js` 的 `apiBaseUrl` 指向线上后端；部署至 Cloudflare Pages（下载走 `/app/installer`，无需再写 OSS 外链）。
+4. **客户端 API**：`GET /app/version?current=&channel=&platform=` 返回 `hasUpdate`、`releaseNotes`（升级提示）与 `currentReleaseNotes`（本次更新弹窗）；官网下载使用 `GET /app/installer?platform=windows`。
 
 ### 9.3 产品官网（Cloudflare Pages）
 
@@ -914,11 +914,30 @@ npm run build                    # 静态资源输出至 dist/
 
 版本变更记录见 **[CHANGELOG.md](./CHANGELOG.md)**。
 
+### 文档同步清单
+
+调整**版本规划**或**正式发布**时，请同步以下位置（当前稳定版仍为 **1.0.1**，规划版本见下表）：
+
+| 位置 | 何时更新 |
+|------|----------|
+| `CHANGELOG.md` | 版本规划、发版说明（权威来源） |
+| `README.md`（本节版本概览） | 规划或发版摘要 |
+| `linkx-website/shared/changelog-data.js` | 官网版本日志、`roadmap`、各平台 release |
+| `linkx-website/shared/site-config.js` | 官网下载对接的后端 `apiBaseUrl`（**部署生产时**） |
+| `linkx-website/changelog.html` / `changelog.js` | 版本日志页结构或渲染逻辑变更时 |
+| `linkx-website/docs.html` / `docs.js` | 产品概述中的平台与规划说明 |
+| `linkx-website/main.js` / `shared/app-download.js` | 首页下载按钮与版本号拉取逻辑 |
+| `linkx-client/package.json`、`src/utils/appVersion.ts` | **仅发版时** bump 客户端构建版本 |
+| `linkx-admin` / `linkx-client` / `linkx-website` 各 README | 子工程版本规划或发版流程说明 |
+| 管理端「版本发布」 | 安装包、`releaseNotes`、平台与 SHA-256 |
+
 ### 当前版本概览
 
 | 版本 | 日期 | 摘要 |
 |------|------|------|
-| Unreleased | — | （暂无） |
+| **1.2.0** | 计划中 | 灵伴知识库与 Agent 策略、本地搜索与消息同步优化、短视频推荐与运营后台 |
+| **1.1.0** | 计划中 | Linux 桌面端、Android 移动端 |
+| Unreleased | — | 当前开发目标 **1.1.0** |
 | **1.0.1** | 2026-08-29 | 灵伴 Agent 代操、Design Token、Electron 43、启动自动更新与版本发布链路 |
 | **1.0.0** | 2026-08-12 | 首个稳定基线：IM 核心链路、WebRTC 会议、管理端 RBAC、双 Token 鉴权 |
 

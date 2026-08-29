@@ -5,9 +5,52 @@
 
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)：`主版本.次版本.修订号`。
 
+### 版本规划
+
+| 版本 | 状态 | 主题 |
+|------|------|------|
+| **1.1.0** | 下一版 | Linux 桌面端、Android 移动端 |
+| **1.2.0** | 再下一版 | 灵伴知识库与 Agent 策略、本地搜索与消息同步、短视频推荐与运营 |
+
 ---
 
 ## [Unreleased]
+
+（当前开发目标：**1.1.0**）
+
+---
+
+## [1.2.0] - 计划中
+
+### 规划 — 灵伴 Agent
+
+- 企业知识库（RAG）：接入网盘 / 笔记 / 群文件等，支持 @灵伴 问答
+- Agent 写操作确认卡：发红包、建群、通话等敏感操作需用户确认后执行
+- 管理端 Agent 策略：按部门 / 群配置模型、额度、可调用工具白名单与操作审计
+
+### 规划 — IM 体验
+
+- 本地聊天全文搜索（基于 Electron 本地 SQLite）
+- 消息同步与已读回执优化（多端一致、离线增量同步）
+
+### 规划 — 短视频
+
+- 客户端推荐流与热门排序
+- 管理端短视频运营后台（数据看板、推荐策略、内容治理）
+
+---
+
+## [1.1.0] - 计划中
+
+### 规划 — Linux 桌面端
+
+- Linux 安装包构建与发布（AppImage / deb 等，以实际选型为准）
+- 官网与管理端版本记录支持 Linux 平台下载与自动更新
+
+### 规划 — Android 移动端
+
+- Android 客户端（IM 核心链路：登录、单聊 / 群聊、消息推送、文件与多媒体）
+- 与服务端 REST + WebSocket 协议对齐，共享业务 API
 
 ---
 
@@ -90,5 +133,7 @@
 | `安全` | 安全相关修复 |
 
 [Unreleased]: https://gitee.com/yangleduo7788/link-x/compare/v1.0.1...master
+[1.2.0]: https://gitee.com/yangleduo7788/link-x/compare/v1.1.0...v1.2.0
+[1.1.0]: https://gitee.com/yangleduo7788/link-x/compare/v1.0.1...v1.1.0
 [1.0.1]: https://gitee.com/yangleduo7788/link-x/compare/v1.0.0...v1.0.1
 [1.0.0]: https://gitee.com/yangleduo7788/link-x/releases/tag/v1.0.0

@@ -100,7 +100,7 @@
             LinkX 是一套前后端分离的企业级即时通讯（IM）解决方案，由桌面客户端、运营管理后台与单体后端服务组成，适用于团队内部沟通、协同办公与后台运营场景。
           </p>
           <p data-i18n="secOverviewP2">
-            客户端支持 Windows、macOS、Linux 桌面端（Electron），Android 与 iOS 移动端正在规划中。团队可通过单聊、群聊、音视频会议、文件网盘与运营后台，完成从日常沟通到组织管理的完整闭环。
+            当前已发布 Windows 桌面端（v1.0.1）。下一版 1.1.0 计划交付 Linux 桌面端与 Android 移动端；再下一版 1.2.0 将聚焦灵伴知识库与 Agent 策略、本地搜索与消息同步优化、短视频推荐与运营后台。macOS 与 iOS 仍在路线图中。
           </p>
           <div class="docs-card-grid">
             <article class="docs-card">
@@ -347,6 +347,7 @@ MESSAGE_KEK_KEY_ID=default</pre>
             <li data-i18n="secUpdatesL1">在管理端「版本发布」创建草稿，填写版本号、渠道、平台与<strong>更新说明</strong>（releaseNotes）。</li>
             <li data-i18n="secUpdatesL2">上传 Windows 安装包（或填写 MinIO / CDN 下载地址与 SHA-256）。</li>
             <li data-i18n="secUpdatesL3">发布后立即对客户端生效；旧版同平台记录自动归档。</li>
+            <li data-i18n="secUpdatesL3b">官网下载：配置 site-config.js 的 apiBaseUrl 后，通过 GET /app/version 获取 R2 公网直链。</li>
           </ol>
           <h3 data-i18n="secUpdatesH2">客户端行为</h3>
           <ul>

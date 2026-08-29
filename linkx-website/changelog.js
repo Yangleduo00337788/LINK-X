@@ -29,6 +29,8 @@
       emptyTitle: "暂无发布版本",
       emptyBody: "该平台客户端正在开发中，敬请期待后续更新。",
       unreleasedDate: "进行中",
+      roadmapTitle: "版本规划",
+      plannedBadge: "计划中",
     },
     en: {
       navProduct: "Product",
@@ -43,6 +45,8 @@
       emptyTitle: "No Releases Yet",
       emptyBody: "The client for this platform is under development. Stay tuned for future updates.",
       unreleasedDate: "In progress",
+      roadmapTitle: "Roadmap",
+      plannedBadge: "Planned",
     },
   };
 
@@ -77,6 +81,60 @@
   });
   const navJoinUs = document.getElementById("navJoinUs");
   if (navJoinUs) navJoinUs.setAttribute("href", langHref("join.html"));
+
+  function renderRoadmap() {
+    const wrap = document.getElementById("changelogRoadmap");
+    if (!wrap || !data.roadmap || !data.roadmap.length) return;
+
+    wrap.innerHTML =
+      '<h2 class="changelog-roadmap__title">' +
+      dict.roadmapTitle +
+      "</h2>" +
+      '<div class="changelog-roadmap__list">' +
+      data.roadmap
+        .map(function (item) {
+          const sections = (item.sections || [])
+            .map(function (section) {
+              const items = (section.items[lang] || [])
+                .map(function (line) {
+                  return "<li>" + line + "</li>";
+                })
+                .join("");
+              return (
+                '<div class="changelog-section">' +
+                "<h4>" +
+                section.title[lang] +
+                "</h4>" +
+                "<ul>" +
+                items +
+                "</ul>" +
+                "</div>"
+              );
+            })
+            .join("");
+
+          return (
+            '<article class="changelog-release changelog-release--planned">' +
+            '<div class="changelog-release__head">' +
+            '<div class="changelog-release__title">' +
+            '<span class="changelog-release__version">v' +
+            item.version +
+            "</span>" +
+            '<span class="changelog-release__badge">' +
+            item.status[lang] +
+            "</span>" +
+            "</div>" +
+            "</div>" +
+            '<p class="changelog-roadmap__summary">' +
+            item.summary[lang] +
+            "</p>" +
+            sections +
+            "</article>"
+          );
+        })
+        .join("") +
+      "</div>";
+  }
 
   function renderHighlights() {
     const wrap = document.getElementById("changelogHighlights");
@@ -143,7 +201,9 @@
               : "Unreleased"
             : "v" + release.version;
         const dateText = release.date || dict.unreleasedDate;
-        const badge = release.badge ? '<span class="changelog-release__badge">' + release.badge[lang] + "</span>" : "";
+        const badge = release.badge
+          ? '<span class="changelog-release__badge">' + release.badge[lang] + "</span>"
+          : "";
         const sections = (release.sections || [])
           .map(function (section) {
             const items = (section.items[lang] || [])
@@ -192,11 +252,19 @@
     if (platform.comingSoon) {
       panel.classList.add("is-coming-soon");
       versionEl.textContent = dict.comingSoon;
+      comingEl.hidden = false;
     } else {
       panel.classList.remove("is-coming-soon");
       versionEl.textContent = platform.versionLabel[lang];
-      downloadEl.href = platform.download.url;
-      downloadEl.setAttribute("download", platform.download.file);
+      comingEl.hidden = true;
+      const installer =
+        window.LinkXAppDownload && window.LinkXAppDownload.installerUrl
+          ? window.LinkXAppDownload.installerUrl(platformKey)
+          : "";
+      if (installer) {
+        downloadEl.href = installer;
+        downloadEl.removeAttribute("download");
+      }
     }
 
     options.forEach(function (opt) {
@@ -215,6 +283,7 @@
   });
 
   const initial = new URLSearchParams(window.location.search).get("platform");
+  renderRoadmap();
   renderHighlights();
   applyPlatform(initial && data.platforms[initial] ? initial : "windows");
 })();

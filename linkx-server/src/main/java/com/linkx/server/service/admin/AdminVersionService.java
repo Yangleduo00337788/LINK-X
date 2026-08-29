@@ -7,9 +7,14 @@ package com.linkx.server.service.admin;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.controller.admin.dto.AdminVersionDTO;
 import com.linkx.server.controller.admin.dto.AdminVersionQueryDTO;
+import com.linkx.server.controller.admin.dto.AdminVersionDirectMultipartCompleteDTO;
+import com.linkx.server.controller.admin.dto.AdminVersionDirectPresignPartsDTO;
 import com.linkx.server.controller.admin.dto.AdminVersionMultipartCompleteDTO;
 import com.linkx.server.controller.admin.dto.AdminVersionMultipartInitDTO;
+import com.linkx.server.controller.admin.vo.AdminVersionDirectMultipartInitVO;
+import com.linkx.server.controller.admin.vo.AdminVersionDirectPresignPartsVO;
 import com.linkx.server.controller.admin.vo.AdminVersionMultipartInitVO;
+import com.linkx.server.controller.admin.vo.AdminVersionUploadCapabilityVO;
 import com.linkx.server.controller.admin.vo.AdminVersionUploadVO;
 import com.linkx.server.controller.admin.vo.AdminVersionVO;
 import org.springframework.web.multipart.MultipartFile;
@@ -35,4 +40,12 @@ public interface AdminVersionService {
     void uploadInstallerPart(MultipartFile file, String uploadId, String objectKey, int partNumber, Long operatorId);
 
     AdminVersionUploadVO completeInstallerMultipart(AdminVersionMultipartCompleteDTO dto, Long operatorId);
+
+    AdminVersionUploadCapabilityVO uploadCapability();
+
+    AdminVersionDirectMultipartInitVO initInstallerDirectMultipart(AdminVersionMultipartInitDTO dto, Long operatorId);
+
+    AdminVersionDirectPresignPartsVO presignInstallerDirectParts(AdminVersionDirectPresignPartsDTO dto);
+
+    AdminVersionUploadVO completeInstallerDirectMultipart(AdminVersionDirectMultipartCompleteDTO dto, Long operatorId);
 }

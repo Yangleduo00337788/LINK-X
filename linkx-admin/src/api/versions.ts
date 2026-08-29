@@ -57,13 +57,23 @@ export interface VersionQuery extends PageQuery {
   platform?: VersionPlatform | ''
 }
 
-/** 超过此大小走分片上传（每片 8MB） */
+export interface VersionUploadCapability {
+  directMultipart: boolean
+  provider: string
+  chunkSize: number
+  maxConcurrency: number
+}
+
+export type UploadProgressCallback = (percent: number, detail?: string) => void
+
+/** 超过此大小走分片上传 */
 const MULTIPART_UPLOAD_THRESHOLD = 20 * 1024 * 1024
-const CHUNK_SIZE = 8 * 1024 * 1024
+/** 经后端中转时的分片大小（与直传默认一致） */
+const PROXY_CHUNK_SIZE = 10 * 1024 * 1024
 /** 单片/整包上传超时（30 分钟） */
 const UPLOAD_TIMEOUT_MS = 30 * 60 * 1000
-/** 分片并发数（OSS 合并要求非末片 ≥5MB，单片 8MB） */
-const PART_UPLOAD_CONCURRENCY = 3
+/** 经后端中转分片并发 */
+const PROXY_PART_UPLOAD_CONCURRENCY = 10
 
 /** 开发环境大文件 multipart 直连接后端，绕开 Vite 代理对 >1MB 体的 ECONNRESET */
 function resolveDirectApiBase(): string | undefined {
@@ -125,6 +135,10 @@ export function publishVersion(id: string) {
   return post<VersionItem>(`/admin/versions/${id}/publish`)
 }
 
+export function getVersionUploadCapability() {
+  return get<VersionUploadCapability>('/admin/versions/upload/capability')
+}
+
 async function uploadVersionPackageSingle(file: File): Promise<VersionUploadResult> {
   const formData = new FormData()
   formData.append('file', file)
@@ -143,15 +157,16 @@ async function uploadVersionPackageSingle(file: File): Promise<VersionUploadResu
   return data.data
 }
 
-async function uploadInstallerPart(
+async function uploadInstallerPartProxy(
   file: File,
   uploadId: string,
   objectKey: string,
   partNumber: number,
-  totalParts: number
+  totalParts: number,
+  chunkSize: number
 ) {
-  const start = (partNumber - 1) * CHUNK_SIZE
-  const chunk = file.slice(start, Math.min(start + CHUNK_SIZE, file.size))
+  const start = (partNumber - 1) * chunkSize
+  const chunk = file.slice(start, Math.min(start + chunkSize, file.size))
   const formData = new FormData()
   formData.append('file', chunk, file.name)
   formData.append('uploadId', uploadId)
@@ -163,29 +178,38 @@ async function uploadInstallerPart(
   }
 }
 
-async function uploadVersionPackageChunked(file: File): Promise<VersionUploadResult> {
+async function uploadVersionPackageChunkedProxy(
+  file: File,
+  onProgress?: UploadProgressCallback
+): Promise<VersionUploadResult> {
+  const chunkSize = PROXY_CHUNK_SIZE
   const sha256Promise = sha256HexOfFile(file)
+  onProgress?.(1, 'init')
   const initRes = await post<{ uploadId: string; objectKey: string }>(
     '/admin/versions/upload/multipart/init',
     { fileName: file.name },
     { timeout: UPLOAD_TIMEOUT_MS }
   )
   const { uploadId, objectKey } = initRes
-  const totalParts = Math.ceil(file.size / CHUNK_SIZE)
+  const totalParts = Math.ceil(file.size / chunkSize)
+  let completed = 0
   let nextPart = 1
-  const workers = Array.from({ length: PART_UPLOAD_CONCURRENCY }, async () => {
+  const workers = Array.from({ length: PROXY_PART_UPLOAD_CONCURRENCY }, async () => {
     while (true) {
       const partNumber = nextPart
       nextPart += 1
       if (partNumber > totalParts) {
         return
       }
-      await uploadInstallerPart(file, uploadId, objectKey, partNumber, totalParts)
+      await uploadInstallerPartProxy(file, uploadId, objectKey, partNumber, totalParts, chunkSize)
+      completed += 1
+      onProgress?.(Math.min(95, Math.round((completed / totalParts) * 90) + 5))
     }
   })
   await Promise.all(workers)
   const packageSha256 = await sha256Promise
-  return post<VersionUploadResult>(
+  onProgress?.(98, 'merge')
+  const result = await post<VersionUploadResult>(
     '/admin/versions/upload/multipart/complete',
     {
       uploadId,
@@ -196,14 +220,140 @@ async function uploadVersionPackageChunked(file: File): Promise<VersionUploadRes
     },
     { timeout: UPLOAD_TIMEOUT_MS }
   )
+  onProgress?.(100)
+  return result
 }
 
-export async function uploadVersionPackage(file: File) {
-  try {
-    if (file.size > MULTIPART_UPLOAD_THRESHOLD) {
-      return await uploadVersionPackageChunked(file)
+async function uploadDirectPart(
+  file: File,
+  url: string,
+  partNumber: number,
+  chunkSize: number
+): Promise<{ partNumber: number; etag: string }> {
+  const start = (partNumber - 1) * chunkSize
+  const chunk = file.slice(start, Math.min(start + chunkSize, file.size))
+  const response = await fetch(url, {
+    method: 'PUT',
+    body: chunk,
+  })
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    throw new Error(
+      tGlobal('version.uploadPartFailed', { part: partNumber, total: 0 }) +
+        (text ? `: ${text.slice(0, 120)}` : ` HTTP ${response.status}`)
+    )
+  }
+  const etag = (response.headers.get('ETag') || response.headers.get('etag') || '').replace(/"/g, '')
+  if (!etag) {
+    throw new Error(tGlobal('version.uploadPartFailed', { part: partNumber, total: 0 }))
+  }
+  return { partNumber, etag }
+}
+
+async function uploadVersionPackageDirect(
+  file: File,
+  capability: VersionUploadCapability,
+  onProgress?: UploadProgressCallback
+): Promise<VersionUploadResult> {
+  const chunkSize = capability.chunkSize || PROXY_CHUNK_SIZE
+  const concurrency = capability.maxConcurrency || PROXY_PART_UPLOAD_CONCURRENCY
+  const sha256Promise = sha256HexOfFile(file)
+
+  onProgress?.(1, 'init')
+  const initRes = await post<{
+    uploadId: string
+    objectKey: string
+    chunkSize: number
+    maxConcurrency: number
+  }>('/admin/versions/upload/direct/init', { fileName: file.name }, { timeout: UPLOAD_TIMEOUT_MS })
+
+  const totalParts = Math.ceil(file.size / chunkSize)
+  onProgress?.(3, 'presign')
+  const presignRes = await post<{
+    chunkSize: number
+    parts: Array<{ partNumber: number; url: string }>
+  }>(
+    '/admin/versions/upload/direct/presign-parts',
+    {
+      objectKey: initRes.objectKey,
+      uploadId: initRes.uploadId,
+      totalParts,
+    },
+    { timeout: UPLOAD_TIMEOUT_MS }
+  )
+
+  const urlByPart = new Map(presignRes.parts.map((p) => [p.partNumber, p.url]))
+  const uploadedParts: Array<{ partNumber: number; etag: string }> = []
+  let completed = 0
+  let nextPart = 1
+
+  const workers = Array.from({ length: concurrency }, async () => {
+    while (true) {
+      const partNumber = nextPart
+      nextPart += 1
+      if (partNumber > totalParts) {
+        return
+      }
+      const url = urlByPart.get(partNumber)
+      if (!url) {
+        throw new Error(tGlobal('version.uploadPartFailed', { part: partNumber, total: totalParts }))
+      }
+      const part = await uploadDirectPart(file, url, partNumber, chunkSize)
+      uploadedParts.push(part)
+      completed += 1
+      onProgress?.(Math.min(95, Math.round((completed / totalParts) * 90) + 5))
     }
-    return await uploadVersionPackageSingle(file)
+  })
+  await Promise.all(workers)
+
+  uploadedParts.sort((a, b) => a.partNumber - b.partNumber)
+  const packageSha256 = await sha256Promise
+  onProgress?.(98, 'merge')
+  const result = await post<VersionUploadResult>(
+    '/admin/versions/upload/direct/complete',
+    {
+      uploadId: initRes.uploadId,
+      objectKey: initRes.objectKey,
+      fileName: file.name,
+      fileSize: file.size,
+      packageSha256,
+      parts: uploadedParts,
+    },
+    { timeout: UPLOAD_TIMEOUT_MS }
+  )
+  onProgress?.(100)
+  return result
+}
+
+export async function uploadVersionPackage(file: File, onProgress?: UploadProgressCallback) {
+  try {
+    if (file.size <= MULTIPART_UPLOAD_THRESHOLD) {
+      onProgress?.(50)
+      const result = await uploadVersionPackageSingle(file)
+      onProgress?.(100)
+      return result
+    }
+
+    let capability: VersionUploadCapability | null = null
+    try {
+      capability = await getVersionUploadCapability()
+    } catch {
+      capability = null
+    }
+
+    if (capability?.directMultipart) {
+      try {
+        return await uploadVersionPackageDirect(file, capability, onProgress)
+      } catch (e) {
+        const err = e as Error
+        if (err.message?.includes('Failed to fetch') || err.message?.includes('CORS')) {
+          throw new Error(tGlobal('version.uploadCorsFail'))
+        }
+        throw e
+      }
+    }
+
+    return await uploadVersionPackageChunkedProxy(file, onProgress)
   } catch (e) {
     const err = e as {
       message?: string
