@@ -133,6 +133,19 @@ public class ProductionSecurityValidator implements ApplicationRunner {
             if (ProductionSecretRules.isBlank(cos.getRegion()) || ProductionSecretRules.isBlank(cos.getBucketName())) {
                 errors.add("COS_REGION / COS_BUCKET_NAME 生产环境不能为空");
             }
+        } else if (provider == StorageProviderType.R2) {
+            LinkxProperties.R2 r2 = linkxProperties.getR2();
+            if (ProductionSecretRules.isBlank(r2.getAccessKeyId())
+                    || ProductionSecretRules.isWeakSecret(r2.getSecretAccessKey(), MIN_MINIO_SECRET_LENGTH)) {
+                errors.add("R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY 不能为空或弱密钥");
+            }
+            if (ProductionSecretRules.isBlank(r2.getEndpoint()) || ProductionSecretRules.isBlank(r2.getBucketName())) {
+                errors.add("R2_ENDPOINT / R2_BUCKET_NAME 生产环境不能为空");
+            }
+            String r2Endpoint = r2.getEndpoint();
+            if (StringUtils.hasText(r2Endpoint) && r2Endpoint.startsWith("http://")) {
+                errors.add("R2_ENDPOINT 生产环境应使用 https://");
+            }
         }
 
         if (isSnailJobEnabled()) {

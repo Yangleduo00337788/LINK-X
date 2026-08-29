@@ -263,7 +263,7 @@ const securityForm = reactive({
 })
 
 const storageForm = reactive({
-  provider: 'minio' as 'minio' | 'oss' | 'cos',
+  provider: 'minio' as 'minio' | 'oss' | 'cos' | 'r2',
   minioEndpoint: '',
   minioBucketName: '',
   minioAccessKey: '',
@@ -281,6 +281,12 @@ const storageForm = reactive({
   cosSecretKey: '',
   cosSecretKeyConfigured: false,
   cosCnameDomain: '',
+  r2Endpoint: '',
+  r2BucketName: '',
+  r2AccessKeyId: '',
+  r2SecretAccessKey: '',
+  r2SecretAccessKeyConfigured: false,
+  r2CnameDomain: '',
   maxUploadMb: 100,
 })
 
@@ -325,6 +331,7 @@ const storageProviderOptions = computed(() => [
   { label: t('setting.storageProviderMinio'), value: 'minio' },
   { label: t('setting.storageProviderOss'), value: 'oss' },
   { label: t('setting.storageProviderCos'), value: 'cos' },
+  { label: t('setting.storageProviderR2'), value: 'r2' },
 ])
 
 watch(
@@ -432,7 +439,7 @@ function applySettings(data: AdminSetting) {
   securityForm.disableFrontendDebug = data.security?.disableFrontendDebug === true
   securityStore.applyFromSettings(data.security)
 
-  storageForm.provider = (data.storage?.provider as 'minio' | 'oss' | 'cos') || 'minio'
+  storageForm.provider = (data.storage?.provider as 'minio' | 'oss' | 'cos' | 'r2') || 'minio'
   storageForm.minioEndpoint = data.storage?.minioEndpoint || ''
   storageForm.minioBucketName = data.storage?.minioBucketName || ''
   storageForm.minioAccessKey = data.storage?.minioAccessKey || ''
@@ -450,6 +457,12 @@ function applySettings(data: AdminSetting) {
   storageForm.cosSecretKey = ''
   storageForm.cosSecretKeyConfigured = data.storage?.cosSecretKeyConfigured === true
   storageForm.cosCnameDomain = data.storage?.cosCnameDomain || ''
+  storageForm.r2Endpoint = data.storage?.r2Endpoint || ''
+  storageForm.r2BucketName = data.storage?.r2BucketName || ''
+  storageForm.r2AccessKeyId = data.storage?.r2AccessKeyId || ''
+  storageForm.r2SecretAccessKey = ''
+  storageForm.r2SecretAccessKeyConfigured = data.storage?.r2SecretAccessKeyConfigured === true
+  storageForm.r2CnameDomain = data.storage?.r2CnameDomain || ''
   storageForm.maxUploadMb = data.storage?.maxUploadBytes
     ? Math.round((data.storage.maxUploadBytes / (1024 * 1024)) * 10) / 10
     : clientForm.maxUploadMb
@@ -678,6 +691,11 @@ function buildStoragePayload() {
     cosSecretId: storageForm.cosSecretId.trim(),
     cosSecretKey: storageForm.cosSecretKey.trim() || undefined,
     cosCnameDomain: storageForm.cosCnameDomain.trim(),
+    r2Endpoint: storageForm.r2Endpoint.trim(),
+    r2BucketName: storageForm.r2BucketName.trim(),
+    r2AccessKeyId: storageForm.r2AccessKeyId.trim(),
+    r2SecretAccessKey: storageForm.r2SecretAccessKey.trim() || undefined,
+    r2CnameDomain: storageForm.r2CnameDomain.trim(),
     maxUploadBytes: Math.round(storageForm.maxUploadMb * 1024 * 1024),
   }
 }
@@ -1930,6 +1948,45 @@ onMounted(load)
                 <NFormItem :label="t('setting.cosCnameDomain')">
                   <NInput
                     v-model:value="storageForm.cosCnameDomain"
+                    placeholder="media.example.com"
+                    style="max-width: 420px"
+                  />
+                </NFormItem>
+              </template>
+
+              <template v-if="storageForm.provider === 'r2'">
+                <NFormItem :label="t('setting.r2Endpoint')">
+                  <NInput
+                    v-model:value="storageForm.r2Endpoint"
+                    placeholder="&lt;account_id&gt;.r2.cloudflarestorage.com"
+                    style="max-width: 420px"
+                  />
+                </NFormItem>
+                <NFormItem :label="t('setting.r2Bucket')">
+                  <NInput v-model:value="storageForm.r2BucketName" style="max-width: 240px" />
+                </NFormItem>
+                <NFormItem :label="t('setting.r2AccessKeyId')">
+                  <NInput v-model:value="storageForm.r2AccessKeyId" style="max-width: 360px" />
+                </NFormItem>
+                <NFormItem :label="t('setting.r2SecretAccessKey')">
+                  <div class="password-row">
+                    <NInput
+                      v-model:value="storageForm.r2SecretAccessKey"
+                      type="password"
+                      show-password-on="click"
+                      :placeholder="t('setting.storageSecretPh')"
+                      style="max-width: 360px"
+                    />
+                    <span class="field-hint">{{
+                      storageForm.r2SecretAccessKeyConfigured
+                        ? t('setting.mailPasswordConfigured')
+                        : t('setting.mailPasswordMissing')
+                    }}</span>
+                  </div>
+                </NFormItem>
+                <NFormItem :label="t('setting.r2CnameDomain')">
+                  <NInput
+                    v-model:value="storageForm.r2CnameDomain"
                     placeholder="media.example.com"
                     style="max-width: 420px"
                   />

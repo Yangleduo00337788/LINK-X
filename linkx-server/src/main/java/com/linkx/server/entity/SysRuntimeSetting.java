@@ -75,7 +75,7 @@ public class SysRuntimeSetting implements Serializable {
     /** 低于此版本强制升级（可空） */
     private String minSupportedVersion;
     private Long maxUploadBytes;
-    /** 对象存储提供商：minio | oss | cos */
+    /** 对象存储提供商：minio | oss | cos | r2 */
     private String storageProvider;
     private String minioEndpoint;
     private String minioBucketName;
@@ -92,6 +92,11 @@ public class SysRuntimeSetting implements Serializable {
     private String cosSecretId;
     private String cosSecretKey;
     private String cosCnameDomain;
+    private String r2Endpoint;
+    private String r2BucketName;
+    private String r2AccessKeyId;
+    private String r2SecretAccessKey;
+    private String r2CnameDomain;
     /** 敏感词过滤总开关 */
     private Boolean sensitiveFilterEnabled;
     /** 客服邮箱 */

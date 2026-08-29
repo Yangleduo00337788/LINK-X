@@ -8,6 +8,7 @@ import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.storage.impl.CosObjectStorageBackend;
 import com.linkx.server.storage.impl.MinioObjectStorageBackend;
 import com.linkx.server.storage.impl.OssObjectStorageBackend;
+import com.linkx.server.storage.impl.R2ObjectStorageBackend;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -34,6 +35,7 @@ public class ObjectStorageRouter {
     private final MinioObjectStorageBackend minioBackend;
     private final OssObjectStorageBackend ossBackend;
     private final CosObjectStorageBackend cosBackend;
+    private final R2ObjectStorageBackend r2Backend;
 
     public StorageProviderType activeProvider() {
         return StorageProviderType.fromWire(linkxProperties.getStorage().getProvider());
@@ -49,6 +51,8 @@ public class ObjectStorageRouter {
                 return ossBackend;
             case COS:
                 return cosBackend;
+            case R2:
+                return r2Backend;
             case MINIO:
             default:
                 return minioBackend;
@@ -63,6 +67,7 @@ public class ObjectStorageRouter {
         minioBackend.reloadClient();
         ossBackend.reloadClient();
         cosBackend.reloadClient();
+        r2Backend.reloadClient();
     }
 
     /** 该存储后端是否已配置凭证（未配置则跳过探测，避免无意义连接） */
@@ -81,6 +86,13 @@ public class ObjectStorageRouter {
                         && StringUtils.hasText(cos.getSecretKey())
                         && StringUtils.hasText(cos.getRegion())
                         && StringUtils.hasText(cos.getBucketName());
+            }
+            case R2: {
+                LinkxProperties.R2 r2 = linkxProperties.getR2();
+                return StringUtils.hasText(r2.getAccessKeyId())
+                        && StringUtils.hasText(r2.getSecretAccessKey())
+                        && StringUtils.hasText(r2.getEndpoint())
+                        && StringUtils.hasText(r2.getBucketName());
             }
             case MINIO:
             default: {
@@ -244,6 +256,22 @@ public class ObjectStorageRouter {
         }
         if (StringUtils.hasText(cos.getCnameDomain())) {
             String cname = cos.getCnameDomain().trim();
+            origins.add("https://" + cname);
+            origins.add("http://" + cname);
+        }
+        LinkxProperties.R2 r2 = linkxProperties.getR2();
+        if (StringUtils.hasText(r2.getEndpoint())) {
+            String ep = r2.getEndpoint().trim().replace("https://", "").replace("http://", "");
+            origins.add("https://" + ep);
+            origins.add("http://" + ep);
+        }
+        if (StringUtils.hasText(r2.getBucketName()) && StringUtils.hasText(r2.getEndpoint())) {
+            String ep = r2.getEndpoint().trim().replace("https://", "").replace("http://", "");
+            origins.add("https://" + ep + "/" + r2.getBucketName().trim());
+            origins.add("http://" + ep + "/" + r2.getBucketName().trim());
+        }
+        if (StringUtils.hasText(r2.getCnameDomain())) {
+            String cname = r2.getCnameDomain().trim();
             origins.add("https://" + cname);
             origins.add("http://" + cname);
         }

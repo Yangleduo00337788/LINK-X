@@ -14,7 +14,7 @@ import lombok.Data;
 public class StorageSettingUpdateDTO {
 
     @NotBlank
-    @Schema(description = "存储提供商：minio | oss | cos")
+    @Schema(description = "存储提供商：minio | oss | cos | r2")
     private String provider;
 
     @Schema(description = "MinIO Endpoint")
@@ -58,6 +58,21 @@ public class StorageSettingUpdateDTO {
 
     @Schema(description = "COS CNAME 域名")
     private String cosCnameDomain;
+
+    @Schema(description = "R2 S3 API Endpoint")
+    private String r2Endpoint;
+
+    @Schema(description = "R2 桶名")
+    private String r2BucketName;
+
+    @Schema(description = "R2 Access Key ID")
+    private String r2AccessKeyId;
+
+    @Schema(description = "R2 Secret Access Key；留空表示不修改")
+    private String r2SecretAccessKey;
+
+    @Schema(description = "R2 自定义公开域名")
+    private String r2CnameDomain;
 
     @NotNull
     @Schema(description = "单文件上传上限（字节）")

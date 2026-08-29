@@ -25,6 +25,7 @@ public class LinkxProperties {
     private final Storage storage = new Storage();
     private final Oss oss = new Oss();
     private final Cos cos = new Cos();
+    private final R2 r2 = new R2();
     private final Im im = new Im();
     private final Proxy proxy = new Proxy();
     private final Mail mail = new Mail();
@@ -175,7 +176,7 @@ public class LinkxProperties {
 
     @Data
     public static class Storage {
-        /** minio | oss | cos */
+        /** minio | oss | cos | r2 */
         private String provider = "minio";
     }
 
@@ -210,6 +211,17 @@ public class LinkxProperties {
         private String secretId = "";
         private String secretKey = "";
         /** 可选自定义 CNAME 域名 */
+        private String cnameDomain = "";
+    }
+
+    @Data
+    public static class R2 {
+        /** S3 API Endpoint，如 &lt;account_id&gt;.r2.cloudflarestorage.com */
+        private String endpoint = "";
+        private String bucketName = "";
+        private String accessKeyId = "";
+        private String secretAccessKey = "";
+        /** 可选自定义公开域名 */
         private String cnameDomain = "";
     }
 

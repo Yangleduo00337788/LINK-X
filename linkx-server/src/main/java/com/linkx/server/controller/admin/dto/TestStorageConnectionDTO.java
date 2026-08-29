@@ -13,7 +13,7 @@ import lombok.Data;
 public class TestStorageConnectionDTO {
 
     @NotBlank
-    @Schema(description = "存储提供商：minio | oss | cos")
+    @Schema(description = "存储提供商：minio | oss | cos | r2")
     private String provider;
 
     private String minioEndpoint;
@@ -32,4 +32,10 @@ public class TestStorageConnectionDTO {
     private String cosSecretId;
     private String cosSecretKey;
     private String cosCnameDomain;
+
+    private String r2Endpoint;
+    private String r2BucketName;
+    private String r2AccessKeyId;
+    private String r2SecretAccessKey;
+    private String r2CnameDomain;
 }
