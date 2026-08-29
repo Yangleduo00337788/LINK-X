@@ -12,7 +12,6 @@ import {
   NImage,
   NInput,
   NInputNumber,
-  NModal,
   NSelect,
   NSpace,
   NSpin,

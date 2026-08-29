@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>LinkMate Agent Sim Harness</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: system-ui, sans-serif;
+        background: #f5f7fa;
+      }
+      .layout {
+        display: flex;
+        min-height: 100vh;
+      }
+      nav.sidebar {
+        width: 88px;
+        padding: 12px 8px;
+        background: #fff;
+        border-right: 1px solid #e5e7eb;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      nav.sidebar button {
+        padding: 10px 8px;
+        border: 1px solid #dbe1ea;
+        border-radius: 8px;
+        background: #fff;
+        cursor: pointer;
+      }
+      nav.sidebar button.is-active {
+        background: #e8f4ff;
+        border-color: #93c5fd;
+      }
+      main.content {
+        flex: 1;
+        padding: 16px;
+      }
+      .panel {
+        display: none;
+        background: #fff;
+        border-radius: 12px;
+        padding: 16px;
+        border: 1px solid #e5e7eb;
+      }
+      .panel.is-visible {
+        display: block;
+      }
+      .chat-list {
+        list-style: none;
+        padding: 0;
+        margin: 12px 0;
+      }
+      .chat-list li {
+        padding: 10px;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        margin-bottom: 8px;
+        cursor: pointer;
+      }
+      .chat-list li.active {
+        background: #e8f4ff;
+      }
+      .message-input textarea {
+        width: 100%;
+        min-height: 72px;
+        margin-top: 8px;
+      }
+      .toolbar {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 12px;
+      }
+      .modal {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.35);
+        align-items: center;
+        justify-content: center;
+        z-index: 20;
+      }
+      .modal.is-open {
+        display: flex;
+      }
+      .modal-card {
+        width: min(440px, 92vw);
+        background: #fff;
+        border-radius: 12px;
+        padding: 16px;
+      }
+      .form-row {
+        margin-bottom: 12px;
+      }
+      .form-row label {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 14px;
+      }
+      .form-row input {
+        width: 100%;
+        padding: 8px 10px;
+      }
+      .n-dropdown-menu {
+        display: none;
+        position: absolute;
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+        z-index: 30;
+        min-width: 180px;
+      }
+      .n-dropdown-menu.is-open {
+        display: block;
+      }
+      .n-dropdown-option {
+        padding: 10px 12px;
+        cursor: pointer;
+      }
+      .n-dropdown-option:hover {
+        background: #f3f4f6;
+      }
+      #agent-cursor {
+        position: fixed;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: #2563eb;
+        border: 2px solid #fff;
+        box-shadow: 0 2px 8px rgba(37, 99, 235, 0.45);
+        pointer-events: none;
+        z-index: 100;
+        transform: translate(-50%, -50%);
+        display: none;
+      }
+      #agent-cursor.is-visible {
+        display: block;
+      }
+      #agent-cursor.is-clicking {
+        transform: translate(-50%, -50%) scale(0.82);
+      }
+      .state-panel {
+        margin-top: 16px;
+        padding: 12px;
+        background: #f8fafc;
+        border-radius: 8px;
+        font-size: 13px;
+        white-space: pre-wrap;
+      }
+      [data-lm-note-content] {
+        min-height: 120px;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 10px;
+      }
+      .agent-bar {
+        margin-top: 16px;
+        padding: 12px;
+        background: #eff6ff;
+        border: 1px solid #93c5fd;
+        border-radius: 8px;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .agent-bar[hidden] {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <nav class="sidebar">
+        <button type="button" data-lm-nav="chat" data-nav-btn="chat">聊天</button>
+        <button type="button" data-lm-nav="contacts" data-nav-btn="contacts">联系人</button>
+        <button type="button" data-lm-nav="calendar" data-nav-btn="calendar">日历</button>
+        <button type="button" data-lm-nav="favorites" data-nav-btn="favorites">收藏</button>
+      </nav>
+
+      <main class="content">
+        <h1 data-testid="harness-title">LinkMate Agent Sim Harness</h1>
+        <p data-testid="current-nav">calendar</p>
+
+        <section id="panel-chat" class="panel" data-panel="chat">
+          <div class="toolbar panel-search-bar" data-lm-search-bar>
+            <input class="search-input" type="text" placeholder="搜索" />
+            <button type="button" data-lm-chat-add-btn data-testid="chat-add-btn">+</button>
+          </div>
+          <ul class="chat-list">
+            <li data-lm-session-id="101" data-lm-session-name="张三" data-session-id="101">张三</li>
+      <li data-lm-session-id="201" data-lm-session-name="项目群" data-session-id="201">项目群</li>
+      <li data-lm-session-id="202" data-lm-session-name="张三、李四" data-session-id="202">张三、李四</li>
+    </ul>
+          <div class="message-input">
+            <textarea data-lm-chat-input data-testid="chat-input"></textarea>
+          </div>
+          <button type="button" class="lx-btn--send" data-lm-send-btn data-testid="send-btn">发送</button>
+          <div data-testid="sent-messages"></div>
+        </section>
+
+        <section id="panel-contacts" class="panel" data-panel="contacts">
+          <p data-testid="contacts-placeholder">联系人面板</p>
+        </section>
+
+        <section id="panel-calendar" class="panel is-visible" data-panel="calendar">
+          <button type="button" data-lm-calendar-add data-testid="calendar-add">新建日程</button>
+          <div data-testid="calendar-events"></div>
+        </section>
+
+        <section id="panel-favorites" class="panel" data-panel="favorites">
+          <button type="button" data-lm-favorites-add data-testid="favorites-add">新建笔记</button>
+          <div data-testid="saved-notes"></div>
+        </section>
+
+        <div id="add-dropdown" class="n-dropdown-menu">
+          <div class="n-dropdown-option" data-lm-add-friend="1">添加好友/群</div>
+          <div class="n-dropdown-option" data-lm-open-linkmate="1">打开灵伴</div>
+        </div>
+
+        <div id="linkmate-panel" class="modal" data-testid="linkmate-panel">
+          <div class="modal-card">
+            <p>灵伴面板已打开</p>
+          </div>
+        </div>
+
+        <div id="calendar-modal" class="modal" data-testid="calendar-modal">
+          <div class="modal-card">
+            <div class="form-row">
+              <label>标题</label>
+              <input data-lm-calendar-event-title type="text" />
+            </div>
+            <div class="form-row">
+              <label>日期</label>
+              <input data-lm-calendar-event-date type="date" />
+            </div>
+            <div class="form-row">
+              <label>开始时间</label>
+              <input data-lm-calendar-event-start-time type="time" />
+            </div>
+            <div class="form-row">
+              <label>结束时间</label>
+              <input data-lm-calendar-event-end-time type="time" />
+            </div>
+            <button type="button" data-lm-calendar-event-save data-testid="calendar-save">保存</button>
+          </div>
+        </div>
+
+        <div id="note-panel" class="modal" data-testid="note-panel">
+          <div class="modal-card">
+            <main data-lm-note-content data-testid="note-content" contenteditable="true"></main>
+            <button type="button" data-lm-note-save data-testid="note-save">保存</button>
+          </div>
+        </div>
+
+        <div id="search-modal" class="modal" data-testid="search-modal">
+          <div class="modal-card">
+            <input
+              data-lm-comprehensive-search-input
+              data-testid="comprehensive-search-input"
+              type="text"
+              placeholder="搜索关键词"
+            />
+            <button type="button" data-lm-comprehensive-search-submit data-testid="search-submit">
+              搜索
+            </button>
+            <p data-testid="search-result"></p>
+          </div>
+        </div>
+
+        <pre class="state-panel" data-testid="state-json"></pre>
+
+        <div id="agent-bar" class="agent-bar" data-testid="agent-bar" hidden>
+          <span data-testid="agent-phase">idle</span>
+          <span data-testid="agent-step"></span>
+          <button type="button" data-testid="agent-confirm">确认执行</button>
+          <button type="button" data-testid="agent-reject">跳过</button>
+          <button type="button" data-testid="agent-cancel">取消</button>
+        </div>
+      </main>
+    </div>
+
+    <div id="agent-cursor" data-testid="agent-cursor"></div>
+    <script type="module" src="./agent-sim-harness.ts"></script>
+  </body>
+</html>

@@ -66,7 +66,6 @@ const {
   streaming,
   inputDraft,
   enabled,
-  status,
   sessions,
   openTabs,
   deepThinking,
@@ -234,17 +233,6 @@ const statusHintText = computed(() => {
   }
   if (!hasContent) return t('linkmate.thinking')
   return t('linkmate.generating')
-})
-
-const tokenUsageText = computed(() => {
-  if (!status.value?.enabled) return ''
-  if (dailyQuotaExhausted.value) return t('linkmate.dailyQuotaExhausted')
-  const limit = status.value.dailyTokenLimit
-  if (!limit || limit <= 0) return ''
-  return t('linkmate.tokenUsage', {
-    used: status.value.dailyTokenUsed.toLocaleString(),
-    limit: limit.toLocaleString()
-  })
 })
 
 const starterPrompts = computed(() => [

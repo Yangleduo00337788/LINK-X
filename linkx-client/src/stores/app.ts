@@ -82,7 +82,6 @@ function findLastReadableMessageId(messages: ChatMessage[]): string {
   }
   return lastId
 }
-import { API_BASE_URL } from '../config/endpoints'
 import { t } from '../i18n'
 import { normalizeProfileGender, PROFILE_GENDER_MALE, type ProfileGender } from '../types/profileGender'
 // 通讯录 Store（加群/加好友后同步联系人）

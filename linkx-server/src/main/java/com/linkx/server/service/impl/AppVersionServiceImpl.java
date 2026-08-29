@@ -11,8 +11,10 @@ import com.linkx.server.util.AppVersionUtils;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.util.Comparator;
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
@@ -33,5 +35,23 @@ public class AppVersionServiceImpl implements AppVersionService {
         return published.stream()
                 .filter(row -> AppVersionUtils.isChannelEligible(clientChannel, row.getChannel()))
                 .max(Comparator.comparing(SysAppVersion::getVersion, AppVersionUtils::compare));
+    }
+
+    @Override
+    public Optional<SysAppVersion> findPublishedByVersion(String platform, String clientChannel, String version) {
+        if (!StringUtils.hasText(version)) {
+            return Optional.empty();
+        }
+        String normalizedPlatform = AppVersionUtils.normalizePlatform(platform);
+        String normalizedVersion = version.trim();
+        List<SysAppVersion> published = versionMapper.selectListByQuery(
+                QueryWrapper.create()
+                        .where(SysAppVersion::getDeleted).eq(0)
+                        .and(SysAppVersion::getStatus).eq(SysAppVersion.STATUS_PUBLISHED)
+                        .and(SysAppVersion::getPlatform).eq(normalizedPlatform)
+                        .and(SysAppVersion::getVersion).eq(normalizedVersion));
+        return published.stream()
+                .filter(row -> AppVersionUtils.isChannelEligible(clientChannel, row.getChannel()))
+                .max(Comparator.comparing(SysAppVersion::getPublishedAt, Comparator.nullsFirst(Date::compareTo)));
     }
 }

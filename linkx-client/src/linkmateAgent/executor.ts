@@ -46,7 +46,10 @@ export function normalizeAgentAction(action: LinkMateAgentAction): LinkMateAgent
     const rawDate = asString(action.arguments.date)
     if (!rawDate) return action
     const resolved = resolveEventDate(rawDate)
-    const nextArgs = { ...action.arguments, date: resolved ?? rawDate }
+    const nextArgs: Record<string, unknown> = {
+      ...action.arguments,
+      date: resolved ?? rawDate
+    }
     if (action.name === 'create_calendar_event') {
       const time = asString(action.arguments.time) || inferDefaultStartTime(rawDate)
       const endTime = asString(action.arguments.endTime) || inferDefaultEndTime(time)

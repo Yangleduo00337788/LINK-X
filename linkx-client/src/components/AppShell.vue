@@ -8,7 +8,7 @@
  * </p>
  */
 // Vue 组合式 API：计算属性、响应式、生命周期、异步组件
-import { computed, ref, onMounted, onUnmounted, defineAsyncComponent, watch } from 'vue'
+import { computed, ref, onMounted, onUnmounted, defineAsyncComponent, watch, nextTick } from 'vue'
 // 顶部状态栏
 import MainStatusBar from './MainStatusBar.vue'
 // 左侧导航栏
@@ -46,6 +46,10 @@ import OfficialNotifyPanel from './OfficialNotifyPanel.vue'
 // 全屏 Overlay 宿主
 import OverlayHost from './overlay/OverlayHost.vue'
 import AiControlOverlay from './AiControlOverlay.vue'
+import WhatsNewModal from './WhatsNewModal.vue'
+import { runStartupVersionFlow } from '../utils/startupVersion'
+import { useI18n } from '../i18n'
+import { useDialog, useMessage } from 'naive-ui'
 import { SYSTEM_NOTIFY_SESSION_ID, OFFICIAL_NOTIFY_SESSION_ID } from '../types'
 
 // 以下弹窗异步懒加载，减小首屏包体积
@@ -74,13 +78,15 @@ import { useLinkMateStore } from '../stores/linkmate'
 import { useExtensionDockStore } from '../stores/extensionDock'
 import { useMomentsStore } from '../stores/moments'
 import { useShortVideoStore } from '../stores/shortVideo'
-import { useI18n } from '../i18n'
 import { isRealImChatSession } from '../utils/buildImChatContext'
 
-const { t } = useI18n()
-
 const appStore = useAppStore()
+const { t } = useI18n()
+const message = useMessage()
+const dialog = useDialog()
 const { navKey, currentSessionId, currentSession } = storeToRefs(appStore)
+const showWhatsNew = ref(false)
+const whatsNewNotes = ref('')
 const linkMateStore = useLinkMateStore()
 const extensionDock = useExtensionDockStore()
 const { panelExpanded, panelCollapsed } = storeToRefs(extensionDock)
@@ -167,6 +173,13 @@ onMounted(() => {
     void useShortVideoStore().ensurePanelReady()
     useShortVideoStore().openPanel()
   }
+  void nextTick(() => {
+    void runStartupVersionFlow({ message, dialog, t }).then(result => {
+      if (!result.whatsNew.show) return
+      whatsNewNotes.value = result.whatsNew.notes
+      showWhatsNew.value = true
+    })
+  })
 })
 
 // 卸载时清理拖拽与焦点监听
@@ -311,6 +324,7 @@ const showMiddleList = computed(
     <RedPacketHistoryModal />
     <ContactProfileModal />
     <EditProfileModal />
+    <WhatsNewModal v-model:show="showWhatsNew" v-model:notes="whatsNewNotes" />
     <OverlayHost />
     <AiControlOverlay />
   </div>

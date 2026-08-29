@@ -9,8 +9,14 @@
 
 ## [Unreleased]
 
+---
+
+## [1.0.1] - 2026-08-29
+
 ### 新增
 
+- 灵伴 Agent 代操模式：支持 LLM 函数调用在客户端执行导航、发消息等操作
+- 灵伴 Agent 全局开关与群 AI 默认策略（管理端可配置）
 - 客户端 Design Token 体系（`--lx-*`）与 `ui-components.css` 公共样式
 - 公共 UI 组件：`LxButton`、`LxIconButton`、`LxGroupCard`
 - 客户端全站迁移至统一 Design Token（`migrate-*.mjs` 一次性脚本已移除）

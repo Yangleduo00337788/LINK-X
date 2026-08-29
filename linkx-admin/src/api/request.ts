@@ -4,6 +4,7 @@
 import axios, {
   type AxiosError,
   type AxiosRequestConfig,
+  type AxiosResponse,
   type InternalAxiosRequestConfig,
 } from 'axios'
 import { computed, ref } from 'vue'
@@ -257,7 +258,7 @@ async function handleStepUp(original: RetryConfig, challenge: StepUpChallenge) {
 async function handleUnauthorizedRetry(
   original: RetryConfig | undefined,
   rejectMessage?: string
-): Promise<unknown> {
+): Promise<AxiosResponse> {
   if (!original || original._retry || original.url?.includes('/admin/auth/login')) {
     return Promise.reject(new Error(rejectMessage || tGlobal('common.requestFailed')))
   }
@@ -281,7 +282,7 @@ async function handleUnauthorizedRetry(
 }
 
 request.interceptors.response.use(
-  async (response) => {
+  async (response): Promise<AxiosResponse> => {
     const security = useSecurityStore()
     const headers = response.headers as Record<string, unknown>
     if (
@@ -381,7 +382,7 @@ export async function downloadFile(
     const text = await blob.text()
     const payload = JSON.parse(text) as ApiResult<string>
     const bytes = await decryptToBytes(security.apiSignKey, payload.data || '')
-    blob = new Blob([bytes], { type: 'text/csv;charset=utf-8' })
+    blob = new Blob([new Uint8Array(bytes)], { type: 'text/csv;charset=utf-8' })
   } else if (blob.type && blob.type.includes('application/json')) {
     const text = await blob.text()
     try {

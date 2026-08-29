@@ -24,6 +24,8 @@ export interface AppVersion {
   platform?: string
   /** 升级提示/已是最新提示 */
   releaseNotes: string
+  /** 当前客户端版本对应的更新说明（管理端发布时填写） */
+  currentReleaseNotes?: string
   /** 下载地址（可空） */
   downloadUrl: string
   /** 安装包 SHA-256 */

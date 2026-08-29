@@ -53,6 +53,7 @@ mvn spring-boot:run
 
 ```bash
 mvn test                        # 单元测试
+mvn test jacoco:report          # 单元测试 + 覆盖率（报告见 target/site/jacoco/index.html）
 mvn -DskipTests package         # 产出 target/linkx-server-1.0.0-SNAPSHOT.jar
 ```
 

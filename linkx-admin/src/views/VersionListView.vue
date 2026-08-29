@@ -10,7 +10,6 @@ import {
   NForm,
   NFormItem,
   NInput,
-  NModal,
   NSelect,
   NSpace,
   NSpin,

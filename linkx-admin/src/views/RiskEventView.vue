@@ -8,7 +8,6 @@ import {
   NDataTable,
   NDatePicker,
   NInput,
-  NModal,
   NRadio,
   NRadioGroup,
   NSelect,

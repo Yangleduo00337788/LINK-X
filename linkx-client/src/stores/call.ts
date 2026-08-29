@@ -292,7 +292,8 @@ export const useCallStore = defineStore('call', {
           return
         }
         linkMateBridge = bridge
-        if (this.phase !== 'connected') {
+        const phase = this.phase as CallPhase
+        if (phase !== 'connected') {
           this.phase = 'connected'
           if (!this.connectedAt) this.connectedAt = Date.now()
         }

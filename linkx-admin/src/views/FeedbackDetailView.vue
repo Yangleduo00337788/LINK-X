@@ -9,7 +9,6 @@ import {
   NDescriptions,
   NDescriptionsItem,
   NInput,
-  NModal,
   NSelect,
   NSpace,
   NSpin,

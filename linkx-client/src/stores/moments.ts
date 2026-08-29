@@ -17,38 +17,11 @@ import { t } from '../i18n'
 
 export type MomentsPanelState = 'closed' | 'open' | 'collapsed'
 export type MomentsPanelTabId = 'main' | `user:${string}`
-
-const PANEL_WIDTH_STORAGE_KEY = 'linkx-moments-panel-width'
 export const MOMENTS_PANEL_WIDTH_MIN = 320
 export const MOMENTS_PANEL_WIDTH_MAX = 560
 export const MOMENTS_PANEL_WIDTH_DEFAULT = 420
 
 let ensurePanelReadyTask: Promise<void> | null = null
-
-function clampPanelWidth(width: number): number {
-  return Math.min(MOMENTS_PANEL_WIDTH_MAX, Math.max(MOMENTS_PANEL_WIDTH_MIN, width))
-}
-
-function loadPanelWidth(): number {
-  try {
-    const raw = localStorage.getItem(PANEL_WIDTH_STORAGE_KEY)
-    const parsed = raw ? Number(raw) : NaN
-    if (Number.isFinite(parsed)) {
-      return clampPanelWidth(parsed)
-    }
-  } catch {
-    /* ignore */
-  }
-  return MOMENTS_PANEL_WIDTH_DEFAULT
-}
-
-function persistPanelWidth(width: number) {
-  try {
-    localStorage.setItem(PANEL_WIDTH_STORAGE_KEY, String(width))
-  } catch {
-    /* ignore */
-  }
-}
 
 export function parseMomentsTabUserId(tabId: string): string | null {
   if (!tabId.startsWith('user:')) return null

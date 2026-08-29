@@ -117,7 +117,7 @@ class Pcm24kPlayer {
     const floats = base64ToFloat32Pcm16Le(base64)
     if (!floats) return
     const buffer = this.ctx.createBuffer(1, floats.length, OUTPUT_SAMPLE_RATE)
-    buffer.copyToChannel(floats, 0)
+    buffer.copyToChannel(new Float32Array(floats), 0)
     const source = this.ctx.createBufferSource()
     source.buffer = buffer
     source.connect(this.destination)

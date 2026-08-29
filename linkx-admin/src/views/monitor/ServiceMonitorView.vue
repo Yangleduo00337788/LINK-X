@@ -95,7 +95,7 @@ onMounted(() => void load())
           </NGi>
           <NGi :span="2">
             <div class="page-card card">
-              <h4>{{ t('monitor.memoryTrend') }}</h4>
+              <h4>{{ t('monitor.systemMemoryTrend') }}</h4>
               <div ref="memEl" class="chart" />
             </div>
           </NGi>

@@ -1464,94 +1464,126 @@ function registerWindowIpc() {
     'app:download-and-install-update',
     async (
       event,
-      payload: { url?: string; version?: string; fileName?: string; sha256?: string; silent?: boolean } = {}
+      payload: {
+        url?: string
+        localPath?: string
+        version?: string
+        fileName?: string
+        sha256?: string
+        silent?: boolean
+        install?: boolean
+      } = {}
     ) => {
       try {
-        const url = (payload.url || '').trim()
-        const isHttps = /^https:\/\//i.test(url)
-        const isLocalHttp =
-          /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?\//i.test(url) && isDev
-        if (!isHttps && !isLocalHttp) {
-          return { ok: false, message: mainT(desktopPrefs.language, 'downloadHttpsOnly') }
-        }
-
-        // 域名白名单校验，防止渲染进程被 XSS 后下载执行任意来源 exe
-        let apiHost = ''
-        try {
-          apiHost = new URL(resolveApiBaseUrl(process.env.VITE_API_BASE_URL)).hostname.toLowerCase()
-        } catch {
-          apiHost = ''
-        }
-        const defaultHosts = ['github.com', 'objects.githubusercontent.com', apiHost]
-          .filter(Boolean)
-          .join(',')
-        const allowedHosts = (process.env.LINKX_UPDATE_HOSTS || defaultHosts)
-          .split(',')
-          .map(h => h.trim().toLowerCase())
-          .filter(Boolean)
-        let parsedUrl: URL
-        try {
-          parsedUrl = new URL(url)
-        } catch {
-          return { ok: false, message: mainT(desktopPrefs.language, 'downloadInvalidUrl') }
-        }
-        if (!allowedHosts.includes(parsedUrl.hostname.toLowerCase())) {
-          return { ok: false, message: mainT(desktopPrefs.language, 'downloadNotWhitelisted') }
-        }
-
-        let fileName = sanitizeFileName(payload.fileName || '')
-        if (!fileName || fileName === 'download') {
-          try {
-            const fromUrl = path.basename(new URL(url).pathname)
-            fileName = sanitizeFileName(fromUrl || '')
-          } catch {
-            fileName = ''
-          }
-        }
-        if (!fileName || fileName === 'download') {
-          const ver = sanitizeFileName(payload.version || 'update')
-          fileName = `LinkX-Setup-${ver}.exe`
-        }
-
-        // 扩展名白名单：仅允许安装包格式，防止下载执行任意类型文件
-        const allowedExts = ['.exe', '.msi', '.dmg', '.AppImage', '.deb', '.rpm']
-        const ext = path.extname(fileName).toLowerCase()
-        if (!allowedExts.includes(ext)) {
-          return { ok: false, message: mainT(desktopPrefs.language, 'downloadInstallerOnly') }
-        }
-
         const dir = path.join(app.getPath('temp'), 'LinkX-Update')
         if (!fs.existsSync(dir)) {
           fs.mkdirSync(dir, { recursive: true })
         }
-        const targetPath = path.join(dir, fileName)
 
         const win = winFromSender(event)
-        win?.webContents.send('app:update-progress', { phase: 'downloading', percent: 0 })
-        setTaskbarProgress(win, 0)
+        let targetPath = ''
 
-        const reportDownloadProgress = (ratio: number) => {
-          const pct = Math.round(Math.min(1, Math.max(0, ratio)) * 100)
-          win?.webContents.send('app:update-progress', { phase: 'downloading', percent: pct })
-          setTaskbarProgress(win, ratio)
-        }
-
-        const bytes = await fetchUrlToFileWithProgress(url, reportDownloadProgress)
-
-        const expectedSha = (payload.sha256 || '').trim().toLowerCase()
-        if (expectedSha) {
-          const { createHash } = await import('crypto')
-          const actualSha = createHash('sha256').update(bytes).digest('hex')
-          if (actualSha !== expectedSha) {
-            return { ok: false, message: mainT(desktopPrefs.language, 'downloadChecksumMismatch') }
+        const localPath = (payload.localPath || '').trim()
+        if (localPath) {
+          const resolved = path.resolve(localPath)
+          const safeRoot = path.resolve(dir)
+          if (!resolved.startsWith(safeRoot + path.sep) && resolved !== safeRoot) {
+            return { ok: false, message: mainT(desktopPrefs.language, 'downloadInvalidUrl') }
           }
+          if (!fs.existsSync(resolved)) {
+            return { ok: false, message: mainT(desktopPrefs.language, 'downloadInstallerFail') }
+          }
+          targetPath = resolved
+        } else {
+          const url = (payload.url || '').trim()
+          const isHttps = /^https:\/\//i.test(url)
+          const isLocalHttp =
+            /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?\//i.test(url) && isDev
+          if (!isHttps && !isLocalHttp) {
+            return { ok: false, message: mainT(desktopPrefs.language, 'downloadHttpsOnly') }
+          }
+
+          // 域名白名单校验，防止渲染进程被 XSS 后下载执行任意来源 exe
+          let apiHost = ''
+          try {
+            apiHost = new URL(resolveApiBaseUrl(process.env.VITE_API_BASE_URL)).hostname.toLowerCase()
+          } catch {
+            apiHost = ''
+          }
+          const defaultHosts = ['github.com', 'objects.githubusercontent.com', apiHost]
+            .filter(Boolean)
+            .join(',')
+          const allowedHosts = (process.env.LINKX_UPDATE_HOSTS || defaultHosts)
+            .split(',')
+            .map(h => h.trim().toLowerCase())
+            .filter(Boolean)
+          let parsedUrl: URL
+          try {
+            parsedUrl = new URL(url)
+          } catch {
+            return { ok: false, message: mainT(desktopPrefs.language, 'downloadInvalidUrl') }
+          }
+          if (!allowedHosts.includes(parsedUrl.hostname.toLowerCase())) {
+            return { ok: false, message: mainT(desktopPrefs.language, 'downloadNotWhitelisted') }
+          }
+
+          let fileName = sanitizeFileName(payload.fileName || '')
+          if (!fileName || fileName === 'download') {
+            try {
+              const fromUrl = path.basename(new URL(url).pathname)
+              fileName = sanitizeFileName(fromUrl || '')
+            } catch {
+              fileName = ''
+            }
+          }
+          if (!fileName || fileName === 'download') {
+            const ver = sanitizeFileName(payload.version || 'update')
+            fileName = `LinkX-Setup-${ver}.exe`
+          }
+
+          // 扩展名白名单：仅允许安装包格式，防止下载执行任意类型文件
+          const allowedExts = ['.exe', '.msi', '.dmg', '.AppImage', '.deb', '.rpm']
+          const ext = path.extname(fileName).toLowerCase()
+          if (!allowedExts.includes(ext)) {
+            return { ok: false, message: mainT(desktopPrefs.language, 'downloadInstallerOnly') }
+          }
+
+          targetPath = path.join(dir, fileName)
+
+          win?.webContents.send('app:update-progress', { phase: 'downloading', percent: 0 })
+          setTaskbarProgress(win, 0)
+
+          const reportDownloadProgress = (ratio: number) => {
+            const pct = Math.round(Math.min(1, Math.max(0, ratio)) * 100)
+            win?.webContents.send('app:update-progress', { phase: 'downloading', percent: pct })
+            setTaskbarProgress(win, ratio)
+          }
+
+          const bytes = await fetchUrlToFileWithProgress(url, reportDownloadProgress)
+
+          const expectedSha = (payload.sha256 || '').trim().toLowerCase()
+          if (expectedSha) {
+            const { createHash } = await import('crypto')
+            const actualSha = createHash('sha256').update(bytes).digest('hex')
+            if (actualSha !== expectedSha) {
+              return { ok: false, message: mainT(desktopPrefs.language, 'downloadChecksumMismatch') }
+            }
+          }
+
+          await fs.promises.writeFile(targetPath, bytes)
         }
 
-        await fs.promises.writeFile(targetPath, bytes)
+        const shouldInstall = payload.install !== false
+        if (!shouldInstall) {
+          setTaskbarProgress(win, -1)
+          win?.webContents.send('app:update-progress', { phase: 'ready', percent: 100 })
+          return { ok: true, path: targetPath, ready: true }
+        }
 
         win?.webContents.send('app:update-progress', { phase: 'installing', percent: 100 })
         setTaskbarProgress(win, 1)
 
+        const ext = path.extname(targetPath).toLowerCase()
         const silent = payload.silent !== false
         const isWindowsInstaller = process.platform === 'win32' && (ext === '.exe' || ext === '.msi')
         let launched = false

@@ -620,11 +620,21 @@ export default {
     webDownloadStarted: '已开始下载，请运行安装包完成升级',
     installFail: '下载或启动安装失败',
     noDownloadUrl: '发现新版本，但服务端未配置下载地址',
+    forceUpdateDownloading: '正在下载必需更新，请稍候…',
+    updateReadyTitle: '新版本 {version} 已就绪',
+    updateReadyHint: '更新包已在后台下载完成，可立即安装。',
+    updateReadyInstall: '立即安装',
+    updateReadyLater: '稍后',
     serviceAgreement: '服务协议',
     privacyPolicy: '隐私协议',
     helpCenter: '帮助中心',
     companyRights: '养乐多 版权所有',
     copyright: 'Copyright © 2026 Yangleduo All Rights Reserved'
+  },
+  whatsNew: {
+    title: '本次更新',
+    versionLabel: 'LinkX v{version}',
+    gotIt: '知道了'
   },
   common: {
     cancel: '取消',

@@ -3,7 +3,7 @@
 import AdminFormShell from '@/components/AdminFormShell.vue'
 import { computed, h, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NButton, NDataTable, NEmpty, NModal, NSpace, NTag, type DataTableColumns } from 'naive-ui'
+import { NButton, NDataTable, NEmpty, NSpace, NTag, type DataTableColumns } from 'naive-ui'
 import { listNoticeInbox, type NoticeItem } from '@/api/notices'
 import { formatTime } from '@/utils/format'
 import SearchAutoComplete from '@/components/SearchAutoComplete.vue'

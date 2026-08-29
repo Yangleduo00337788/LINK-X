@@ -20,7 +20,6 @@ import {
   type DataTableColumns,
   type FormInst,
   type FormRules,
-  type SelectOption,
 } from 'naive-ui'
 import {
   createRiskRule,

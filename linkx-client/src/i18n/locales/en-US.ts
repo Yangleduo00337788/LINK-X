@@ -620,11 +620,21 @@ export default {
     webDownloadStarted: 'Download started. Run the installer to finish updating.',
     installFail: 'Failed to download or launch the installer',
     noDownloadUrl: 'A new version is available, but no download URL is configured',
+    forceUpdateDownloading: 'Downloading a required update. Please wait…',
+    updateReadyTitle: 'Version {version} is ready',
+    updateReadyHint: 'The update was downloaded in the background. Install now?',
+    updateReadyInstall: 'Install now',
+    updateReadyLater: 'Later',
     serviceAgreement: 'Terms of Service',
     privacyPolicy: 'Privacy Policy',
     helpCenter: 'Help Center',
     companyRights: 'Yakult. All rights reserved.',
     copyright: 'Copyright © 2026 Yangleduo All Rights Reserved'
+  },
+  whatsNew: {
+    title: "What's New",
+    versionLabel: 'LinkX v{version}',
+    gotIt: 'Got it'
   },
   common: {
     cancel: 'Cancel',

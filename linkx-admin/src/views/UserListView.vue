@@ -12,7 +12,6 @@ import {
   NForm,
   NFormItem,
   NInput,
-  NModal,
   NSelect,
   NSpace,
   NTag,

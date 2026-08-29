@@ -9,7 +9,7 @@
  * 升级客户端构建时，需要同步修改此处与服务端配置。
  * </p>
  */
-export const APP_CLIENT_VERSION = '1.0.0'
+export const APP_CLIENT_VERSION = '1.0.1'
 
 /** 客户端订阅渠道：stable | beta | dev */
 export const APP_CLIENT_CHANNEL = 'stable'

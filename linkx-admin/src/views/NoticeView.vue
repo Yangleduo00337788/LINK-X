@@ -9,7 +9,6 @@ import {
   NForm,
   NFormItem,
   NInput,
-  NModal,
   NRadioButton,
   NRadioGroup,
   NSelect,

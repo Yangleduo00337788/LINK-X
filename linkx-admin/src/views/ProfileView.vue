@@ -12,7 +12,6 @@ import {
   NFormItem,
   NIcon,
   NInput,
-  NModal,
   NSpace,
   NSpin,
   NTag,

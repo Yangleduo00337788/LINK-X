@@ -17,4 +17,9 @@ public interface AppVersionService {
      * 查找指定平台下、渠道可见的最高已发布版本。
      */
     Optional<SysAppVersion> findLatestPublished(String platform, String clientChannel);
+
+    /**
+     * 查找与客户端当前版本号完全匹配的已发布记录（用于「本次更新」弹窗）。
+     */
+    Optional<SysAppVersion> findPublishedByVersion(String platform, String clientChannel, String version);
 }

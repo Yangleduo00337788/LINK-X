@@ -40,7 +40,6 @@ import { useMomentsStore } from '../stores/moments'
 import { useShortVideoStore } from '../stores/shortVideo'
 import { useCalendarStore } from '../stores/calendar'
 import { useNotificationsStore } from '../stores/notifications'
-import { useLinkMateStore } from '../stores/linkmate'
 import { useExtensionDockStore } from '../stores/extensionDock'
 import type { NavKey } from '../types'
 import { useI18n } from '../i18n'
@@ -58,7 +57,6 @@ const momentsStore = useMomentsStore()
 const shortVideoStore = useShortVideoStore()
 const calendarStore = useCalendarStore()
 const notificationsStore = useNotificationsStore()
-const linkMateStore = useLinkMateStore()
 const extensionDock = useExtensionDockStore()
 const { t } = useI18n()
 // 解构导航键、用户资料、已保存登录信息、会话列表

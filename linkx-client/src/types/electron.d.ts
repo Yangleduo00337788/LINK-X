@@ -111,19 +111,23 @@ declare global {
         askEveryTime?: boolean
         openAfter?: boolean
       }) => Promise<{ ok: boolean; path?: string; canceled?: boolean; message?: string }>
-      /** 下载更新包并拉起安装程序（桌面端） */
+      /** 下载更新包；install=false 时仅下载到临时目录，不拉起安装程序 */
       downloadAndInstallUpdate?: (payload: {
-        url: string
+        url?: string
+        localPath?: string
         version?: string
         fileName?: string
         sha256?: string
         /** 默认 true：Windows 下静默安装 */
         silent?: boolean
+        /** 默认 true：下载完成后拉起安装；false 时仅后台下载 */
+        install?: boolean
       }) => Promise<{
         ok: boolean
         path?: string
         launched?: boolean
         silent?: boolean
+        ready?: boolean
         message?: string
       }>
       onUpdateProgress?: (

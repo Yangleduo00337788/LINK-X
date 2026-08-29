@@ -10,7 +10,6 @@ import { useFavoritesStore } from '../stores/favorites'
 import { useNotificationsStore } from '../stores/notifications'
 import { useDriveStore } from '../stores/drive'
 import { useMomentsStore } from '../stores/moments'
-import { useShortVideoStore } from '../stores/shortVideo'
 import { useAppSettingsStore, type NotifyToneId } from '../stores/appSettings'
 import { t } from '../i18n'
 import * as friendApi from '../api/friend'
@@ -29,11 +28,6 @@ import {
   resolveReplyMessage
 } from './resolvers'
 import { resolveChatSession } from './sessionResolve'
-import {
-  inferDefaultEndTime,
-  inferDefaultStartTime,
-  resolveEventDate
-} from './dateResolve'
 import type { LinkMateActionResult, LinkMateAgentToolName } from './types'
 import { isNavKey } from './types'
 import { clearSimulatedInput } from './uiBridge'
@@ -201,7 +195,7 @@ export async function executeSendMessage(args: Record<string, unknown>): Promise
     return { ok: false, message: t('linkmateAgent.replyMessageNotFound') }
   }
 
-  await app.sendMessage(content, { type: 'text', replyTo })
+  await app.sendMessage(content, { type: 'text', replyTo: replyTo ?? undefined })
   clearSimulatedInput()
   return {
     ok: true,
@@ -625,7 +619,7 @@ export async function executeUpdateSetting(args: Record<string, unknown>): Promi
   await applyAgentNav('settings')
   const settings = useAppSettingsStore()
   const value = coerceSettingValue(key, valueRaw)
-  ;(settings as Record<string, unknown>)[key] = value
+  ;(settings as unknown as Record<string, unknown>)[key] = value
   if (key === 'language' && typeof value === 'string') {
     setLocale(value)
   }

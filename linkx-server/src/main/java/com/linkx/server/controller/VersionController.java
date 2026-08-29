@@ -59,7 +59,7 @@ public class VersionController {
 
         Optional<SysAppVersion> published = appVersionService.findLatestPublished(clientPlatform, channel);
         if (published.isPresent()) {
-            return Result.success(buildFromPublished(published.get(), currentVersion, hasCurrent, clientPlatform));
+            return Result.success(buildFromPublished(published.get(), currentVersion, hasCurrent, clientPlatform, channel));
         }
         return Result.success(buildFromRuntimeConfig(currentVersion, hasCurrent, channel, clientPlatform));
     }
@@ -67,7 +67,8 @@ public class VersionController {
     private AppVersionVO buildFromPublished(SysAppVersion row,
                                             String currentVersion,
                                             boolean hasCurrent,
-                                            String clientPlatform) {
+                                            String clientPlatform,
+                                            String channel) {
         String latest = nullToEmpty(row.getVersion());
         boolean versionOutdated = hasCurrent && AppVersionUtils.compare(currentVersion, latest) < 0;
         String minSupported = nullToEmpty(row.getMinSupportedVersion());
@@ -85,6 +86,7 @@ public class VersionController {
                 .channel(AppVersionUtils.normalizeChannel(row.getChannel()))
                 .platform(clientPlatform)
                 .releaseNotes(hasUpdate ? nullToEmpty(row.getReleaseNotes()) : "当前已是最新版本")
+                .currentReleaseNotes(resolveCurrentReleaseNotes(currentVersion, hasCurrent, clientPlatform, channel))
                 .downloadUrl(hasUpdate
                         ? appDownloadUrlResolver.resolveForClient(nullToEmpty(row.getDownloadUrl()))
                         : "")
@@ -117,12 +119,33 @@ public class VersionController {
                 .channel(AppVersionUtils.normalizeChannel(app.getChannel()))
                 .platform(clientPlatform)
                 .releaseNotes(hasUpdate ? nullToEmpty(app.getReleaseNotes()) : "当前已是最新版本")
+                .currentReleaseNotes(resolveCurrentReleaseNotes(currentVersion, hasCurrent, clientPlatform, channel))
                 .downloadUrl(appDownloadUrlResolver.resolveForClient(nullToEmpty(app.getDownloadUrl())))
                 .packageSha256("")
                 .packageFileName("")
                 .supportEmail(nullToEmpty(app.getSupportEmail()))
                 .supportPhone(nullToEmpty(app.getSupportPhone()))
                 .build();
+    }
+
+    private String resolveCurrentReleaseNotes(String currentVersion,
+                                              boolean hasCurrent,
+                                              String clientPlatform,
+                                              String channel) {
+        if (!hasCurrent) {
+            return "";
+        }
+        Optional<SysAppVersion> published = appVersionService.findPublishedByVersion(
+                clientPlatform, channel, currentVersion);
+        if (published.isPresent()) {
+            return nullToEmpty(published.get().getReleaseNotes());
+        }
+        LinkxProperties.App app = linkxProperties.getApp();
+        String latest = nullToEmpty(app.getVersion());
+        if (currentVersion.equals(latest)) {
+            return nullToEmpty(app.getReleaseNotes());
+        }
+        return "";
     }
 
     private static String nullToEmpty(String s) {

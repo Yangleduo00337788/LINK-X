@@ -46,11 +46,15 @@ async function sha256Hex(text: string): Promise<string> {
     .join('')
 }
 
+function bufferSource(bytes: Uint8Array): ArrayBuffer {
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+}
+
 async function hmacSha256Hex(keyHex: string, payload: string): Promise<string> {
   const keyBytes = hexToBytes(keyHex)
   const cryptoKey = await crypto.subtle.importKey(
     'raw',
-    keyBytes,
+    bufferSource(keyBytes),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
     ['sign']

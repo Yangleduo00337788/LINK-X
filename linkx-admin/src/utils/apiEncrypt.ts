@@ -30,12 +30,16 @@ function base64ToBytes(base64: string): Uint8Array {
   return out
 }
 
+function bufferSource(bytes: Uint8Array): ArrayBuffer {
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+}
+
 async function importAesKey(keyHex: string): Promise<CryptoKey> {
   const keyBytes = hexToBytes(keyHex)
   if (keyBytes.length !== 32) {
     throw new Error('invalid api sign key length')
   }
-  return crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, [
+  return crypto.subtle.importKey('raw', bufferSource(keyBytes), { name: 'AES-GCM' }, false, [
     'encrypt',
     'decrypt',
   ])
@@ -71,7 +75,11 @@ export async function decryptToBytes(keyHex: string, base64: string): Promise<Ui
   const iv = combined.slice(0, 12)
   const ciphertext = combined.slice(12)
   const key = await importAesKey(keyHex)
-  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv, tagLength: 128 }, key, ciphertext)
+  const plain = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: bufferSource(iv), tagLength: 128 },
+    key,
+    bufferSource(ciphertext)
+  )
   return new Uint8Array(plain)
 }
 

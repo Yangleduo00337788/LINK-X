@@ -20,7 +20,8 @@ import java.io.Serializable;
  * - hasUpdate：true 表示需要提示升级；
  * - forceUpdate：true 表示强制升级（管理端开关或低于最低支持版本）；
  * - channel：当前发布渠道；
- * - releaseNotes：升级提示；
+ * - releaseNotes：有新版本时的升级提示；
+ * - currentReleaseNotes：当前客户端版本对应的已发布更新说明（「本次更新」弹窗）。
  * - downloadUrl：下载地址（可空）。
  * </p>
  */
@@ -39,6 +40,8 @@ public class AppVersionVO implements Serializable {
     private String channel;
     private String platform;
     private String releaseNotes;
+    /** 当前客户端版本对应的更新说明（管理端发布时填写） */
+    private String currentReleaseNotes;
     private String downloadUrl;
     /** 安装包 SHA-256（用于下载后校验） */
     private String packageSha256;

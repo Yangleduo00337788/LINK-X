@@ -1,7 +1,8 @@
 /**
  * 作者：yangleduo
  */
-import type { ChatMessage, ContactItem, CreateGroupMember, FavoriteItem } from '../types'
+import type { ChatMessage, ContactItem, FavoriteItem } from '../types'
+import type { CreateGroupMember } from '../stores/app'
 import type { CalendarEvent } from '../stores/calendar'
 import { useAppStore } from '../stores/app'
 import { useCalendarStore } from '../stores/calendar'

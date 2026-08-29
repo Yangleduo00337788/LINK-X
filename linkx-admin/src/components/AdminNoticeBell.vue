@@ -3,7 +3,7 @@
 import AdminFormShell from '@/components/AdminFormShell.vue'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NBadge, NButton, NEmpty, NIcon, NModal, NPopover, NSpin, NTooltip } from 'naive-ui'
+import { NBadge, NButton, NEmpty, NIcon, NPopover, NSpin, NTooltip } from 'naive-ui'
 import { NotificationsOutline } from '@vicons/ionicons5'
 import { listNoticeInbox, type NoticeItem } from '@/api/notices'
 import { onAdminRealtimeEvent } from '@/api/realtime'

@@ -192,15 +192,6 @@ function findSendButton(): Element | null {
   return el
 }
 
-function findSearchBar(): Element | null {
-  const el =
-    document.querySelector('[data-lm-search-bar] .search-input') ??
-    document.querySelector('[data-lm-search-bar] input') ??
-    document.querySelector('.panel-search-bar .search-input')
-  revealElement(el)
-  return el
-}
-
 function findChatAddButton(): Element | null {
   const el = document.querySelector('[data-lm-chat-add-btn]')
   revealElement(el)

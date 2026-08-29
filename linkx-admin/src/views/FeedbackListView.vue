@@ -9,7 +9,6 @@ import {
   NDataTable,
   NDatePicker,
   NInput,
-  NModal,
   NSelect,
   NSpace,
   NSwitch,
@@ -86,7 +85,7 @@ const POLL_MS = 12000
 
 function statusTag(row: FeedbackItem) {
   const status = row.status
-  const tags = []
+  const tags: ReturnType<typeof h>[] = []
   if (row.escalated) {
     const label =
       row.escalationCount && row.escalationCount > 1

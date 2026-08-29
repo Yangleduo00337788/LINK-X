@@ -36,7 +36,13 @@ export interface FeedbackItem {
   replies?: FeedbackReplyItem[]
 }
 
-export function listFeedback(params: PageQuery) {
+export interface FeedbackQuery extends PageQuery {
+  escalatedOnly?: boolean
+  unassignedOnly?: boolean
+  mineOnly?: boolean
+}
+
+export function listFeedback(params: FeedbackQuery) {
   return get<PageResult<FeedbackItem>>('/admin/feedback', params as Record<string, unknown>)
 }
 
@@ -64,6 +70,6 @@ export function assignFeedback(id: string, assigneeId: string | null) {
   return put<null>(`/admin/feedback/${id}/assign`, { assigneeId })
 }
 
-export function exportFeedback(params: PageQuery) {
+export function exportFeedback(params: FeedbackQuery) {
   return runAsyncExport('feedback', params as Record<string, unknown>)
 }
