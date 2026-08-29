@@ -81,11 +81,13 @@
           <a class="docs-sidebar__link" href="#av" data-i18n="navAv">音视频会议</a>
           <a class="docs-sidebar__link" href="#files" data-i18n="navFiles">文件与网盘</a>
           <a class="docs-sidebar__link" href="#admin" data-i18n="navAdmin">管理运营</a>
+          <a class="docs-sidebar__link" href="#linkmate" data-i18n="navLinkmate">灵伴 Agent</a>
         </div>
         <div class="docs-sidebar__group">
           <p class="docs-sidebar__label" data-i18n="navGroupTech">技术</p>
           <a class="docs-sidebar__link" href="#architecture" data-i18n="navArchitecture">技术架构</a>
           <a class="docs-sidebar__link" href="#message-encrypt" data-i18n="navMessageEncrypt">消息落库加密</a>
+          <a class="docs-sidebar__link" href="#updates" data-i18n="navUpdates">版本与更新</a>
           <a class="docs-sidebar__link" href="#deploy" data-i18n="navDeploy">部署说明</a>
           <a class="docs-sidebar__link" href="#faq" data-i18n="navFaq">常见问题</a>
         </div>
@@ -250,6 +252,29 @@ npm run dev</pre>
           <p data-i18n="secAdminP2">管理端默认开发端口为 5174，生产环境建议通过反向代理接入并启用 HTTPS。</p>
         </section>
 
+        <section class="docs-section" id="linkmate">
+          <h2 data-i18n="secLinkmateTitle">灵伴 Agent</h2>
+          <p data-i18n="secLinkmateP1">
+            LinkX 1.0.1 起，客户端内置「灵伴」AI 助手，并支持 <strong>Agent 代操模式</strong>：在 LLM 返回函数调用时，由客户端在本地执行导航、打开会话、发送消息等操作（需用户授权与全局开关开启）。
+          </p>
+          <h3 data-i18n="secLinkmateH1">能力范围</h3>
+          <ul>
+            <li data-i18n="secLinkmateL1"><strong>会话与导航</strong>：切换导航、打开指定聊天、搜索联系人等。</li>
+            <li data-i18n="secLinkmateL2"><strong>消息代发</strong>：在已确认上下文中代为输入并发送消息（受权限与风控约束）。</li>
+            <li data-i18n="secLinkmateL3"><strong>设置与偏好</strong>：读取或调整部分客户端设置（如通知开关）。</li>
+          </ul>
+          <h3 data-i18n="secLinkmateH2">管理端策略</h3>
+          <p data-i18n="secLinkmateP2">
+            运营人员可在管理端配置灵伴 Agent 全局开关、群聊 AI 默认接入策略，并在「系统设置 → 灵伴」中统一管理。企业可按需关闭代操能力，仅保留对话问答。
+          </p>
+          <div class="docs-callout">
+            <strong data-i18n="calloutLinkmateTitle">安全提示</strong>
+            <p data-i18n="calloutLinkmateBody">
+              Agent 代操在客户端沙箱内执行，不会直接暴露服务端密钥；敏感操作仍需用户确认。生产环境请结合 RBAC 与风控规则审慎开放。
+            </p>
+          </div>
+        </section>
+
         <section class="docs-section" id="architecture">
           <h2 data-i18n="secArchTitle">技术架构</h2>
           <p data-i18n="secArchP1">LinkX 采用经典三层架构：展现层（客户端/管理端）→ 接入层（HTTP/WebSocket）→ 服务层（Spring Boot 单体）→ 数据层（MySQL/Redis/MinIO）。</p>
@@ -312,6 +337,29 @@ MESSAGE_KEK_KEY_ID=default</pre>
           <p data-i18n="secMessageEncryptP4">重启后端后，Snail Job 会分批将历史明文转为密文；KEK 轮换可通过 <code>MESSAGE_KEK_LEGACY_MAP</code> 保留旧密钥用于解密。</p>
         </section>
 
+        <section class="docs-section" id="updates">
+          <h2 data-i18n="secUpdatesTitle">版本与更新</h2>
+          <p data-i18n="secUpdatesP1">
+            LinkX 桌面客户端支持<strong>启动时自动检查更新</strong>。版本信息与更新说明由管理端「版本发布」维护，客户端通过 <code>GET /app/version</code> 拉取，无需在客户端硬编码文案。
+          </p>
+          <h3 data-i18n="secUpdatesH1">管理端发布流程</h3>
+          <ol>
+            <li data-i18n="secUpdatesL1">在管理端「版本发布」创建草稿，填写版本号、渠道、平台与<strong>更新说明</strong>（releaseNotes）。</li>
+            <li data-i18n="secUpdatesL2">上传 Windows 安装包（或填写 MinIO / CDN 下载地址与 SHA-256）。</li>
+            <li data-i18n="secUpdatesL3">发布后立即对客户端生效；旧版同平台记录自动归档。</li>
+          </ol>
+          <h3 data-i18n="secUpdatesH2">客户端行为</h3>
+          <ul>
+            <li data-i18n="secUpdatesL4"><strong>有新版本</strong>：Electron 在后台静默下载安装包；可选更新下载完成后提示「立即安装」，强制更新则自动静默安装并重启。</li>
+            <li data-i18n="secUpdatesL5"><strong>已是最新</strong>：若当前版本有发布说明且用户未读过，展示「本次更新」弹窗（<code>currentReleaseNotes</code>）。</li>
+            <li data-i18n="secUpdatesL6"><strong>手动检查</strong>：设置 → 关于 →「检查更新」，或侧栏更多菜单中的检查更新入口。</li>
+          </ul>
+          <h3 data-i18n="secUpdatesH3">自托管发布脚本</h3>
+          <p data-i18n="secUpdatesP2">
+            仓库提供 <code>linkx-client/scripts/publish-release.mjs</code>，可在打包后自动上传安装包并调用管理端 API 创建/发布版本记录。详见仓库 README「9.2 桌面客户端」。
+          </p>
+        </section>
+
         <section class="docs-section" id="deploy">
           <h2 data-i18n="secDeployTitle">部署说明</h2>
           <h3 data-i18n="secDeployH1">环境要求</h3>
@@ -363,6 +411,10 @@ cd linkx-admin && npm run build</pre>
           <h3 data-i18n="faqQ5">消息在数据库里是明文吗？</h3>
           <p data-i18n="faqA5">
             默认情况下消息以应用层可读形式落库；自托管部署者可选择开启 AES-256-GCM 落库加密（见上文「消息落库加密」）。无论是否开启，传输层均使用 HTTPS / WSS；落库加密不是端到端加密，服务端在业务需要时仍可解密内容用于审核与审计。
+          </p>
+          <h3 data-i18n="faqQ6">客户端如何获取新版本？</h3>
+          <p data-i18n="faqA6">
+            桌面端启动时会自动请求 <code>/app/version</code> 检查更新并后台下载；也可在「设置 → 关于」手动检查。更新说明由管理端版本发布填写，官网 changelog 与客户端弹窗内容应保持一致。
           </p>
         </section>
       </main>

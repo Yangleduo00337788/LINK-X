@@ -17,10 +17,12 @@
 
 - 灵伴 Agent 代操模式：支持 LLM 函数调用在客户端执行导航、发消息等操作
 - 灵伴 Agent 全局开关与群 AI 默认策略（管理端可配置）
+- 客户端启动时自动检查更新，Electron 后台静默下载；管理端 `releaseNotes` 驱动「本次更新」弹窗
 - 客户端 Design Token 体系（`--lx-*`）与 `ui-components.css` 公共样式
 - 公共 UI 组件：`LxButton`、`LxIconButton`、`LxGroupCard`
 - 客户端全站迁移至统一 Design Token（`migrate-*.mjs` 一次性脚本已移除）
 - 服务端消息落库加密（AES-256-GCM，可选开启，见 README 8.4）
+- Playwright E2E 与灵伴 Agent 单元测试；`publish-release.mjs` 版本发布脚本
 
 ### 变更
 
@@ -29,9 +31,9 @@
 - `linkx-client` 全站迁移至统一按钮、间距、圆角与场景色 Token
 - 窗控与状态栏置顶统一 `.lx-win-caption-btn` 圆角块悬停交互
 - `ui-components.css` 改由 `main.ts` 显式引入（修复 `@import` 顺序导致的样式未加载）
-- README 与目录结构、客户端 UI 开发规范对齐
+- README、官网 `docs.html` / `changelog-data.js` 与版本发布流程文档对齐
 - 文档与 MIT 许可证说明对齐（README / CONTRIBUTING）
-- 官网 `docs.html` 补充消息落库加密说明，与 README 8.4 对齐
+- 官网 `docs.html` 补充消息落库加密、灵伴 Agent 与版本更新说明
 
 ---
 
@@ -87,5 +89,6 @@
 | `移除` | 已删除的功能或文件 |
 | `安全` | 安全相关修复 |
 
-[Unreleased]: https://gitee.com/yangleduo7788/link-x/compare/v1.0.0...master
+[Unreleased]: https://gitee.com/yangleduo7788/link-x/compare/v1.0.1...master
+[1.0.1]: https://gitee.com/yangleduo7788/link-x/compare/v1.0.0...v1.0.1
 [1.0.0]: https://gitee.com/yangleduo7788/link-x/releases/tag/v1.0.0

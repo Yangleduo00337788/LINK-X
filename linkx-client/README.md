@@ -49,6 +49,14 @@ npm run electron:build:linux    # Linux AppImage
 | `npm run installer:dev` | 开发调试安装向导 |
 | `npm run clean:release` | 清理 `release/` 构建产物 |
 | `npm run format:check` | Prettier 检查 |
+| `npm run test` | Vitest 单元测试 |
+| `npm run test:e2e` | Playwright E2E（见 `e2e/README.md`） |
+
+## 版本与更新
+
+- 构建版本号：`src/utils/appVersion.ts` 中的 `APP_CLIENT_VERSION`（发版时与 `package.json` 同步）
+- 启动时自动检查更新（`startupVersion.ts`），Electron 后台静默下载；更新说明由管理端版本发布配置
+- 打包后可用 `scripts/publish-release.mjs` 上传安装包并发布至管理端
 
 ## UI 与样式
 

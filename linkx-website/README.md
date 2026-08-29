@@ -30,11 +30,21 @@ npx serve .
 | 服务协议 | `legal/service.html` |
 | 帮助中心 | `help/index.html` |
 
-`docs.html` 含消息落库加密、部署说明与 FAQ（与仓库 README 8.4 对齐）；`legal/privacy.html` 信息安全章节同步说明可选落库加密。
+`docs.html` 含灵伴 Agent、版本与自动更新、消息落库加密、部署说明与 FAQ；`legal/privacy.html` 信息安全章节同步说明可选落库加密。
 
-## 版本日志数据
+## 版本日志与下载链接
 
-客户端下载与 changelog 内容由 `shared/changelog-data.js` 维护，须与仓库根目录 `CHANGELOG.md` 保持同步。
+客户端下载与 changelog 内容由以下文件维护，**发版时须与仓库根目录 `CHANGELOG.md` 及管理端版本发布记录保持一致**：
+
+| 文件 | 用途 |
+|------|------|
+| `shared/changelog-data.js` | 版本日志页各平台 release 列表与 Windows 下载地址 |
+| `main.js` | 首页 Windows 下载面板版本号与 URL |
+
+当前 Windows 稳定版示例：
+
+- 版本：`1.0.1`
+- 安装包：`LinkX-Installer-1.0.1.exe`
 
 更新后重新上传部署即可；客户端法律页 / 帮助中心 URL 默认指向本域，一般无需重新打包客户端。
 

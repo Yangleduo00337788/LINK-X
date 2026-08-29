@@ -107,6 +107,8 @@ LinkX 是一套**前后端分离**的企业级即时通讯（IM）解决方案�
 - **实时推送**：HTTP 拉取历史 + Netty WebSocket 实时下发
 - **音视频会议**：WebRTC 单聊通话；多人 Mesh 会议（无 SFU）
 - **社交协作**：朋友圈、日历、笔记与收藏
+- **灵伴 Agent**：LLM 对话与代操模式（导航、发消息等）；管理端可配置全局开关与群 AI 策略
+- **客户端更新**：启动自动检查更新、后台静默下载；管理端版本发布驱动更新说明与「本次更新」弹窗
 - **文件能力**：聊天文件、群文件 / 群相册、个人网盘（MinIO 对象存储）
 - **统一 UI 体系**：Design Token（`--lx-*`）、公共组件（`LxButton` / `LxIconButton` / `LxGroupCard`）、全站样式与窗控交互收拢
 - **账户安全**：双 Token 鉴权、图形验证码、登录风控、敏感词过滤、操作审计
@@ -619,7 +621,7 @@ npm run electron:build
 linkx-client/release/installer/LinkX-Installer-{version}.exe
 ```
 
-例如：`release/installer/LinkX-Installer-1.0.0.exe`
+例如：`release/installer/LinkX-Installer-1.0.1.exe`
 
 `electron:build` 由 `scripts/electron-build.mjs` 统一执行，会自动完成：
 
@@ -650,7 +652,7 @@ npm run installer:assets
 
 | 路径 | 说明 |
 |------|------|
-| `linkx-client/release/installer/LinkX-Installer-1.0.0.exe` | 对外分发的 Windows 安装包 |
+| `linkx-client/release/installer/LinkX-Installer-1.0.1.exe` | 对外分发的 Windows 安装包 |
 | `linkx-client/.installer-payload/` | 打包中间目录（完成后会被脚本清理） |
 
 #### macOS / Linux 桌面包
@@ -722,7 +724,7 @@ $env:CSC_IDENTITY_AUTO_DISCOVERY="true"
 
 ```powershell
 # 图形安装（向导、协议、路径、快捷方式）
-.\release\installer\LinkX-Installer-1.0.0.exe
+.\release\installer\LinkX-Installer-1.0.1.exe
 ```
 
 打包检查清单：
@@ -731,9 +733,18 @@ $env:CSC_IDENTITY_AUTO_DISCOVERY="true"
 □ Node.js 18+ 已安装
 □ linkx-client/.env.electron 已配置线上 API / WS
 □ npm run electron:build 成功
+□ 管理端「版本发布」已上传安装包并填写 releaseNotes（或使用 publish-release.mjs）
 □ 安装后注册页/关于页协议链接可打开 https://mars-studio.asia/legal/
 □ 帮助中心链接可打开 https://mars-studio.asia/help/
+□ 启动客户端可自动检查更新；升级后展示「本次更新」弹窗
 ```
+
+#### 版本发布（管理端 / 脚本）
+
+1. **管理端**：登录 `linkx-admin` →「版本发布」→ 新建草稿 → 填写版本号、渠道（`stable`）、平台（`windows`）、**更新说明**、下载地址与 SHA-256 → 发布。
+2. **脚本**（可选）：打包后执行 `node linkx-client/scripts/publish-release.mjs --file release/installer/LinkX-Installer-{version}.exe`，自动上传并调用管理端 API 发布。
+3. **官网**：同步更新 `linkx-website/shared/changelog-data.js` 与 `main.js` 中的下载链接，部署至 Cloudflare Pages。
+4. **客户端 API**：`GET /app/version?current=&channel=&platform=` 返回 `hasUpdate`、`releaseNotes`（升级提示）与 `currentReleaseNotes`（本次更新弹窗）。
 
 ### 9.3 产品官网（Cloudflare Pages）
 
@@ -747,7 +758,7 @@ $env:CSC_IDENTITY_AUTO_DISCOVERY="true"
 | 服务协议 | https://mars-studio.asia/legal/service.html |
 | 帮助中心 | https://mars-studio.asia/help/ |
 
-在线文档 `docs.html` 涵盖消息落库加密（非 E2EE）、部署与 FAQ，与仓库 README 8.4 对齐。
+在线文档 `docs.html` 涵盖灵伴 Agent、版本与自动更新、消息落库加密（非 E2EE）、部署与 FAQ，与仓库 README 对齐。
 
 部署步骤：Cloudflare Dashboard → Workers 和 Pages → 上传 `linkx-website` 目录内全部文件 → 绑定自定义域。
 
@@ -907,8 +918,18 @@ npm run build                    # 静态资源输出至 dist/
 
 | 版本 | 日期 | 摘要 |
 |------|------|------|
-| Unreleased | — | 客户端全面统一 UI 布局、样式与设计 Token；README 与项目结构对齐 |
+| Unreleased | — | （暂无） |
+| **1.0.1** | 2026-08-29 | 灵伴 Agent 代操、Design Token、Electron 43、启动自动更新与版本发布链路 |
 | **1.0.0** | 2026-08-12 | 首个稳定基线：IM 核心链路、WebRTC 会议、管理端 RBAC、双 Token 鉴权 |
+
+<details>
+<summary>1.0.1 主要能力（点击展开）</summary>
+
+- **客户端**：灵伴 Agent 代操、启动静默下载更新、「本次更新」弹窗、Design Token 与公共 UI 组件、Playwright E2E
+- **管理端**：版本发布（releaseNotes / 安装包）、灵伴 Agent 全局开关
+- **服务端**：`/app/version` 增加 `currentReleaseNotes`；消息落库加密（可选）
+
+</details>
 
 <details>
 <summary>1.0.0 主要能力（点击展开）</summary>

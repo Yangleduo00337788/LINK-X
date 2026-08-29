@@ -50,3 +50,13 @@ npm run format:check
 
 使用具备 `admin` 或 `super_admin` 角色的账号登录。  
 需先启动 `linkx-server`，并确保 Flyway 已执行 `V5__admin_menu_and_permissions.sql`。
+
+## 版本发布
+
+在「版本发布」菜单维护客户端安装包与 **更新说明**（`releaseNotes`）：
+
+1. 新建草稿 → 填写版本号、渠道、平台、更新说明、下载地址 / SHA-256
+2. 发布后对客户端立即生效（`GET /app/version`）
+3. 同步更新官网 `linkx-website/shared/changelog-data.js` 与根目录 `CHANGELOG.md`
+
+也可使用 `linkx-client/scripts/publish-release.mjs` 在打包后自动上传并发布。

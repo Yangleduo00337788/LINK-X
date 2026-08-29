@@ -62,31 +62,35 @@ window.ChangelogData = {
     windows: {
       icon: "assets/icon-windows.svg",
       name: { zh: "Windows", en: "Windows" },
-      versionLabel: { zh: "v1.0.0 · x64 · 安装包", en: "v1.0.0 · x64 · Installer" },
+      versionLabel: { zh: "v1.0.1 · x64 · 安装包", en: "v1.0.1 · x64 · Installer" },
       download: {
-        url: "https://yangleduo1.oss-cn-beijing.aliyuncs.com/releases/2026/08/12/LinkX-Installer-1.0.0.exe",
-        file: "LinkX-Installer-1.0.0.exe",
+        url: "https://yangleduo1.oss-cn-beijing.aliyuncs.com/releases/2026/08/29/LinkX-Installer-1.0.1.exe",
+        file: "LinkX-Installer-1.0.1.exe",
       },
       releases: [
         {
-          version: "Unreleased",
-          date: null,
-          badge: { zh: "开发中", en: "In Progress" },
+          version: "1.0.1",
+          date: "2026-08-29",
+          badge: { zh: "最新", en: "Latest" },
           sections: [
             {
               title: { zh: "新增", en: "Added" },
               items: {
                 zh: [
-                  "客户端 Design Token（--lx-*）与 ui-components.css",
-                  "公共 UI 组件：LxButton、LxIconButton、LxGroupCard",
-                  "样式迁移辅助脚本",
-                  "服务端消息落库加密（可选，AES-256-GCM）",
+                  "灵伴 Agent 代操模式：LLM 函数调用在客户端执行导航、发消息等操作",
+                  "灵伴 Agent 全局开关与群 AI 默认策略（管理端可配置）",
+                  "启动时自动检查更新，桌面端后台静默下载安装包",
+                  "管理端版本发布驱动「本次更新」弹窗（currentReleaseNotes）",
+                  "客户端 Design Token 与公共 UI 组件（LxButton、LxIconButton、LxGroupCard）",
+                  "服务端消息落库加密（AES-256-GCM，可选）",
                 ],
                 en: [
-                  "Client Design Tokens (--lx-*) and ui-components.css",
-                  "Shared UI components: LxButton, LxIconButton, LxGroupCard",
-                  "Style migration helper scripts",
-                  "Optional server-side message content encryption (AES-256-GCM)",
+                  "LinkMate Agent hands-on mode: LLM tool calls for navigation, messaging, and more",
+                  "LinkMate Agent global toggle and default group AI policy (admin configurable)",
+                  "Startup update check with silent background download on desktop",
+                  "Admin release notes drive the post-update What's New dialog (currentReleaseNotes)",
+                  "Client Design Tokens and shared UI components (LxButton, LxIconButton, LxGroupCard)",
+                  "Optional server-side message at-rest encryption (AES-256-GCM)",
                 ],
               },
             },
@@ -94,16 +98,14 @@ window.ChangelogData = {
               title: { zh: "变更", en: "Changed" },
               items: {
                 zh: [
-                  "全站 UI 迁移至统一 Design Token 体系",
-                  "窗控与状态栏统一 .lx-win-caption-btn 交互",
-                  "ui-components.css 改由 main.ts 显式引入",
-                  "README / CONTRIBUTING 文档对齐",
+                  "Electron 升级至 43，桌面端体积与性能优化",
+                  "全站迁移至统一 Design Token 与窗控交互",
+                  "Playwright E2E 与灵伴 Agent 单元测试补充",
                 ],
                 en: [
-                  "Site-wide UI migrated to unified Design Token system",
-                  "Window controls unified under .lx-win-caption-btn",
-                  "ui-components.css explicitly imported in main.ts",
-                  "README and CONTRIBUTING documentation aligned",
+                  "Electron upgraded to 43 with smaller footprint and performance tweaks",
+                  "App-wide migration to unified Design Tokens and window controls",
+                  "Added Playwright E2E and LinkMate Agent unit tests",
                 ],
               },
             },
@@ -134,12 +136,8 @@ window.ChangelogData = {
             {
               title: { zh: "变更", en: "Changed" },
               items: {
-                zh: [
-                  "Electron 窗控交互优化",
-                ],
-                en: [
-                  "Electron window control interaction improvements",
-                ],
+                zh: ["Electron 窗控交互优化"],
+                en: ["Electron window control interaction improvements"],
               },
             },
           ],
