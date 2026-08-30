@@ -31,8 +31,14 @@
   window.SiteConfig = {
     apiBaseUrl: resolveApiBaseUrl(),
     isLocalPreview: isLocalPreview(),
-    /** Windows 安装包 R2 公网直链（API 不可用时的兜底；发新版后请同步更新） */
+    /** Windows 安装包 R2 公网直链（API 不可用时的兜底） */
     installerDirectUrl:
       "https://pub-b74f4fc9019d4f88978244b74e2627dc.r2.dev/releases/2026/08/29/LinkX-Installer-1.0.1.exe",
+    /** Linux 安装包 R2 公网直链（API 不可用时的兜底） */
+    linuxDirectUrls: {
+      appimage:
+        "https://pub-b74f4fc9019d4f88978244b74e2627dc.r2.dev/releases/2026/08/30/LinkX-1.0.1.appimage",
+      deb: "https://pub-b74f4fc9019d4f88978244b74e2627dc.r2.dev/releases/2026/08/30/linkx_1.0.1_amd64.deb",
+    },
   };
 })();

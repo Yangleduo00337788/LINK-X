@@ -116,23 +116,25 @@ window.ChangelogData = {
     linux: {
       icon: "assets/icon-linux.svg",
       name: { zh: "Linux", en: "Linux" },
-      comingSoon: true,
+      versionLabel: { zh: "v1.0.1 · x64 · 安装包", en: "v1.0.1 · x64 · Installer" },
       releases: [
         {
-          version: "1.1.0",
-          date: "",
-          badge: { zh: "计划中", en: "Planned" },
+          version: "1.0.1",
+          date: "2026-08-30",
+          badge: { zh: "最新", en: "Latest" },
           sections: [
             {
-              title: { zh: "规划", en: "Planned" },
+              title: { zh: "新增", en: "Added" },
               items: {
                 zh: [
-                  "Linux 安装包构建与发布",
-                  "官网与管理端版本记录、自动更新",
+                  "Linux x64 安装包：AppImage 与 deb（amd64）",
+                  "管理端版本发布支持多安装包格式",
+                  "官网提供 AppImage / deb 双下载入口",
                 ],
                 en: [
-                  "Linux installer build and release",
-                  "Website, admin version records, and auto-update",
+                  "Linux x64 installers: AppImage and deb (amd64)",
+                  "Admin version releases support multiple package formats",
+                  "Website download menu for AppImage and deb",
                 ],
               },
             },

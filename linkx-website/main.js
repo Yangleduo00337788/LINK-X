@@ -157,6 +157,8 @@
   const nameEl = document.getElementById("platformName");
   const versionEl = document.getElementById("platformVersion");
   const downloadEl = document.getElementById("platformDownload");
+  const downloadGroupEl = document.getElementById("platformDownloadGroup");
+  const downloadMenuEl = document.getElementById("platformDownloadMenu");
   const comingEl = document.getElementById("platformComing");
   if (!switcher || !panel || !logo || !nameEl || !versionEl || !downloadEl || !comingEl) return;
 
@@ -166,7 +168,7 @@
     linux: {
       icon: "assets/icon-linux.svg",
       name: { zh: "Linux", en: "Linux" },
-      comingSoon: true,
+      version: { zh: "v1.0.1 · x64 · 安装包", en: "v1.0.1 · x64 · Installer" },
     },
     macos: {
       icon: "assets/icon-macos.svg",
@@ -212,14 +214,16 @@
       comingEl.hidden = false;
     } else {
       panel.classList.remove("is-coming-soon");
-      versionEl.textContent = info.version[lang];
-      const installer =
-        window.LinkXAppDownload && window.LinkXAppDownload.installerUrl
-          ? window.LinkXAppDownload.installerUrl(platform === "windows" ? "windows" : "windows")
-          : "";
-      if (installer) {
-        downloadEl.href = installer;
-        downloadEl.removeAttribute("download");
+      versionEl.textContent = info.version?.[lang] || info.versionLabel?.[lang] || "";
+      if (window.LinkXAppDownload && window.LinkXAppDownload.applyPlatformDownload) {
+        window.LinkXAppDownload.applyPlatformDownload(platform, {
+          singleEl: downloadEl,
+          groupEl: downloadGroupEl,
+          menuEl: downloadMenuEl,
+        });
+      }
+      if (platform === "linux" || platform === "windows") {
+        window.LinkXAppDownload?.refreshVersionLabel(versionEl, platform);
       }
       comingEl.hidden = true;
     }
@@ -373,6 +377,8 @@
       card5Title: "管理运营",
       card5Body: "用户权限、内容审核、风控策略与统计大屏，后台运营一站搞定。",
       downloadBtn: "下载",
+      linuxDownloadAppImage: "AppImage",
+      linuxDownloadDeb: "DEB (amd64)",
       comingSoon: "敬请期待",
     },
     en: {
@@ -394,6 +400,8 @@
       card5Title: "Admin & Operations",
       card5Body: "User permissions, content review, risk policies, and analytics dashboards — operations in one console.",
       downloadBtn: "Download",
+      linuxDownloadAppImage: "AppImage",
+      linuxDownloadDeb: "DEB (amd64)",
       comingSoon: "Coming Soon",
     },
   };

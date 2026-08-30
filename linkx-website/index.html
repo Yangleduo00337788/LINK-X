@@ -115,10 +115,44 @@
                 <span class="platform-panel__version" id="platformVersion">v1.0.1 · x64 · 安装包</span>
               </div>
             </div>
-            <a class="platform-panel__download" id="platformDownload" href="#" download>
-              <img class="platform-panel__download-icon" src="assets/icon-download.svg" alt="" />
-              <span data-i18n="downloadBtn">下载</span>
-            </a>
+            <div class="platform-panel__download-actions" id="platformDownloadActions">
+              <a class="platform-panel__download platform-panel__download--single" id="platformDownload" href="#">
+                <img class="platform-panel__download-icon" src="assets/icon-download.svg" alt="" />
+                <span data-i18n="downloadBtn">下载</span>
+              </a>
+              <div class="platform-panel__download-group" id="platformDownloadGroup" hidden>
+                <button
+                  type="button"
+                  class="platform-panel__download platform-panel__download--trigger"
+                  id="platformDownloadTrigger"
+                  aria-haspopup="true"
+                  aria-expanded="false"
+                >
+                  <img class="platform-panel__download-icon" src="assets/icon-download.svg" alt="" />
+                  <span data-i18n="downloadBtn">下载</span>
+                </button>
+                <div class="platform-panel__download-menu" id="platformDownloadMenu" role="menu">
+                  <div class="platform-panel__download-menu__panel">
+                    <a
+                      class="platform-panel__download-menu__item"
+                      data-format="appimage"
+                      href="#"
+                      role="menuitem"
+                      data-i18n="linuxDownloadAppImage"
+                      >AppImage</a
+                    >
+                    <a
+                      class="platform-panel__download-menu__item"
+                      data-format="deb"
+                      href="#"
+                      role="menuitem"
+                      data-i18n="linuxDownloadDeb"
+                      >DEB (amd64)</a
+                    >
+                  </div>
+                </div>
+              </div>
+            </div>
             <span class="platform-panel__coming" id="platformComing" hidden data-i18n="comingSoon">敬请期待</span>
           </div>
         </div>

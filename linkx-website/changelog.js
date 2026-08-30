@@ -9,6 +9,8 @@
   const nameEl = document.getElementById("changelogPlatformName");
   const versionEl = document.getElementById("changelogPlatformVersion");
   const downloadEl = document.getElementById("changelogPlatformDownload");
+  const downloadGroupEl = document.getElementById("changelogPlatformDownloadGroup");
+  const downloadMenuEl = document.getElementById("changelogPlatformDownloadMenu");
   const comingEl = document.getElementById("changelogPlatformComing");
   if (!switcher || !panel || !listEl || !logo || !nameEl || !versionEl || !downloadEl || !comingEl) return;
 
@@ -25,6 +27,8 @@
       changelogSubtitle: "查看各平台最新版本与历史更新记录，了解每一次功能迭代与体验优化。",
       highlightsTitle: "版本亮点",
       downloadBtn: "下载",
+      linuxDownloadAppImage: "AppImage",
+      linuxDownloadDeb: "DEB (amd64)",
       comingSoon: "敬请期待",
       emptyTitle: "暂无发布版本",
       emptyBody: "该平台客户端正在开发中，敬请期待后续更新。",
@@ -41,6 +45,8 @@
       changelogSubtitle: "Latest versions and release history for every platform — track each feature update and improvement.",
       highlightsTitle: "Release Highlights",
       downloadBtn: "Download",
+      linuxDownloadAppImage: "AppImage",
+      linuxDownloadDeb: "DEB (amd64)",
       comingSoon: "Coming Soon",
       emptyTitle: "No Releases Yet",
       emptyBody: "The client for this platform is under development. Stay tuned for future updates.",
@@ -257,13 +263,15 @@
       panel.classList.remove("is-coming-soon");
       versionEl.textContent = platform.versionLabel[lang];
       comingEl.hidden = true;
-      const installer =
-        window.LinkXAppDownload && window.LinkXAppDownload.installerUrl
-          ? window.LinkXAppDownload.installerUrl(platformKey)
-          : "";
-      if (installer) {
-        downloadEl.href = installer;
-        downloadEl.removeAttribute("download");
+      if (window.LinkXAppDownload && window.LinkXAppDownload.applyPlatformDownload) {
+        window.LinkXAppDownload.applyPlatformDownload(platformKey, {
+          singleEl: downloadEl,
+          groupEl: downloadGroupEl,
+          menuEl: downloadMenuEl,
+        });
+      }
+      if (platformKey === "linux" || platformKey === "windows") {
+        window.LinkXAppDownload?.refreshVersionLabel(versionEl, platformKey);
       }
     }
 

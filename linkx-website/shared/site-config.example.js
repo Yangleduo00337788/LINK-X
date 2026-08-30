@@ -12,5 +12,10 @@
     isLocalPreview: false,
     installerDirectUrl:
       "https://pub-xxxx.r2.dev/releases/YYYY/MM/DD/LinkX-Installer-x.y.z.exe",
+    /** Linux 安装包 R2 公网直链（API 不可用时的兜底） */
+    linuxDirectUrls: {
+      appimage: "https://pub-xxxx.r2.dev/releases/YYYY/MM/DD/LinkX-x.y.z.AppImage",
+      deb: "https://pub-xxxx.r2.dev/releases/YYYY/MM/DD/linkx_x.y.z_amd64.deb",
+    },
   };
 })();
