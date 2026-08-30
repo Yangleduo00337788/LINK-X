@@ -111,12 +111,15 @@ public class AdminVersionServiceImpl implements AdminVersionService {
     @Override
     @Transactional
     public AdminVersionVO create(AdminVersionDTO dto, Long operatorId) {
-        validateDto(dto);
+        validateDto(dto, null);
         Date now = new Date();
+        String packageFormat = resolvePackageFormat(dto);
+        ensureUniqueRecord(dto.getVersion(), dto.getChannel(), dto.getPlatform(), packageFormat, null);
         SysAppVersion entity = SysAppVersion.builder()
                 .version(normalizeVersion(dto.getVersion()))
                 .channel(AppVersionUtils.normalizeChannel(dto.getChannel()))
                 .platform(AppVersionUtils.normalizePlatform(dto.getPlatform()))
+                .packageFormat(packageFormat)
                 .releaseNotes(nullToEmpty(dto.getReleaseNotes()))
                 .downloadUrl(nullToEmpty(dto.getDownloadUrl()))
                 .packageSha256(nullToEmpty(dto.getPackageSha256()))
@@ -138,14 +141,17 @@ public class AdminVersionServiceImpl implements AdminVersionService {
     @Override
     @Transactional
     public AdminVersionVO update(Long id, AdminVersionDTO dto, Long operatorId) {
-        validateDto(dto);
+        validateDto(dto, id);
         SysAppVersion row = requireVersion(id);
         if (!SysAppVersion.STATUS_DRAFT.equals(row.getStatus())) {
             throw new CustomException(400, "仅草稿版本可编辑");
         }
+        String packageFormat = resolvePackageFormat(dto);
+        ensureUniqueRecord(dto.getVersion(), dto.getChannel(), dto.getPlatform(), packageFormat, id);
         row.setVersion(normalizeVersion(dto.getVersion()));
         row.setChannel(AppVersionUtils.normalizeChannel(dto.getChannel()));
         row.setPlatform(AppVersionUtils.normalizePlatform(dto.getPlatform()));
+        row.setPackageFormat(packageFormat);
         row.setReleaseNotes(nullToEmpty(dto.getReleaseNotes()));
         row.setDownloadUrl(nullToEmpty(dto.getDownloadUrl()));
         row.setPackageSha256(nullToEmpty(dto.getPackageSha256()));
@@ -185,12 +191,14 @@ public class AdminVersionServiceImpl implements AdminVersionService {
         Date now = new Date();
         String platform = AppVersionUtils.normalizePlatform(row.getPlatform());
         String channel = AppVersionUtils.normalizeChannel(row.getChannel());
+        String packageFormat = AppVersionUtils.normalizePackageFormat(row.getPackageFormat());
         List<SysAppVersion> published = versionMapper.selectListByQuery(
                 QueryWrapper.create()
                         .where(SysAppVersion::getDeleted).eq(0)
                         .and(SysAppVersion::getStatus).eq(SysAppVersion.STATUS_PUBLISHED)
                         .and(SysAppVersion::getPlatform).eq(platform)
-                        .and(SysAppVersion::getChannel).eq(channel));
+                        .and(SysAppVersion::getChannel).eq(channel)
+                        .and(SysAppVersion::getPackageFormat).eq(packageFormat));
         for (SysAppVersion prev : published) {
             prev.setStatus(SysAppVersion.STATUS_ARCHIVED);
             prev.setUpdateTime(now);
@@ -359,7 +367,7 @@ public class AdminVersionServiceImpl implements AdminVersionService {
         return row;
     }
 
-    private void validateDto(AdminVersionDTO dto) {
+    private void validateDto(AdminVersionDTO dto, Long excludeId) {
         String version = normalizeVersion(dto.getVersion());
         if (!version.matches("\\d+(\\.\\d+)*")) {
             throw new CustomException(400, "版本号格式无效，示例：1.0.0");
@@ -370,6 +378,42 @@ public class AdminVersionServiceImpl implements AdminVersionService {
         }
         if (!AppVersionUtils.isValidPlatform(dto.getPlatform())) {
             throw new CustomException(400, "目标平台无效，可选：windows / macos / linux");
+        }
+        String packageFormat = resolvePackageFormat(dto);
+        if (!AppVersionUtils.isValidPackageFormat(dto.getPlatform(), packageFormat)) {
+            throw new CustomException(400, "安装包格式与目标平台不匹配");
+        }
+    }
+
+    private String resolvePackageFormat(AdminVersionDTO dto) {
+        return AppVersionUtils.resolvePackageFormat(
+                dto.getPlatform(),
+                dto.getPackageFormat(),
+                dto.getPackageFileName());
+    }
+
+    private void ensureUniqueRecord(String version,
+                                    String channel,
+                                    String platform,
+                                    String packageFormat,
+                                    Long excludeId) {
+        String normalizedVersion = normalizeVersion(version);
+        String normalizedChannel = AppVersionUtils.normalizeChannel(channel);
+        String normalizedPlatform = AppVersionUtils.normalizePlatform(platform);
+        String normalizedFormat = AppVersionUtils.normalizePackageFormat(packageFormat);
+        List<SysAppVersion> existing = versionMapper.selectListByQuery(
+                QueryWrapper.create()
+                        .where(SysAppVersion::getDeleted).eq(0)
+                        .and(SysAppVersion::getStatus).eq(SysAppVersion.STATUS_DRAFT)
+                        .and(SysAppVersion::getVersion).eq(normalizedVersion)
+                        .and(SysAppVersion::getChannel).eq(normalizedChannel)
+                        .and(SysAppVersion::getPlatform).eq(normalizedPlatform)
+                        .and(SysAppVersion::getPackageFormat).eq(normalizedFormat));
+        for (SysAppVersion row : existing) {
+            if (excludeId != null && excludeId.equals(row.getId())) {
+                continue;
+            }
+            throw new CustomException(400, "同版本、平台与安装包格式已存在草稿，请直接编辑该草稿");
         }
     }
 
@@ -387,6 +431,7 @@ public class AdminVersionServiceImpl implements AdminVersionService {
                 .version(row.getVersion())
                 .channel(row.getChannel())
                 .platform(row.getPlatform())
+                .packageFormat(row.getPackageFormat())
                 .releaseNotes(row.getReleaseNotes())
                 .downloadKey(stored)
                 .downloadUrl(appDownloadUrlResolver.resolveForAdmin(stored))

@@ -33,12 +33,20 @@ public class SysAppVersion implements Serializable {
     public static final String PLATFORM_MACOS = "macos";
     public static final String PLATFORM_LINUX = "linux";
 
+    public static final String FORMAT_EXE = "exe";
+    public static final String FORMAT_MSI = "msi";
+    public static final String FORMAT_DMG = "dmg";
+    public static final String FORMAT_APPIMAGE = "appimage";
+    public static final String FORMAT_DEB = "deb";
+    public static final String FORMAT_RPM = "rpm";
+
     @Id(keyType = KeyType.Generator, value = KeyGenerators.snowFlakeId)
     private Long id;
 
     private String version;
     private String channel;
     private String platform;
+    private String packageFormat;
     private String releaseNotes;
     private String downloadUrl;
     private String packageSha256;

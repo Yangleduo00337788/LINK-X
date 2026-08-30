@@ -196,7 +196,10 @@ function showUpdateDialog(info: versionApi.AppVersion, ctx: AppUpdateContext) {
   })
 }
 
-function showUpdateReadyDialog(info: versionApi.AppVersion, ctx: Pick<AppUpdateContext, 'dialog' | 't'>) {
+function showUpdateReadyDialog(
+  info: versionApi.AppVersion,
+  ctx: Pick<AppUpdateContext, 'dialog' | 'message' | 't'>
+) {
   const notes = (info.releaseNotes || '').trim()
   ctx.dialog.info({
     title: ctx.t('about.updateReadyTitle', { version: info.version }),

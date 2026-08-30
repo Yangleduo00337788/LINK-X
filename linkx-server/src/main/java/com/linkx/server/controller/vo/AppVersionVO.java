@@ -47,6 +47,8 @@ public class AppVersionVO implements Serializable {
     private String packageSha256;
     /** 安装包文件名 */
     private String packageFileName;
+    /** 同版本下可选的多种安装包（如 Linux AppImage + deb） */
+    private java.util.List<AppVersionPackageVO> packages;
     /** 客服邮箱（可空） */
     private String supportEmail;
     /** 客服电话（可空） */

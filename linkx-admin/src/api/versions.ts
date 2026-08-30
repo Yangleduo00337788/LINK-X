@@ -7,12 +7,14 @@ import type { PageQuery, PageResult } from '@/types/api'
 import { tGlobal } from '@/i18n'
 
 export type VersionPlatform = 'windows' | 'macos' | 'linux'
+export type VersionPackageFormat = 'exe' | 'msi' | 'dmg' | 'appimage' | 'deb' | 'rpm'
 
 export interface VersionItem {
   id: string
   version: string
   channel: string
   platform?: VersionPlatform
+  packageFormat?: VersionPackageFormat
   releaseNotes?: string
   downloadKey?: string
   downloadUrl?: string
@@ -34,6 +36,7 @@ export interface VersionPayload {
   version: string
   channel: string
   platform: VersionPlatform
+  packageFormat?: VersionPackageFormat
   releaseNotes?: string
   downloadUrl?: string
   packageSha256?: string

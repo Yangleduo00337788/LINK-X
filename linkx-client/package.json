@@ -4,6 +4,7 @@
   "private": true,
   "version": "1.0.1",
   "author": "yangleduo",
+  "homepage": "https://mars-studio.asia",
   "license": "MIT",
   "type": "module",
   "main": "dist-electron/main/main.js",
@@ -119,9 +120,15 @@
       "category": "public.app-category.social-networking"
     },
     "linux": {
-      "target": "AppImage",
-      "icon": "build/icon.png",
-      "category": "Network"
+      "target": [
+      "AppImage",
+      "deb"
+    ],
+    "icon": "build/icon.png",
+    "category": "Network",
+    "maintainer": "yangleduo <743258831@qq.com>",
+    "synopsis": "LinkX desktop client",
+    "description": "LinkX enterprise IM desktop client"
     }
   }
 }

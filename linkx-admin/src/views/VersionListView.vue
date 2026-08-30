@@ -31,6 +31,8 @@ import {
   uploadVersionPackage,
   type VersionItem,
   type VersionPayload,
+  type VersionPackageFormat,
+  type VersionPlatform,
 } from '@/api/versions'
 import { formatTime } from '@/utils/format'
 import { resolveDownloadUrl } from '@/utils/mediaUrl'
@@ -65,7 +67,8 @@ const packageInputRef = ref<HTMLInputElement | null>(null)
 const form = reactive({
   version: '',
   channel: 'stable',
-  platform: 'windows' as 'windows' | 'macos' | 'linux',
+  platform: 'windows' as VersionPlatform,
+  packageFormat: 'exe' as VersionPackageFormat,
   releaseNotes: '',
   downloadUrl: '',
   packageFileName: '',
@@ -109,6 +112,63 @@ const platformOptions = computed(() => {
 
 const platformFormOptions = computed(() => platformOptions.value.filter((o) => o.value))
 
+const packageFormatOptions = computed(() => {
+  void locale.value
+  const platform = form.platform
+  if (platform === 'macos') {
+    return [{ label: t('version.packageFormatDmg'), value: 'dmg' }]
+  }
+  if (platform === 'linux') {
+    return [
+      { label: t('version.packageFormatAppImage'), value: 'appimage' },
+      { label: t('version.packageFormatDeb'), value: 'deb' },
+      { label: t('version.packageFormatRpm'), value: 'rpm' },
+    ]
+  }
+  return [
+    { label: t('version.packageFormatExe'), value: 'exe' },
+    { label: t('version.packageFormatMsi'), value: 'msi' },
+  ]
+})
+
+function defaultPackageFormat(platform: VersionPlatform): VersionPackageFormat {
+  if (platform === 'macos') return 'dmg'
+  if (platform === 'linux') return 'appimage'
+  return 'exe'
+}
+
+function detectPackageFormat(fileName: string, platform: VersionPlatform): VersionPackageFormat {
+  const lower = fileName.toLowerCase()
+  if (lower.endsWith('.msi')) return 'msi'
+  if (lower.endsWith('.exe')) return 'exe'
+  if (lower.endsWith('.dmg')) return 'dmg'
+  if (lower.endsWith('.deb')) return 'deb'
+  if (lower.endsWith('.rpm')) return 'rpm'
+  if (lower.endsWith('.appimage')) return 'appimage'
+  return defaultPackageFormat(platform)
+}
+
+function packageFormatLabel(format?: string): string {
+  const map: Record<string, string> = {
+    exe: t('version.packageFormatExe'),
+    msi: t('version.packageFormatMsi'),
+    dmg: t('version.packageFormatDmg'),
+    appimage: t('version.packageFormatAppImage'),
+    deb: t('version.packageFormatDeb'),
+    rpm: t('version.packageFormatRpm'),
+  }
+  return map[(format || '').toLowerCase()] || format || '-'
+}
+
+function platformLabel(platform?: string): string {
+  const map: Record<string, string> = {
+    windows: t('version.platformWindows'),
+    macos: t('version.platformMacos'),
+    linux: t('version.platformLinux'),
+  }
+  return map[platform || ''] || platform || '-'
+}
+
 const formTitle = computed(() => {
   if (formReadonly.value) return t('version.viewTitle')
   return editing.value ? t('version.edit') : t('version.create')
@@ -120,6 +180,11 @@ const rules = computed<FormRules>(() => {
     version: { required: true, message: t('version.versionRequired'), trigger: ['blur', 'input'] },
     channel: { required: true, message: t('version.channelRequired'), trigger: ['blur', 'change'] },
     platform: { required: true, message: t('version.platformRequired'), trigger: ['blur', 'change'] },
+    packageFormat: {
+      required: true,
+      message: t('version.packageFormatRequired'),
+      trigger: ['blur', 'change'],
+    },
   }
 })
 
@@ -178,7 +243,9 @@ function openEdit(row: VersionItem) {
 function fillFormFromRow(row: VersionItem) {
   form.version = row.version || ''
   form.channel = row.channel || 'stable'
-  form.platform = (row.platform as 'windows' | 'macos' | 'linux') || 'windows'
+  form.platform = (row.platform as VersionPlatform) || 'windows'
+  form.packageFormat =
+    (row.packageFormat as VersionPackageFormat) || defaultPackageFormat(form.platform)
   form.releaseNotes = row.releaseNotes || ''
   const signed = (row.downloadUrl || '').trim()
   form.downloadUrl =
@@ -205,7 +272,14 @@ const columns = computed<DataTableColumns<VersionItem>>(() => {
   return [
     { title: t('version.currentVersion'), key: 'version', width: 110 },
     { title: t('version.channel'), key: 'channel', width: 90 },
-    { title: t('version.platform'), key: 'platform', width: 90 },
+    { title: t('version.platform'), key: 'platform', width: 90, render: (row) => platformLabel(row.platform) },
+    {
+      title: t('version.packageFormat'),
+      key: 'packageFormat',
+      width: 130,
+      render: (row) =>
+        h(NTag, { size: 'small', type: 'info' }, () => packageFormatLabel(row.packageFormat)),
+    },
     {
       title: t('common.status'),
       key: 'status',
@@ -214,11 +288,11 @@ const columns = computed<DataTableColumns<VersionItem>>(() => {
         h(NTag, { type: statusType(row.status), size: 'small' }, () => statusLabel(row.status)),
     },
     {
-      title: t('version.downloadUrl'),
-      key: 'downloadUrl',
-      width: 280,
+      title: t('version.packageFileName'),
+      key: 'packageFileName',
+      width: 220,
       ellipsis: { tooltip: true },
-      render: (row) => resolveRowDownloadLink(row) || '-',
+      render: (row) => row.packageFileName || resolveRowDownloadLink(row) || '-',
     },
     {
       title: t('setting.forceUpdate'),
@@ -319,6 +393,7 @@ function resetForm() {
   form.version = ''
   form.channel = 'stable'
   form.platform = 'windows'
+  form.packageFormat = 'exe'
   form.releaseNotes = ''
   form.downloadUrl = ''
   form.packageFileName = ''
@@ -328,7 +403,7 @@ function resetForm() {
   form.minSupportedVersion = ''
 }
 
-function detectPlatform(fileName: string): 'windows' | 'macos' | 'linux' {
+function detectPlatform(fileName: string): VersionPlatform {
   const lower = fileName.toLowerCase()
   if (lower.endsWith('.exe') || lower.endsWith('.msi')) return 'windows'
   if (lower.endsWith('.dmg')) return 'macos'
@@ -362,6 +437,7 @@ async function onPackageSelected(ev: Event) {
     form.packageSha256 = result.sha256 || ''
     form.packageSize = result.fileSize ?? file.size
     form.platform = detectPlatform(form.packageFileName)
+    form.packageFormat = detectPackageFormat(form.packageFileName, form.platform)
     message.success(t('version.packageUploadSuccess'))
   } catch (e) {
     message.error((e as Error).message || t('version.packageUploadFail'))
@@ -383,6 +459,7 @@ function toPayload(): VersionPayload {
     version: form.version.trim(),
     channel: form.channel.trim(),
     platform: form.platform,
+    packageFormat: form.packageFormat,
     releaseNotes: form.releaseNotes.trim(),
     downloadUrl: form.downloadUrl.trim(),
     packageSha256: form.packageSha256.trim() || undefined,
@@ -442,7 +519,11 @@ async function save() {
 function confirmPublish(row: VersionItem) {
   dialog.warning({
     title: t('version.publishTitle'),
-    content: t('version.publishConfirm', { version: row.version }),
+    content: t('version.publishConfirm', {
+      version: row.version,
+      platform: platformLabel(row.platform),
+      packageFormat: packageFormatLabel(row.packageFormat),
+    }),
     positiveText: t('version.publish'),
     negativeText: t('common.cancel'),
     onPositiveClick: async () => {
@@ -533,7 +614,7 @@ onMounted(() => {
           :data="items"
           :bordered="false"
           :single-line="false"
-          :scroll-x="1200"
+          :scroll-x="1320"
           :loading="loading"
           :pagination="{
             page: query.page,
@@ -573,7 +654,21 @@ onMounted(() => {
           <NSelect v-model:value="form.channel" :options="channelFormOptions" :disabled="formReadonly" />
         </NFormItem>
         <NFormItem :label="t('version.platform')" path="platform">
-          <NSelect v-model:value="form.platform" :options="platformFormOptions" :disabled="formReadonly" />
+          <NSelect
+            v-model:value="form.platform"
+            :options="platformFormOptions"
+            :disabled="formReadonly"
+            @update:value="(v: VersionPlatform) => {
+              form.packageFormat = defaultPackageFormat(v)
+            }"
+          />
+        </NFormItem>
+        <NFormItem :label="t('version.packageFormat')" path="packageFormat">
+          <NSelect
+            v-model:value="form.packageFormat"
+            :options="packageFormatOptions"
+            :disabled="formReadonly"
+          />
         </NFormItem>
         <NFormItem :label="t('version.downloadUrl')">
           <NSpace vertical style="width: 100%">

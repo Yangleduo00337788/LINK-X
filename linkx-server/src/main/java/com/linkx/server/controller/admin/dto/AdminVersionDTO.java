@@ -29,6 +29,10 @@ public class AdminVersionDTO {
     @Schema(description = "目标平台：windows / macos / linux")
     private String platform;
 
+    @Size(max = 16)
+    @Schema(description = "安装包格式：exe/msi/dmg/appimage/deb/rpm")
+    private String packageFormat;
+
     @Size(max = 2000)
     @Schema(description = "更新说明")
     private String releaseNotes;

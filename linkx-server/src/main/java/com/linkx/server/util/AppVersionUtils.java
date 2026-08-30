@@ -93,6 +93,73 @@ public final class AppVersionUtils {
         return channel.trim().toLowerCase();
     }
 
+    public static String normalizePackageFormat(String packageFormat) {
+        if (!StringUtils.hasText(packageFormat)) {
+            return "";
+        }
+        return packageFormat.trim().toLowerCase(Locale.ROOT);
+    }
+
+    public static String detectPackageFormat(String platform, String fileName) {
+        String normalizedPlatform = normalizePlatform(platform);
+        String lower = nullToEmpty(fileName).toLowerCase(Locale.ROOT);
+        if (lower.endsWith(".msi")) {
+            return SysAppVersion.FORMAT_MSI;
+        }
+        if (lower.endsWith(".exe")) {
+            return SysAppVersion.FORMAT_EXE;
+        }
+        if (lower.endsWith(".dmg")) {
+            return SysAppVersion.FORMAT_DMG;
+        }
+        if (lower.endsWith(".deb")) {
+            return SysAppVersion.FORMAT_DEB;
+        }
+        if (lower.endsWith(".rpm")) {
+            return SysAppVersion.FORMAT_RPM;
+        }
+        if (lower.endsWith(".appimage")) {
+            return SysAppVersion.FORMAT_APPIMAGE;
+        }
+        return defaultPackageFormat(normalizedPlatform);
+    }
+
+    public static String defaultPackageFormat(String platform) {
+        String normalizedPlatform = normalizePlatform(platform);
+        return switch (normalizedPlatform) {
+            case SysAppVersion.PLATFORM_MACOS -> SysAppVersion.FORMAT_DMG;
+            case SysAppVersion.PLATFORM_LINUX -> SysAppVersion.FORMAT_APPIMAGE;
+            default -> SysAppVersion.FORMAT_EXE;
+        };
+    }
+
+    public static boolean isValidPackageFormat(String platform, String packageFormat) {
+        String format = normalizePackageFormat(packageFormat);
+        String normalizedPlatform = normalizePlatform(platform);
+        return switch (normalizedPlatform) {
+            case SysAppVersion.PLATFORM_WINDOWS ->
+                    SysAppVersion.FORMAT_EXE.equals(format) || SysAppVersion.FORMAT_MSI.equals(format);
+            case SysAppVersion.PLATFORM_MACOS -> SysAppVersion.FORMAT_DMG.equals(format);
+            case SysAppVersion.PLATFORM_LINUX ->
+                    SysAppVersion.FORMAT_APPIMAGE.equals(format)
+                            || SysAppVersion.FORMAT_DEB.equals(format)
+                            || SysAppVersion.FORMAT_RPM.equals(format);
+            default -> false;
+        };
+    }
+
+    public static String resolvePackageFormat(String platform, String packageFormat, String fileName) {
+        String normalized = normalizePackageFormat(packageFormat);
+        if (StringUtils.hasText(normalized) && isValidPackageFormat(platform, normalized)) {
+            return normalized;
+        }
+        String detected = detectPackageFormat(platform, fileName);
+        if (isValidPackageFormat(platform, detected)) {
+            return detected;
+        }
+        return defaultPackageFormat(platform);
+    }
+
     private static Integer tryParseInt(String s) {
         try {
             return Integer.parseInt(s);

@@ -58,6 +58,6 @@ run('npx', [
 const artifactHint =
   platform === 'mac'
     ? `${releaseDir}/LinkX-*.dmg`
-    : `${releaseDir}/LinkX-*.AppImage`
+    : `${releaseDir}/LinkX-*.AppImage 与 ${releaseDir}/linkx_*_amd64.deb`
 
 console.log(`[electron:build] 完成，产物: ${artifactHint}`)

@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.linkx.server.common.Result;
 import com.linkx.server.config.LinkxProperties;
+import com.linkx.server.controller.vo.AppVersionPackageVO;
 import com.linkx.server.controller.vo.AppVersionVO;
 import com.linkx.server.entity.admin.SysAppVersion;
 import com.linkx.server.exception.CustomException;
@@ -26,6 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.net.URI;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -58,14 +60,16 @@ public class VersionController {
     public Result<AppVersionVO> checkVersion(
             @RequestParam(value = "current", required = false) String current,
             @RequestParam(value = "channel", required = false) String channel,
-            @RequestParam(value = "platform", required = false) String platform) {
+            @RequestParam(value = "platform", required = false) String platform,
+            @RequestParam(value = "format", required = false) String format) {
         String currentVersion = current == null ? "" : current.trim();
         boolean hasCurrent = StringUtils.hasText(currentVersion);
         String clientPlatform = AppVersionUtils.normalizePlatform(platform);
 
-        Optional<SysAppVersion> published = appVersionService.findLatestPublished(clientPlatform, channel);
+        Optional<SysAppVersion> published = appVersionService.findLatestPublished(clientPlatform, channel, format);
         if (published.isPresent()) {
-            return Result.success(buildFromPublished(published.get(), currentVersion, hasCurrent, clientPlatform, channel));
+            return Result.success(buildFromPublished(
+                    published.get(), currentVersion, hasCurrent, clientPlatform, channel, format));
         }
         return Result.success(buildFromRuntimeConfig(currentVersion, hasCurrent, channel, clientPlatform));
     }
@@ -78,9 +82,10 @@ public class VersionController {
     public org.springframework.http.ResponseEntity<Void> downloadInstaller(
             HttpServletRequest request,
             @RequestParam(value = "platform", defaultValue = "windows") String platform,
-            @RequestParam(value = "channel", required = false) String channel) {
+            @RequestParam(value = "channel", required = false) String channel,
+            @RequestParam(value = "format", required = false) String format) {
         String clientPlatform = AppVersionUtils.normalizePlatform(platform);
-        Optional<SysAppVersion> published = appVersionService.findLatestPublished(clientPlatform, channel);
+        Optional<SysAppVersion> published = appVersionService.findLatestPublished(clientPlatform, channel, format);
 
         String downloadKey = "";
         String fileName = "LinkX-Installer.exe";
@@ -135,7 +140,8 @@ public class VersionController {
                                             String currentVersion,
                                             boolean hasCurrent,
                                             String clientPlatform,
-                                            String channel) {
+                                            String channel,
+                                            String preferredFormat) {
         String latest = nullToEmpty(row.getVersion());
         boolean versionOutdated = hasCurrent && AppVersionUtils.compare(currentVersion, latest) < 0;
         String minSupported = nullToEmpty(row.getMinSupportedVersion());
@@ -143,6 +149,12 @@ public class VersionController {
                 && AppVersionUtils.compare(currentVersion, minSupported) < 0;
         boolean hasUpdate = belowMin || versionOutdated;
         boolean forceUpdate = belowMin || (hasUpdate && Boolean.TRUE.equals(row.getForceUpdate()));
+
+        List<SysAppVersion> packageRows = appVersionService.findPublishedPackages(clientPlatform, channel, latest);
+        List<AppVersionPackageVO> packages = packageRows.stream()
+                .map(this::toPackageVO)
+                .toList();
+        SysAppVersion selected = selectPackageRow(packageRows, row, preferredFormat);
 
         LinkxProperties.App app = linkxProperties.getApp();
         return AppVersionVO.builder()
@@ -155,12 +167,36 @@ public class VersionController {
                 .releaseNotes(hasUpdate ? nullToEmpty(row.getReleaseNotes()) : "当前已是最新版本")
                 .currentReleaseNotes(resolveCurrentReleaseNotes(currentVersion, hasCurrent, clientPlatform, channel))
                 .downloadUrl(hasUpdate
-                        ? appDownloadUrlResolver.resolveForClient(nullToEmpty(row.getDownloadUrl()))
+                        ? appDownloadUrlResolver.resolveForClient(nullToEmpty(selected.getDownloadUrl()))
                         : "")
-                .packageSha256(hasUpdate ? nullToEmpty(row.getPackageSha256()) : "")
-                .packageFileName(hasUpdate ? nullToEmpty(row.getPackageFileName()) : "")
+                .packageSha256(hasUpdate ? nullToEmpty(selected.getPackageSha256()) : "")
+                .packageFileName(hasUpdate ? nullToEmpty(selected.getPackageFileName()) : "")
+                .packages(hasUpdate ? packages : List.of())
                 .supportEmail(nullToEmpty(app.getSupportEmail()))
                 .supportPhone(nullToEmpty(app.getSupportPhone()))
+                .build();
+    }
+
+    private SysAppVersion selectPackageRow(List<SysAppVersion> packageRows,
+                                         SysAppVersion fallback,
+                                         String preferredFormat) {
+        if (!StringUtils.hasText(preferredFormat) || packageRows.isEmpty()) {
+            return fallback;
+        }
+        String format = AppVersionUtils.normalizePackageFormat(preferredFormat);
+        return packageRows.stream()
+                .filter(pkg -> format.equals(AppVersionUtils.normalizePackageFormat(pkg.getPackageFormat())))
+                .findFirst()
+                .orElse(fallback);
+    }
+
+    private AppVersionPackageVO toPackageVO(SysAppVersion row) {
+        return AppVersionPackageVO.builder()
+                .packageFormat(AppVersionUtils.normalizePackageFormat(row.getPackageFormat()))
+                .downloadUrl(appDownloadUrlResolver.resolveForClient(nullToEmpty(row.getDownloadUrl())))
+                .packageFileName(nullToEmpty(row.getPackageFileName()))
+                .packageSha256(nullToEmpty(row.getPackageSha256()))
+                .packageSize(row.getPackageSize())
                 .build();
     }
 

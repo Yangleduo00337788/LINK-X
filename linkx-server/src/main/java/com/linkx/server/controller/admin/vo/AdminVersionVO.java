@@ -19,6 +19,7 @@ public class AdminVersionVO {
     private String version;
     private String channel;
     private String platform;
+    private String packageFormat;
     private String releaseNotes;
     @Schema(description = "入库对象 key 或外链")
     private String downloadKey;
