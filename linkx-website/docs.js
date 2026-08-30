@@ -94,7 +94,7 @@
       secOverviewP1:
         "LinkX 是一套前后端分离的企业级即时通讯（IM）解决方案，由桌面客户端、运营管理后台与单体后端服务组成，适用于团队内部沟通、协同办公与后台运营场景。",
       secOverviewP2:
-        "当前已发布 Windows 桌面端（v1.0.1）。下一版 1.1.0 计划交付 Linux 桌面端与 Android 移动端；再下一版 1.2.0 将聚焦灵伴知识库与 Agent 策略、本地搜索与消息同步优化、短视频推荐与运营后台。macOS 与 iOS 仍在路线图中。",
+        "当前已发布 Windows 桌面端（v1.0.1）。下一版 1.1.0 计划交付 Linux 桌面端；再下一版 1.2.0 将聚焦灵伴知识库与 Agent 策略、本地搜索与消息同步优化、短视频推荐与运营后台。macOS 与 iOS 仍在路线图中。",
       secArchL5: "可选消息落库加密（AES-256-GCM，默认关闭，非端到端加密）",
       secMessageEncryptTitle: "消息落库加密",
       secMessageEncryptP1:
@@ -151,7 +151,7 @@
       secOverviewP1:
         "LinkX is an enterprise instant messaging (IM) stack with a separated frontend and backend: desktop client, admin console, and a monolithic API service for team communication, collaboration, and operations.",
       secOverviewP2:
-        "Windows desktop (v1.0.1) is available today. v1.1.0 will ship Linux desktop and Android mobile clients; v1.2.0 will focus on LinkMate knowledge base & agent policies, local search & message sync, and short-video recommendations with an admin ops console. macOS and iOS remain on the roadmap.",
+        "Windows desktop (v1.0.1) is available today. v1.1.0 will ship Linux desktop; v1.2.0 will focus on LinkMate knowledge base & agent policies, local search & message sync, and short-video recommendations with an admin ops console. macOS and iOS remain on the roadmap.",
       secArchL5: "Optional at-rest message encryption (AES-256-GCM, off by default; not E2EE)",
       secMessageEncryptTitle: "Message At-Rest Encryption",
       secMessageEncryptP1:

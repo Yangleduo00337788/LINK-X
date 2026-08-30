@@ -5,8 +5,8 @@ window.ChangelogData = {
       version: "1.1.0",
       status: { zh: "下一版", en: "Next" },
       summary: {
-        zh: "Linux 桌面端、Android 移动端",
-        en: "Linux desktop and Android mobile clients",
+        zh: "Linux 桌面端",
+        en: "Linux desktop client",
       },
       sections: [
         {
@@ -15,12 +15,10 @@ window.ChangelogData = {
             zh: [
               "Linux 安装包构建与发布（AppImage / deb 等）",
               "官网与管理端版本记录支持 Linux 平台下载与自动更新",
-              "Android 客户端 IM 核心链路（登录、单聊 / 群聊、推送、多媒体）",
             ],
             en: [
               "Linux installer builds and releases (AppImage / deb, etc.)",
               "Website and admin version records for Linux download and auto-update",
-              "Android client IM essentials: login, chat, push, and rich media",
             ],
           },
         },
@@ -223,33 +221,6 @@ window.ChangelogData = {
               items: {
                 zh: ["Electron 窗控交互优化"],
                 en: ["Electron window control interaction improvements"],
-              },
-            },
-          ],
-        },
-      ],
-    },
-    android: {
-      icon: "assets/icon-android.svg",
-      name: { zh: "Android", en: "Android" },
-      comingSoon: true,
-      releases: [
-        {
-          version: "1.1.0",
-          date: "",
-          badge: { zh: "计划中", en: "Planned" },
-          sections: [
-            {
-              title: { zh: "规划", en: "Planned" },
-              items: {
-                zh: [
-                  "Android 客户端 IM 核心链路",
-                  "与服务端 REST + WebSocket 协议对齐",
-                ],
-                en: [
-                  "Android client IM essentials",
-                  "Aligned with server REST + WebSocket APIs",
-                ],
               },
             },
           ],

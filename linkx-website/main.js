@@ -180,11 +180,6 @@
       name: { zh: "Windows", en: "Windows" },
       version: { zh: "v1.0.1 · x64 · 安装包", en: "v1.0.1 · x64 · Installer" },
     },
-    android: {
-      icon: "assets/icon-android.svg",
-      name: { zh: "Android", en: "Android" },
-      comingSoon: true,
-    },
     ios: {
       icon: "assets/icon-ios.svg",
       name: { zh: "iOS", en: "iOS" },

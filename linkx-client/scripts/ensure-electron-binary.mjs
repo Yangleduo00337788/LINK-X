@@ -19,12 +19,70 @@ export const electronMirrorEnv = {
   ELECTRON_MIRROR: process.env.ELECTRON_MIRROR || 'https://npmmirror.com/mirrors/electron/'
 }
 
+function expectedPlatformPath() {
+  switch (process.platform) {
+    case 'darwin':
+      return 'Electron.app/Contents/MacOS/Electron'
+    case 'win32':
+      return 'electron.exe'
+    case 'linux':
+    case 'freebsd':
+    case 'openbsd':
+      return 'electron'
+    default:
+      return null
+  }
+}
+
+function isValidPlatformBinary(exePath) {
+  if (!fs.existsSync(exePath)) return false
+  const fd = fs.openSync(exePath, 'r')
+  try {
+    const header = Buffer.alloc(4)
+    fs.readSync(fd, header, 0, 4, 0)
+    if (process.platform === 'win32') {
+      return header[0] === 0x4d && header[1] === 0x5a // MZ
+    }
+    if (process.platform === 'darwin') {
+      return header.toString('ascii', 0, 4) === '\xcf\xfa\xed\xfe' || header.toString('ascii', 0, 4) === '\xfe\xed\xfa\xcf'
+    }
+    if (process.platform === 'linux') {
+      return header.toString('ascii', 0, 4) === '\x7fELF'
+    }
+    return true
+  } finally {
+    fs.closeSync(fd)
+  }
+}
+
+function resetElectronDist() {
+  const distRoot = process.env.ELECTRON_OVERRIDE_DIST_PATH || path.join(electronDir, 'dist')
+  const stampPath = path.join(electronDir, '.linkx-dev-exe')
+  if (fs.existsSync(distRoot)) fs.rmSync(distRoot, { recursive: true, force: true })
+  if (fs.existsSync(pathFile)) fs.rmSync(pathFile, { force: true })
+  if (fs.existsSync(stampPath)) fs.rmSync(stampPath, { force: true })
+}
+
 function isElectronBinaryReady() {
   if (!fs.existsSync(pathFile) || !fs.existsSync(installScript)) return false
   const rel = fs.readFileSync(pathFile, 'utf8').trim()
   if (!rel) return false
+  const expected = expectedPlatformPath()
+  if (expected && rel !== expected) {
+    console.warn(
+      `[ensure-electron-binary] 检测到错误平台的 Electron（path.txt=${rel}，当前平台应为 ${expected}），将重新下载`
+    )
+    resetElectronDist()
+    return false
+  }
   const distRoot = process.env.ELECTRON_OVERRIDE_DIST_PATH || path.join(electronDir, 'dist')
-  return fs.existsSync(path.join(distRoot, rel))
+  const exePath = path.join(distRoot, rel)
+  if (!isValidPlatformBinary(exePath)) {
+    console.warn('[ensure-electron-binary] Electron 二进制与当前系统不匹配，将重新下载')
+    resetElectronDist()
+    return false
+  }
+  return true
 }
 
 function resolveElectronExePath() {

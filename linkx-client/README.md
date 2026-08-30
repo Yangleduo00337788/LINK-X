@@ -64,7 +64,7 @@ npm run electron:build:linux    # Linux AppImage
 
 | 版本 | 主题 |
 |------|------|
-| **1.1.0** | Linux 桌面端（`electron:build:linux`）、Android 移动端（新工程） |
+| **1.1.0** | Linux 桌面端（`electron:build:linux`） |
 | **1.2.0** | 灵伴知识库与 Agent 策略、本地搜索与消息同步、短视频推荐与运营 |
 
 当前已发布：**1.0.1**（Windows 桌面端）。
