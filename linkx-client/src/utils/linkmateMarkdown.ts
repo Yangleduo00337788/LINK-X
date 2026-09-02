@@ -21,6 +21,7 @@ import markdown from 'highlight.js/lib/languages/markdown'
 import 'highlight.js/styles/github.css'
 import { t } from '../i18n'
 import { copyText } from './clipboard'
+import { decodeStoredText } from './storedText'
 
 hljs.registerLanguage('javascript', javascript)
 hljs.registerLanguage('js', javascript)
@@ -74,21 +75,12 @@ linkmateMarked.use({
   }
 })
 
-/** 解码历史消息中可能存在的 HTML 实体（如 &ldquo; &quot;） */
-function decodeHtmlEntities(text: string): string {
-  if (!text || !/&(?:#x?[0-9a-f]+|[a-z]+);/i.test(text)) return text
-  if (typeof document === 'undefined') return text
-  const el = document.createElement('textarea')
-  el.innerHTML = text
-  return el.value
-}
-
 /** 渲染灵伴回复 Markdown 为安全 HTML */
 const markdownHtmlCache = new Map<string, string>()
 const MAX_MARKDOWN_CACHE = 100
 
 export function renderLinkMateMarkdown(markdown: string): string {
-  const source = decodeHtmlEntities(markdown?.trim() ?? '')
+  const source = decodeStoredText(markdown?.trim() ?? '')
   if (!source) return ''
   const cached = markdownHtmlCache.get(source)
   if (cached !== undefined) return cached

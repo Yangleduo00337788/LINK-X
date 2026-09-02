@@ -15,6 +15,7 @@ import { useAppStore } from '../../../stores/app'
 import { useGroupMetaStore } from '../../../stores/groupMeta'
 import { splitMentionContent } from '../../../utils/messageNotify'
 import { chatMessagePreviewText } from '../../../utils/messagePreviewText'
+import { decodeStoredText } from '../../../utils/storedText'
 import { useI18n } from '../../../i18n'
 import { useMessageTranslationStore } from '../../../stores/messageTranslation'
 import QuoteReplyBar from '../QuoteReplyBar.vue'
@@ -36,7 +37,7 @@ const isLinkMsg = computed(() => {
 
 /** 拆分正文，高亮 @成员 / @全体成员；@到自己时额外强调 */
 const contentSegments = computed(() =>
-  splitMentionContent(props.msg.content || '', [
+  splitMentionContent(decodeStoredText(props.msg.content || ''), [
     userProfile.value.nickname,
     userProfile.value.username
   ])

@@ -3,6 +3,7 @@
  */
 import { t } from '../i18n'
 import type { ChatMessage } from '../types'
+import { decodeStoredText } from './storedText'
 
 /** 会话列表/持久化占位：图片消息摘要 */
 export function imagePreviewPlaceholder(): string {
@@ -54,7 +55,7 @@ export function chatMessagePreviewText(msg: ChatMessage): string {
   if (msg.type === 'file') return filePreviewLabel(msg.fileName || msg.content)
   if (msg.type === 'image' || msg.isImage) return imagePreviewPlaceholder()
   if (msg.type === 'voice') return voicePreviewLabel()
-  if (msg.type === 'location') return locationPreviewLabel(msg.content || '')
+  if (msg.type === 'location') return locationPreviewLabel(decodeStoredText(msg.content || ''))
   if (msg.type === 'redPacket') return redPacketPreviewLabel(msg.redPacketGreeting)
   if (msg.type === 'conference') {
     const content = (msg.content || '').trim()
@@ -63,5 +64,5 @@ export function chatMessagePreviewText(msg: ChatMessage): string {
   }
   if (msg.type === 'recall') return recalledPreviewLabel()
   if (msg.type === 'system') return systemPreviewLabel(msg.content)
-  return (msg.content || '').trim()
+  return decodeStoredText((msg.content || '').trim())
 }

@@ -11,6 +11,7 @@ import PinIcon from '../icons/PinIcon.vue'
 import ModalWinHeadActions from '../ModalWinHeadActions.vue'
 import { LxButton } from '../ui'
 import { useI18n } from '../../i18n'
+import { decodeStoredText } from '../../utils/storedText'
 
 const message = useMessage()
 const { t } = useI18n()
@@ -31,7 +32,11 @@ const busyId = ref<string | null>(null)
 const items = computed(() => {
   const id = currentSessionId.value
   if (!id) return []
-  return groupMetaStore.announcementsFor(id)
+  return groupMetaStore.announcementsFor(id).map(ann => ({
+    ...ann,
+    // 服务端写时转义 + 文本插值会双转义，展示与编辑草稿统一先还原
+    content: decodeStoredText(ann.content)
+  }))
 })
 
 const canEdit = computed(() => {
