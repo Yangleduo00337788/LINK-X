@@ -32,6 +32,18 @@ public class AdminAuditIntegrityVO {
     /** 整条哈希链是否校验通过 */
     private boolean chainIntact;
 
+    /** 是否存在外部锚定快照 */
+    private boolean externallyAnchored;
+
+    /** 锚定 id 处库内重算哈希是否等于外部锚定值 */
+    private boolean externalAnchorMatches;
+
+    /** 最近一次外部锚定的行 id（用于审计追溯） */
+    private Long lastExternalAnchorId;
+
+    /** 最近一次外部锚定的链尾哈希 */
+    private String lastExternalAnchorHash;
+
     /** 校验时间 */
     private Date verifiedAt;
 }

@@ -110,6 +110,14 @@ linkx:
   security:
     require-https: ${REQUIRE_HTTPS}
 
+  audit:
+    # 审计哈希链链首熵种子（生产建议注入，缺失则回退公开常数锚点并告警）
+    hash-chain-seed: ${AUDIT_HASH_CHAIN_SEED:}
+    anchor-enabled: ${AUDIT_ANCHOR_ENABLED:true}
+    anchor-file: ${AUDIT_ANCHOR_FILE:logs/audit-chain-anchor.log}
+    anchor-interval-ms: ${AUDIT_ANCHOR_INTERVAL_MS:300000}
+    anchor-initial-delay-ms: ${AUDIT_ANCHOR_INITIAL_DELAY_MS:60000}
+
   linkmate:
     enabled: ${LINKMATE_ENABLED}
     api-key: ${LINKMATE_API_KEY}

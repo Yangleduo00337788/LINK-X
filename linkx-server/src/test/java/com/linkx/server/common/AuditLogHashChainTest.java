@@ -36,7 +36,7 @@ class AuditLogHashChainTest {
     /** 模拟写入端：按序构建一条哈希链，返回已填 log_hash/prev_hash 的行。 */
     private static List<SysAuditLog> buildChain(int n) {
         List<SysAuditLog> rows = new ArrayList<>();
-        String prevHash = AuditLogHashChain.GENESIS;
+        String prevHash = AuditLogHashChain.genesis();
         for (int i = 1; i <= n; i++) {
             SysAuditLog r = row(i, "LOGIN", "desc" + i, (long) i, "e" + i);
             r.setPrevHash(prevHash);
@@ -50,12 +50,12 @@ class AuditLogHashChainTest {
     /** 模拟校验端：返回可验证完整（自种子起一致）的行数。 */
     private static long verifyIntact(List<SysAuditLog> rows) {
         long intact = 0;
-        String expectedPrev = AuditLogHashChain.GENESIS;
+        String expectedPrev = AuditLogHashChain.genesis();
         for (SysAuditLog row : rows) {
             if (row.getLogHash() == null || row.getPrevHash() == null
                     || !expectedPrev.equals(row.getPrevHash())
                     || !AuditLogHashChain.hashFields(row, expectedPrev).equals(row.getLogHash())) {
-                expectedPrev = AuditLogHashChain.GENESIS;
+                expectedPrev = AuditLogHashChain.genesis();
             } else {
                 intact++;
                 expectedPrev = row.getLogHash();
@@ -91,15 +91,15 @@ class AuditLogHashChainTest {
     void hashDeterministic_givenSameInput() {
         SysAuditLog a = row(9, "LOGIN", "x", 3L, "y");
         SysAuditLog b = row(9, "LOGIN", "x", 3L, "y");
-        a.setPrevHash(AuditLogHashChain.GENESIS);
-        b.setPrevHash(AuditLogHashChain.GENESIS);
+        a.setPrevHash(AuditLogHashChain.genesis());
+        b.setPrevHash(AuditLogHashChain.genesis());
         assertEquals(AuditLogHashChain.hash(a), AuditLogHashChain.hash(b));
     }
 
     @Test
     void differentPrevHash_givesDifferentHash() {
         SysAuditLog a = row(1, "LOGIN", "x", 3L, null);
-        a.setPrevHash(AuditLogHashChain.GENESIS);
+        a.setPrevHash(AuditLogHashChain.genesis());
         SysAuditLog b = row(1, "LOGIN", "x", 3L, null);
         b.setPrevHash("0000000000000000000000000000000000000000000000000000000000000001");
         assertFalse(AuditLogHashChain.hash(a).equals(AuditLogHashChain.hash(b)));
@@ -108,7 +108,29 @@ class AuditLogHashChainTest {
     @Test
     void genesisSeeded_firstHashNotNullAndStable() {
         SysAuditLog r = row(1, "LOGIN", "hello", 1L, null);
-        r.setPrevHash(AuditLogHashChain.GENESIS);
-        assertTrue(AuditLogHashChain.hashFields(r, AuditLogHashChain.GENESIS).length() == 64);
+        r.setPrevHash(AuditLogHashChain.genesis());
+        assertTrue(AuditLogHashChain.hashFields(r, AuditLogHashChain.genesis()).length() == 64);
+    }
+
+    @Test
+    void configureSeed_derivesDifferentGenesis_andIsDeterministic() {
+        // 先恢复到默认常数，验证 configure(null/blank) 回退
+        AuditLogHashChain.configure(null);
+        String defaultGenesis = AuditLogHashChain.genesis();
+
+        AuditLogHashChain.configure("");
+        assertEquals(defaultGenesis, AuditLogHashChain.genesis());
+
+        // 注入随机种子后，链首锚点应变化（熵化），且同一 seed 稳定
+        AuditLogHashChain.configure("s3cr3t-chain-seed");
+        String seededGenesis = AuditLogHashChain.genesis();
+        assertFalse(defaultGenesis.equals(seededGenesis));
+        assertEquals(64, seededGenesis.length());
+
+        AuditLogHashChain.configure("s3cr3t-chain-seed");
+        assertEquals(seededGenesis, AuditLogHashChain.genesis());
+
+        // 还原为默认，避免影响其他用例
+        AuditLogHashChain.configure(null);
     }
 }

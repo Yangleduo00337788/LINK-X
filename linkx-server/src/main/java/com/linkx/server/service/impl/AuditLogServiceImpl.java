@@ -6,6 +6,7 @@ package com.linkx.server.service.impl;
  */
 import com.linkx.server.common.AuditLogHashChain;
 import com.linkx.server.common.ClientIpResolver;
+import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.entity.SysAuditLog;
 import com.linkx.server.mapper.SysAuditLogMapper;
 import com.linkx.server.service.AuditLogService;
@@ -15,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.util.Date;
 import java.util.List;
@@ -32,6 +34,7 @@ import java.util.List;
 public class AuditLogServiceImpl implements AuditLogService {
 
     private final SysAuditLogMapper auditLogMapper;
+    private final LinkxProperties linkxProperties;
 
     /**
      * 串行化哈希链追加的锁：与雪花 ID 递增顺序对齐，避免并发交错破坏链。
@@ -39,7 +42,17 @@ public class AuditLogServiceImpl implements AuditLogService {
     private final Object chainLock = new Object();
 
     @PostConstruct
-    public void backfillChain() {
+    public void initChain() {
+        String seed = linkxProperties.getAudit().getHashChainSeed();
+        if (!StringUtils.hasText(seed)) {
+            // 生产环境强烈建议注入 AUDIT_HASH_CHAIN_SEED，否则链首为公开常数，无法抵御整链重算
+            log.warn("未配置 linkx.audit.hash-chain-seed，审计哈希链回退到公开常数锚点（建议生产环境注入随机种子）");
+        }
+        AuditLogHashChain.configure(seed);
+        backfillChain();
+    }
+
+    private void backfillChain() {
         try {
             synchronized (chainLock) {
                 QueryWrapper qw = QueryWrapper.create();
@@ -51,7 +64,7 @@ public class AuditLogServiceImpl implements AuditLogService {
                 }
                 List<SysAuditLog> rows = auditLogMapper.selectListByQuery(
                         QueryWrapper.create().orderBy(SysAuditLog::getId, true));
-                String prevHash = AuditLogHashChain.GENESIS;
+                String prevHash = AuditLogHashChain.genesis();
                 for (SysAuditLog row : rows) {
                     row.setPrevHash(prevHash);
                     row.setLogHash(AuditLogHashChain.hashFields(row, prevHash));
@@ -142,7 +155,7 @@ public class AuditLogServiceImpl implements AuditLogService {
         synchronized (chainLock) {
             SysAuditLog prev = findChainTail();
             String prevHash = (prev == null || prev.getLogHash() == null)
-                    ? AuditLogHashChain.GENESIS : prev.getLogHash();
+                    ? AuditLogHashChain.genesis() : prev.getLogHash();
             logRow.setPrevHash(prevHash);
             auditLogMapper.insert(logRow); // 生成雪花 ID（纳入哈希字段序列）
             logRow.setLogHash(AuditLogHashChain.hashFields(logRow, prevHash));

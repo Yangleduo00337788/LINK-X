@@ -11,6 +11,7 @@ import com.linkx.server.common.DataScopeContext;
 import com.linkx.server.common.admin.AdminConstants;
 import com.linkx.server.common.admin.AdminKeywordQuery;
 import com.linkx.server.common.admin.PageResultVO;
+import com.linkx.server.config.AuditChainAnchorService;
 import com.linkx.server.controller.admin.dto.AdminAuditLogQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminPageQueryDTO;
 import com.linkx.server.controller.admin.vo.AdminAuditIntegrityVO;
@@ -45,6 +46,7 @@ public class AdminAuditLogServiceImpl implements AdminAuditLogService {
     private final SysLoginAuditMapper sysLoginAuditMapper;
     private final IpGeoService ipGeoService;
     private final SysUserMapper sysUserMapper;
+    private final AuditChainAnchorService auditChainAnchorService;
 
     @Override
     @DataScope
@@ -91,24 +93,42 @@ public class AdminAuditLogServiceImpl implements AdminAuditLogService {
                 QueryWrapper.create().orderBy(SysAuditLog::getId, true));
         long total = rows.size();
         long intact = 0;
-        String expectedPrev = AuditLogHashChain.GENESIS;
+        String expectedPrev = AuditLogHashChain.genesis();
+        // 链尾/锚定 id 处重算哈希同步追踪：链在锚定点之后断裂时置空，锚定比对随之失去意义
+        String recomputedAtAnchorId = null;
+        Long anchorId = null;
+        String anchorHash = null;
+        AuditChainAnchorService.AnchorPoint anchor = auditChainAnchorService.readLastAnchorPoint();
+        boolean externallyAnchored = anchor != null;
+        if (anchor != null) {
+            anchorId = anchor.id();
+            anchorHash = anchor.hash();
+        }
         for (SysAuditLog row : rows) {
             // 未回填或无哈希视为需关注（断路器场景计入“受影响”）
             if (row.getLogHash() == null || row.getPrevHash() == null
                     || !expectedPrev.equals(row.getPrevHash())
                     || !AuditLogHashChain.hashFields(row, expectedPrev).equals(row.getLogHash())) {
-                // 链在断点之后的后续行亦不可信，重置锚点使其全部计入受影响
-                expectedPrev = AuditLogHashChain.GENESIS;
+                expectedPrev = AuditLogHashChain.genesis();
+                recomputedAtAnchorId = null;
             } else {
                 intact++;
                 expectedPrev = row.getLogHash();
+                if (anchorId != null && anchorId.equals(row.getId())) {
+                    recomputedAtAnchorId = row.getLogHash();
+                }
             }
         }
+        boolean externalAnchorMatches = recomputedAtAnchorId != null && recomputedAtAnchorId.equals(anchorHash);
         return AdminAuditIntegrityVO.builder()
                 .total(total)
                 .intact(intact)
                 .tampered(total - intact)
-                .chainIntact(total == intact)
+                .chainIntact(total == intact && externalAnchorMatches)
+                .externallyAnchored(externallyAnchored)
+                .externalAnchorMatches(externalAnchorMatches)
+                .lastExternalAnchorId(anchorId)
+                .lastExternalAnchorHash(anchorHash)
                 .verifiedAt(new Date())
                 .build();
     }

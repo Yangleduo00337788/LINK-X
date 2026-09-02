@@ -28,14 +28,35 @@ import java.time.format.DateTimeFormatter;
 public final class AuditLogHashChain {
 
     /**
-     * 首行前驱锚点（域分隔固定种子），保证全链从一个可复现的根出发。
+     * 默认公开常数锚点：仅当未配置 {@code linkx.audit.hash-chain-seed} 时使用，
+     * 能防随机篡改，但无法抵御「取得数据库写权限后重算整链」的强攻击者。
      */
-    public static final String GENESIS = ApiSignUtils.sha256Hex("linkx:audit:chain:v1:genesis");
+    private static final String DEFAULT_GENESIS = ApiSignUtils.sha256Hex("linkx:audit:chain:v1:genesis");
+
+    /** 当前生效的链首种子（由 configure 在启动时注入，volatile 提供多线程可见性） */
+    private static volatile String genesis = DEFAULT_GENESIS;
 
     private static final DateTimeFormatter CREATE_TIME_FMT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private AuditLogHashChain() {
+    }
+
+    /**
+     * 配置链首熵种子（在审计服务启动时调用一次）。
+     * 空值回退公开常数锚点；非空则经域分隔派生，保证同一 seed 下确定、且与常数锚点可区分。
+     */
+    public static synchronized void configure(String hashChainSeed) {
+        if (hashChainSeed == null || hashChainSeed.isBlank()) {
+            genesis = DEFAULT_GENESIS;
+            return;
+        }
+        genesis = ApiSignUtils.sha256Hex("linkx:audit:chain:v1:seed:" + hashChainSeed.trim());
+    }
+
+    /** 读取当前链首种子（hex）。 */
+    public static String genesis() {
+        return genesis;
     }
 
     /**

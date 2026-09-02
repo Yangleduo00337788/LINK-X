@@ -38,6 +38,35 @@ public class LinkxProperties {
     private final LinkMate linkmate = new LinkMate();
     private final GroupAi groupAi = new GroupAi();
     private final ShortVideo shortVideo = new ShortVideo();
+    private final Audit audit = new Audit();
+
+    /**
+     * 审计日志哈希链外部锚定配置。
+     * <p>
+     * hashChainSeed 为链首熵种子（建议经环境变量 AUDIT_HASH_CHAIN_SEED 注入，
+     * 不落库），缺失时回退到公开常数锚点并告警——此时能防随机篡改，但无法抵御
+     * 「取得数据库写权限后重算整链」的强攻击者。
+     * anchorFile 为本机只追加稽核日志，定时把链尾快照写至 DB 之外，供 integrity
+     * 校验与外部锚定比对。
+     * </p>
+     */
+    @Data
+    public static class Audit {
+        /** 哈希链链首熵种子（环境变量 AUDIT_HASH_CHAIN_SEED） */
+        private String hashChainSeed = "";
+        /** 是否启用到本机只追加稽核日志的链尾快照锚定 */
+        private boolean anchorEnabled = true;
+        /** 只追加稽核日志路径 */
+        private String anchorFile = "logs/audit-chain-anchor.log";
+        /** 链尾快照间隔（毫秒），下限 60s */
+        private long anchorIntervalMs = 300_000L;
+        /** 首次快照启动延迟（毫秒） */
+        private long anchorInitialDelayMs = 60_000L;
+
+        public void setAnchorIntervalMs(long anchorIntervalMs) {
+            this.anchorIntervalMs = Math.max(60_000L, anchorIntervalMs);
+        }
+    }
 
     /**
      * 群聊灵伴 / 群 AI 新建群默认策略（管理端配置）。
