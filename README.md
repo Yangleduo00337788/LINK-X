@@ -570,7 +570,7 @@ MESSAGE_KEK_LEGACY_MAP={"default":"<旧 MESSAGE_KEK 的值>"}
 cd linkx-server
 mvn test                         # 运行单元测试（消息加密等）
 mvn -DskipTests package          # 产出 target/linkx-server-*.jar
-java -jar target/linkx-server-1.0.0-SNAPSHOT.jar
+java -jar target/linkx-server-1.0.1.jar
 ```
 
 ### 9.2 桌面客户端

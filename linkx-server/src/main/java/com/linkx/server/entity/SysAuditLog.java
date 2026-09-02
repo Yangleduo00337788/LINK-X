@@ -156,6 +156,12 @@ public class SysAuditLog implements Serializable {
     /** 额外数据（JSON格式） */
     private String extraData;
 
+    /** 前一行 log_hash（链式锚点，防篡改），首行取固定种子 */
+    private String prevHash;
+
+    /** 本行哈希（链式 SHA-256），由字段序列 + prevHash 计算 */
+    private String logHash;
+
     /** 创建时间 */
     private Date createTime;
 }

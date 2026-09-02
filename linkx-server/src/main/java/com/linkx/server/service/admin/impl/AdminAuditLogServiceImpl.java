@@ -4,6 +4,7 @@ package com.linkx.server.service.admin.impl;
 /**
  * 作者：yangleduo
  */
+import com.linkx.server.common.AuditLogHashChain;
 import com.linkx.server.common.ClientIpResolver;
 import com.linkx.server.common.DataScope;
 import com.linkx.server.common.DataScopeContext;
@@ -12,6 +13,7 @@ import com.linkx.server.common.admin.AdminKeywordQuery;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.controller.admin.dto.AdminAuditLogQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminPageQueryDTO;
+import com.linkx.server.controller.admin.vo.AdminAuditIntegrityVO;
 import com.linkx.server.controller.admin.vo.AdminLoginLogVO;
 import com.linkx.server.controller.admin.vo.AdminOperationLogVO;
 import com.linkx.server.entity.SysAuditLog;
@@ -81,6 +83,34 @@ public class AdminAuditLogServiceImpl implements AdminAuditLogService {
             throw new CustomException(404, "audit log not found");
         }
         return enrichUsername(toAuditVO(log));
+    }
+
+    @Override
+    public AdminAuditIntegrityVO verifyAuditIntegrity() {
+        List<SysAuditLog> rows = sysAuditLogMapper.selectListByQuery(
+                QueryWrapper.create().orderBy(SysAuditLog::getId, true));
+        long total = rows.size();
+        long intact = 0;
+        String expectedPrev = AuditLogHashChain.GENESIS;
+        for (SysAuditLog row : rows) {
+            // 未回填或无哈希视为需关注（断路器场景计入“受影响”）
+            if (row.getLogHash() == null || row.getPrevHash() == null
+                    || !expectedPrev.equals(row.getPrevHash())
+                    || !AuditLogHashChain.hashFields(row, expectedPrev).equals(row.getLogHash())) {
+                // 链在断点之后的后续行亦不可信，重置锚点使其全部计入受影响
+                expectedPrev = AuditLogHashChain.GENESIS;
+            } else {
+                intact++;
+                expectedPrev = row.getLogHash();
+            }
+        }
+        return AdminAuditIntegrityVO.builder()
+                .total(total)
+                .intact(intact)
+                .tampered(total - intact)
+                .chainIntact(total == intact)
+                .verifiedAt(new Date())
+                .build();
     }
 
     @Override

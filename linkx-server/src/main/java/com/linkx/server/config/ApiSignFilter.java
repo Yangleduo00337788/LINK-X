@@ -117,6 +117,8 @@ public class ApiSignFilter extends OncePerRequestFilter {
             return;
         }
 
+        // multipart 上传的 body 不参与 HMAC 体校验：签名仅覆盖头/方法/路径/查询，
+        // 文件流分片本身由 TLS + 预签名 URL 保护，避免为流式分片做全局体哈希。
         byte[] bodyBytes = multipart ? new byte[0] : readBodyBytes(request);
         String bodyHash = ApiSignUtils.sha256Hex(bodyBytes);
         String path = servletPath(request);

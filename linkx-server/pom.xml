@@ -12,7 +12,7 @@
 
     <groupId>com.linkx</groupId>
     <artifactId>linkx-server</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>1.0.1</version>
     <name>linkx-server</name>
     <description>LinkX IM Server - Monolithic Architecture</description>
 
@@ -37,7 +37,6 @@
         <jjwt.version>0.12.5</jjwt.version>
         <netty.version>4.1.115.Final</netty.version>
         <snail-job.version>1.9.0</snail-job.version>
-        <spring-security.version>6.4.5</spring-security.version>
     </properties>
 
     <dependencies>
@@ -166,11 +165,10 @@
             <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
 
-        <!-- BCrypt 密码加密：迁移到 spring-security-crypto（jbcrypt 0.4 已停更 7 年） -->
+        <!-- BCrypt 密码加密：迁移到 spring-security-crypto（jbcrypt 0.4 已停更 7 年），版本随 Spring Boot BOM 统一管理 -->
         <dependency>
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-crypto</artifactId>
-            <version>${spring-security.version}</version>
         </dependency>
 
         <!-- SnailJob：分布式任务调度客户端 -->

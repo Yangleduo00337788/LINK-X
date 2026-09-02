@@ -10,6 +10,7 @@ import com.linkx.server.common.Result;
 import com.linkx.server.common.admin.AdminCsvResponses;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.controller.admin.dto.AdminAuditLogQueryDTO;
+import com.linkx.server.controller.admin.vo.AdminAuditIntegrityVO;
 import com.linkx.server.controller.admin.vo.AdminOperationLogVO;
 import com.linkx.server.service.admin.AdminAuditLogService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -70,5 +71,12 @@ public class AdminAuditLogController {
     @RequirePermission("admin:audit:list")
     public Result<AdminOperationLogVO> detail(@PathVariable Long id) {
         return Result.success(adminAuditLogService.auditDetail(id));
+    }
+
+    @Operation(summary = "校验操作日志哈希链完整性（防篡改）")
+    @GetMapping("/integrity")
+    @RequirePermission("admin:audit:list")
+    public Result<AdminAuditIntegrityVO> integrity() {
+        return Result.success(adminAuditLogService.verifyAuditIntegrity());
     }
 }

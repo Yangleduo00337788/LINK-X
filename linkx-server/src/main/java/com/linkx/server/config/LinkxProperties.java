@@ -124,6 +124,11 @@ public class LinkxProperties {
         }
     }
 
+    /**
+     * 消息内容<em>落库（静态）</em>加密，与链路/API 层加密相互独立：
+     * enabled 仅决定 im_message.content 等静态字段是否加密存储，
+     * 不影响传输层 TLS，也不影响 admin 端 apiEncryptEnabled（那是 JSON 体加密）。
+     */
     @Data
     public static class MessageEncryption {
         /** 是否对 im_message.content / quote_content 落库加密 */
@@ -366,6 +371,21 @@ public class LinkxProperties {
         }
     }
 
+    /**
+     * 管理端传输层安全配置。
+     * <p>
+     * <b>会话密钥定位：</b>admin 端 HMAC 签名密钥 / AES 加密密钥均<em>不落库、不入 Redis</em>，
+     * 而是由 {@link com.linkx.server.common.JwtUtils} 以「JWT HS256 密钥 + 域分隔标签 + accessToken.jti」
+     * 当场派生（见 deriveApiSignKeyHex / deriveApiEncryptKeyHex），登录成功后下发给前端、随会话失效。
+     * 故其生命周期与 accessToken 绑定，且签名/加密两用途采用独立域标签，杜绝跨用途复用。
+     * </p>
+     * <p>
+     * <b>multipart / 加密开关边界：</b>{@code apiSignEnabled} 与 {@code apiEncryptEnabled}
+     * 仅覆盖 <em>JSON</em> 请求/响应体；对 {@code multipart/*} 上传，签名过滤器的 bodyHash 按空体处理
+     * （见 ApiSignFilter），文件完整性依赖 TLS + 预签名 URL，不参与 HMAC 体校验。
+     * {@code apiEncryptEnabled=true} 也不会加密 multipart 文件流。
+     * </p>
+     */
     @Data
     public static class Security {
         /** 生产环境可开启 HTTPS 强制（本地开发保持 false） */

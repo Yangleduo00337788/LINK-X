@@ -7,6 +7,7 @@ package com.linkx.server.service.admin;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.controller.admin.dto.AdminAuditLogQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminPageQueryDTO;
+import com.linkx.server.controller.admin.vo.AdminAuditIntegrityVO;
 import com.linkx.server.controller.admin.vo.AdminLoginLogVO;
 import com.linkx.server.controller.admin.vo.AdminOperationLogVO;
 
@@ -20,6 +21,9 @@ public interface AdminAuditLogService {
     List<AdminOperationLogVO> listAuditLogsForExport(AdminAuditLogQueryDTO query);
 
     AdminOperationLogVO auditDetail(Long id);
+
+    /** 校验操作日志哈希链完整性（防篡改）。 */
+    AdminAuditIntegrityVO verifyAuditIntegrity();
 
     PageResultVO<AdminLoginLogVO> listLoginLogs(AdminPageQueryDTO query);
 
