@@ -140,6 +140,8 @@ public class TokenServiceImpl implements TokenService {
                 Long reuseUserId = claims.get("userId", Long.class);
                 Date exp = claims.getExpiration();
                 if (reuseUserId != null && exp != null && exp.after(new Date())) {
+                    // 未过期的 refresh token 已被消费却又再次使用 → 疑似被盗重放，吊销该用户全部会话
+                    linkxMetrics.recordTokenRefreshReuse();
                     try {
                         revokeAllUserTokens(reuseUserId);
                     } catch (Exception ignored) {

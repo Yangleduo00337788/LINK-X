@@ -41,6 +41,9 @@ public class LinkxMetrics {
     private final Counter tokenRefreshSuccessCounter;
     @Getter
     private final Counter tokenRefreshFailureCounter;
+    /** refresh token 重用检测次数（识别令牌被盗/重放的信号，异常攀升应告警） */
+    @Getter
+    private final Counter tokenRefreshReuseCounter;
 
     // 消息指标
     @Getter
@@ -100,6 +103,10 @@ public class LinkxMetrics {
 
         this.tokenRefreshFailureCounter = Counter.builder("linkx.token.refresh.failure")
                 .description("Token 刷新失败次数")
+                .register(meterRegistry);
+
+        this.tokenRefreshReuseCounter = Counter.builder("linkx.token.refresh.reuse")
+                .description("refresh token 重用检测次数（疑似令牌被盗/重放）")
                 .register(meterRegistry);
 
         // 消息指标
@@ -163,6 +170,11 @@ public class LinkxMetrics {
 
     public void recordTokenRefreshFailure() {
         tokenRefreshFailureCounter.increment();
+    }
+
+    /** 记录一次 refresh token 重用检测（命中即视为疑似令牌被盗/重放，应触发告警评估）。 */
+    public void recordTokenRefreshReuse() {
+        tokenRefreshReuseCounter.increment();
     }
 
     public void recordMessageSent() {
