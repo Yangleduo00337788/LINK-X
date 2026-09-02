@@ -66,6 +66,15 @@ public class ProductionSecurityValidator implements ApplicationRunner {
             errors.add("DEV_MODE_ENABLED 生产环境必须为 false");
         }
 
+        // Swagger / OpenAPI 匿名暴露会泄露完整接口攻击面（含管理端端点与 DTO 结构），
+        // 必须 fail-closed：无论配置来源如何，生产环境强制关闭，避免依赖运维纪律。
+        String springdoc = firstNonBlank(
+                environment.getProperty("springdoc.api-docs.enabled"),
+                environment.getProperty("SPRINGDOC_ENABLED"));
+        if (!"false".equalsIgnoreCase(springdoc)) {
+            errors.add("SPRINGDOC_ENABLED 生产环境必须为 false（Springdoc/Swagger 匿名暴露 /v3/api-docs 需关闭）");
+        }
+
         if (!linkxProperties.getAuth().isAdminTotpRequired()) {
             errors.add("ADMIN_TOTP_REQUIRED 生产环境必须为 true（管理端强制双因素）");
         }
