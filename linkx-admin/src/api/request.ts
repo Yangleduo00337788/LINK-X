@@ -83,12 +83,15 @@ export function clearTokens() {
   purgeLegacyTokens()
   setSessionActive(false)
   useSecurityStore().clearApiSignKey()
+  useSecurityStore().clearApiEncryptKey()
 }
 
-/** 页面刷新后若签名密钥丢失，用 refresh Cookie 补发 apiSignKey */
+/** 页面刷新后若签名/加密密钥丢失，用 refresh Cookie 补发 */
 export async function ensureApiSignKey(): Promise<void> {
   const security = useSecurityStore()
-  if (!security.apiSignEnabled || security.apiSignKey) {
+  const needSignKey = security.apiSignEnabled && !security.apiSignKey
+  const needEncryptKey = security.apiEncryptEnabled && !security.apiEncryptKey
+  if (!needSignKey && !needEncryptKey) {
     return
   }
   // 登录页且无会话时不刷新，避免未登录时刷 400；刷新后 sessionActive 会丢失，但 Cookie 仍有效
@@ -123,6 +126,9 @@ async function refreshAccessToken(): Promise<boolean> {
       }
       if (data.data.apiSignKey) {
         useSecurityStore().setApiSignKey(data.data.apiSignKey)
+      }
+      if (data.data.apiEncryptKey) {
+        useSecurityStore().setApiEncryptKey(data.data.apiEncryptKey)
       }
       setSessionActive(true)
       return true
@@ -182,7 +188,7 @@ request.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
   const useEncrypt =
     security.apiEncryptEnabled &&
     isSessionActive() &&
-    security.apiSignKey &&
+    security.apiEncryptKey &&
     shouldEncryptRequest(url) &&
     !isFormData
 
@@ -192,7 +198,7 @@ request.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
       meta._plainParams = (config.params as Record<string, unknown> | undefined) || {}
     }
     const encryptedQuery = await buildEncryptedQueryHeader(
-      security.apiSignKey,
+      security.apiEncryptKey,
       meta._plainParams
     )
     querySignMaterial = encryptedQuery
@@ -209,7 +215,7 @@ request.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
     if (meta._plainBody == null) {
       meta._plainBody = bodyText
     }
-    const encrypted = await encryptUtf8ToBase64(security.apiSignKey, meta._plainBody)
+    const encrypted = await encryptUtf8ToBase64(security.apiEncryptKey, meta._plainBody)
     bodyText = wrapEncryptedBody(encrypted)
     config.data = bodyText
     config.headers['Content-Type'] = 'application/json;charset=UTF-8'
@@ -287,14 +293,14 @@ request.interceptors.response.use(
     const headers = response.headers as Record<string, unknown>
     if (
       security.apiEncryptEnabled &&
-      security.apiSignKey &&
+      security.apiEncryptKey &&
       isEncryptedResponse(headers) &&
       response.config.responseType !== 'blob'
     ) {
       const payload = response.data as ApiResult
       if (payload && typeof payload.data === 'string') {
         try {
-          const plain = await decryptUtf8FromBase64(security.apiSignKey, payload.data)
+          const plain = await decryptUtf8FromBase64(security.apiEncryptKey, payload.data)
           payload.data = JSON.parse(plain) as unknown
           response.data = payload
         } catch {
@@ -376,12 +382,12 @@ export async function downloadFile(
 
   if (
     security.apiEncryptEnabled &&
-    security.apiSignKey &&
+    security.apiEncryptKey &&
     isEncryptedResponse(headers)
   ) {
     const text = await blob.text()
     const payload = JSON.parse(text) as ApiResult<string>
-    const bytes = await decryptToBytes(security.apiSignKey, payload.data || '')
+    const bytes = await decryptToBytes(security.apiEncryptKey, payload.data || '')
     blob = new Blob([new Uint8Array(bytes)], { type: 'text/csv;charset=utf-8' })
   } else if (blob.type && blob.type.includes('application/json')) {
     const text = await blob.text()

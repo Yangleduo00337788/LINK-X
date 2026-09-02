@@ -11,6 +11,8 @@ export const useSecurityStore = defineStore('security', () => {
   const disableFrontendDebug = ref(false)
   /** 仅内存持有，页面刷新后通过 refresh 接口补发 */
   const apiSignKey = ref('')
+  /** API 加密密钥（与签名密钥独立派生），仅内存持有 */
+  const apiEncryptKey = ref('')
 
   function applyFromAuthConfig(config: {
     apiSignEnabled?: boolean
@@ -57,12 +59,21 @@ export const useSecurityStore = defineStore('security', () => {
     apiSignKey.value = key?.trim() || ''
   }
 
+  function setApiEncryptKey(key?: string) {
+    apiEncryptKey.value = key?.trim() || ''
+  }
+
   function clearApiSignKey() {
     apiSignKey.value = ''
   }
 
+  function clearApiEncryptKey() {
+    apiEncryptKey.value = ''
+  }
+
   function resetSession() {
     clearApiSignKey()
+    clearApiEncryptKey()
   }
 
   return {
@@ -70,10 +81,13 @@ export const useSecurityStore = defineStore('security', () => {
     apiEncryptEnabled,
     disableFrontendDebug,
     apiSignKey,
+    apiEncryptKey,
     applyFromAuthConfig,
     applyFromSettings,
     resetSession,
     setApiSignKey,
+    setApiEncryptKey,
     clearApiSignKey,
+    clearApiEncryptKey,
   }
 })

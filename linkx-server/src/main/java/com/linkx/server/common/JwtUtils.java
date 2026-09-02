@@ -136,16 +136,30 @@ public class JwtUtils {
      * 由 access token 的 jti 派生 API 签名密钥（hex，32 字节），登录时下发给前端。
      */
     public String deriveApiSignKeyHex(String jti) {
+        return deriveKeyWithPurpose(jti, "linkx-api-sign:");
+    }
+
+    /**
+     * 由 access token 的 jti 派生 API 加密密钥（hex，32 字节），登录时下发给前端。
+     * <p>
+     * 与签名密钥独立派生，避免跨用途复用。
+     * </p>
+     */
+    public String deriveApiEncryptKeyHex(String jti) {
+        return deriveKeyWithPurpose(jti, "linkx-api-encrypt:");
+    }
+
+    private String deriveKeyWithPurpose(String jti, String purpose) {
         if (!StringUtils.hasText(jti)) {
             throw new IllegalArgumentException("jti is required");
         }
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(getSecretKey());
-            byte[] raw = mac.doFinal(("linkx-api-sign:" + jti.trim()).getBytes(StandardCharsets.UTF_8));
+            byte[] raw = mac.doFinal((purpose + jti.trim()).getBytes(StandardCharsets.UTF_8));
             return bytesToHex(raw);
         } catch (Exception e) {
-            throw new IllegalStateException("derive api sign key failed", e);
+            throw new IllegalStateException("derive api key failed", e);
         }
     }
 

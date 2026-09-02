@@ -459,9 +459,11 @@ public class AdminAuthServiceImpl implements AdminAuthService {
                 ? ClientIpResolver.normalizeToIpv4(loginIp)
                 : null;
         String apiSignKey = null;
+        String apiEncryptKey = null;
         if (linkxProperties.getSecurity().isApiSignEnabled()) {
             String jti = jwtUtils.getJtiFromToken(tokenVO.getAccessToken());
             apiSignKey = jwtUtils.deriveApiSignKeyHex(jti);
+            apiEncryptKey = jwtUtils.deriveApiEncryptKeyHex(jti);
         }
         return AdminLoginVO.builder()
                 .accessToken(tokenVO.getAccessToken())
@@ -469,6 +471,7 @@ public class AdminAuthServiceImpl implements AdminAuthService {
                 .expiresIn(expiresIn)
                 .user(buildProfile(user))
                 .apiSignKey(apiSignKey)
+                .apiEncryptKey(apiEncryptKey)
                 .requiresTotp(false)
                 .requiresTotpSetup(false)
                 .loginIp(normalizedIp)

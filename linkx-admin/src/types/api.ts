@@ -53,6 +53,8 @@ export interface AdminLoginResult {
   newLoginIp?: boolean
   /** HMAC 请求签名密钥（hex），登录/刷新时下发 */
   apiSignKey?: string
+  /** API AES-GCM 加解密密钥（hex），与签名密钥独立派生，登录/刷新时下发 */
+  apiEncryptKey?: string
 }
 
 export interface AdminTotpSetup {

@@ -91,10 +91,10 @@ public class ApiEncryptFilter extends OncePerRequestFilter {
             return;
         }
 
-        byte[] signKey;
+        byte[] encryptKey;
         try {
             String jti = jwtUtils.getJtiFromToken(token);
-            signKey = ApiSignUtils.hexToBytes(jwtUtils.deriveApiSignKeyHex(jti));
+            encryptKey = ApiSignUtils.hexToBytes(jwtUtils.deriveApiEncryptKeyHex(jti));
         } catch (Exception e) {
             writeJsonError(response, 401, "未登录或登录已过期");
             return;
@@ -109,7 +109,7 @@ public class ApiEncryptFilter extends OncePerRequestFilter {
                 writeJsonError(response, 400, "缺少加密查询参数");
                 return;
             }
-            current = decryptQuery(request, signKey, encryptedQueryHeader.trim());
+            current = decryptQuery(request, encryptKey, encryptedQueryHeader.trim());
         } catch (Exception e) {
             writeJsonError(response, 400, "查询参数解密失败");
             return;
@@ -120,7 +120,7 @@ public class ApiEncryptFilter extends OncePerRequestFilter {
             if (bodyBytes.length > 0) {
                 try {
                     String encrypted = ApiEncryptUtils.unwrapEncryptedBody(new String(bodyBytes, StandardCharsets.UTF_8));
-                    byte[] plain = ApiEncryptUtils.decryptFromBase64(signKey, encrypted);
+                    byte[] plain = ApiEncryptUtils.decryptFromBase64(encryptKey, encrypted);
                     current = new CachedBodyHttpServletRequest(
                             current,
                             plain,
@@ -135,10 +135,10 @@ public class ApiEncryptFilter extends OncePerRequestFilter {
         filterChain.doFilter(current, response);
     }
 
-    private HttpServletRequest decryptQuery(HttpServletRequest request, byte[] signKey, String encryptedQueryHeader)
+    private HttpServletRequest decryptQuery(HttpServletRequest request, byte[] encryptKey, String encryptedQueryHeader)
             throws Exception {
         String encrypted = ApiEncryptUtils.unwrapEncryptedBody(encryptedQueryHeader);
-        String plainJson = ApiEncryptUtils.decryptUtf8FromBase64(signKey, encrypted);
+        String plainJson = ApiEncryptUtils.decryptUtf8FromBase64(encryptKey, encrypted);
         Map<String, Object> raw = objectMapper.readValue(plainJson, new TypeReference<>() {});
         Map<String, String> flat = new LinkedHashMap<>();
         if (raw != null) {

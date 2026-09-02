@@ -37,7 +37,7 @@ function bufferSource(bytes: Uint8Array): ArrayBuffer {
 async function importAesKey(keyHex: string): Promise<CryptoKey> {
   const keyBytes = hexToBytes(keyHex)
   if (keyBytes.length !== 32) {
-    throw new Error('invalid api sign key length')
+    throw new Error('invalid api encrypt key length')
   }
   return crypto.subtle.importKey('raw', bufferSource(keyBytes), { name: 'AES-GCM' }, false, [
     'encrypt',

@@ -23,6 +23,8 @@ public class AdminLoginVO {
 
     private String apiSignKey;
 
+    private String apiEncryptKey;
+
     @Schema(description = "是否需要 TOTP 二次验证")
     private Boolean requiresTotp;
 

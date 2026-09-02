@@ -55,7 +55,7 @@ async function buildStreamHeaders(): Promise<Record<string, string>> {
   if (security.apiSignEnabled && security.apiSignKey) {
     let querySignMaterial = ''
     if (security.apiEncryptEnabled) {
-      const encryptedQuery = await buildEncryptedQueryHeader(security.apiSignKey, {})
+      const encryptedQuery = await buildEncryptedQueryHeader(security.apiEncryptKey, {})
       headers['X-LinkX-Content-Encrypted'] = '1'
       headers['X-LinkX-Encrypted-Query'] = encryptedQuery
       querySignMaterial = encryptedQuery

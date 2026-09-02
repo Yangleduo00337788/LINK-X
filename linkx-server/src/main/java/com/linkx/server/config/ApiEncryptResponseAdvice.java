@@ -77,7 +77,7 @@ public class ApiEncryptResponseAdvice implements ResponseBodyAdvice<Result<?>> {
                 return body;
             }
             String jti = jwtUtils.getJtiFromToken(token);
-            byte[] key = ApiSignUtils.hexToBytes(jwtUtils.deriveApiSignKeyHex(jti));
+            byte[] key = ApiSignUtils.hexToBytes(jwtUtils.deriveApiEncryptKeyHex(jti));
             String plainJson = objectMapper.writeValueAsString(body.getData());
             String encrypted = ApiEncryptUtils.encryptUtf8ToBase64(key, plainJson);
             @SuppressWarnings("unchecked")

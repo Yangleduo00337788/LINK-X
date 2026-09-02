@@ -83,7 +83,7 @@ public class ApiEncryptBinaryResponseFilter extends OncePerRequestFilter {
                 return;
             }
             String jti = jwtUtils.getJtiFromToken(token);
-            byte[] key = ApiSignUtils.hexToBytes(jwtUtils.deriveApiSignKeyHex(jti));
+            byte[] key = ApiSignUtils.hexToBytes(jwtUtils.deriveApiEncryptKeyHex(jti));
             String encrypted = ApiEncryptUtils.encryptToBase64(key, body);
             wrapped.resetBuffer();
             wrapped.setCharacterEncoding(StandardCharsets.UTF_8.name());

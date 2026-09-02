@@ -47,6 +47,7 @@ export const useAuthStore = defineStore(
       user.value = data.user
       permissions.value = [...(data.user.permissions || [])]
       security.setApiSignKey(data.apiSignKey)
+      security.setApiEncryptKey(data.apiEncryptKey)
       try {
         await fetchMenusAndPermissions()
       } catch (e) {
