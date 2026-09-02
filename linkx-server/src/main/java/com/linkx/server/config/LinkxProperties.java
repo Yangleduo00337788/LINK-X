@@ -374,13 +374,17 @@ public class LinkxProperties {
         private boolean apiSignEnabled = true;
         /** 是否启用管理端 API 请求/响应体 AES 加密（依赖签名密钥，默认关闭） */
         private boolean apiEncryptEnabled = false;
-        /** 签名时间戳允许偏差（秒） */
+        /**
+         * 签名时间戳允许偏差（秒）。
+         * 上限硬性限定为 180s，确保签名窗口 ≤ nonce 去重 TTL（见 ApiSignFilter），
+         * 避免出现时间戳仍在窗口内而 nonce 已过期导致的防重放空隙。
+         */
         private int apiSignTtlSeconds = 120;
         /** 是否禁止管理端打开开发者工具 */
         private boolean disableFrontendDebug = false;
 
         public void setApiSignTtlSeconds(int apiSignTtlSeconds) {
-            this.apiSignTtlSeconds = Math.max(30, Math.min(600, apiSignTtlSeconds));
+            this.apiSignTtlSeconds = Math.max(30, Math.min(180, apiSignTtlSeconds));
         }
     }
 

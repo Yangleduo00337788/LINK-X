@@ -109,7 +109,10 @@ public class ApiSignFilter extends OncePerRequestFilter {
             return;
         }
 
-        if (!apiSignNonceService.registerNonce(nonce.trim(), Duration.ofMinutes(3))) {
+        // nonce 去重 TTL 必须 ≥ 签名时间戳窗口（配置上界已限 180s），
+        // 否则会出现时间戳仍有效而 nonce 已过期导致的防重放空隙。
+        long nonceTtlSeconds = Math.max(linkxProperties.getSecurity().getApiSignTtlSeconds(), 180L);
+        if (!apiSignNonceService.registerNonce(nonce.trim(), Duration.ofSeconds(nonceTtlSeconds))) {
             writeJsonError(response, 401, "重复请求");
             return;
         }
