@@ -70,6 +70,12 @@ public final class AdminCsvResponses {
         if (value == null) {
             return "";
         }
+        // CSV 公式注入（CWE-1236）防护：以 = + - @ 或制表/回车开头的单元格会被 Excel
+        // 解析为公式或 DDE，管理员打开导出文件即可能在本地触发执行。前缀单引号强制按
+        // 文本处理（Excel 不显示该前缀），不影响数据的可读性。
+        if (!value.isEmpty() && "=+-@\t\r".indexOf(value.charAt(0)) >= 0) {
+            value = "'" + value;
+        }
         boolean needQuote = value.contains(",") || value.contains("\"") || value.contains("\n") || value.contains("\r");
         String v = value.replace("\"", "\"\"");
         return needQuote ? "\"" + v + "\"" : v;
