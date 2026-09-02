@@ -5,6 +5,7 @@ package com.linkx.server.controller.admin;
  * 作者：yangleduo
  */
 import com.linkx.server.common.RequirePermission;
+import com.linkx.server.common.RequireRole;
 import com.linkx.server.common.Result;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.controller.admin.vo.AdminSnailJobBatchVO;
@@ -25,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/admin/scheduled-tasks")
 @RequiredArgsConstructor
+@RequireRole(adminPortal = true)
 public class AdminSnailJobController {
 
     private final AdminSnailJobMonitorService monitorService;

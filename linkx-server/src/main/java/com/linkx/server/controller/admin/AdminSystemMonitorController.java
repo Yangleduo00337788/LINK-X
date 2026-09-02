@@ -5,6 +5,7 @@ package com.linkx.server.controller.admin;
  * 作者：yangleduo
  */
 import com.linkx.server.common.RequirePermission;
+import com.linkx.server.common.RequireRole;
 import com.linkx.server.common.Result;
 import com.linkx.server.controller.admin.vo.AdminSystemMonitorOverviewVO;
 import com.linkx.server.controller.admin.vo.AdminSystemTableStatsVO;
@@ -28,6 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/admin/system-monitor")
 @RequiredArgsConstructor
+@RequireRole(adminPortal = true)
 public class AdminSystemMonitorController {
 
     private final AdminSystemMonitorService systemMonitorService;
