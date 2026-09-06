@@ -44,11 +44,13 @@ public class TokenServiceImpl implements TokenService {
     private static final String DEVICE_REFRESH_SET_PREFIX = "linkx:device:refresh-set:";
     private static final String DEVICE_KICKED_PREFIX = "linkx:device:kicked:";
 
-    // Lua 脚本：原子性地验证并删除 refresh token
+    // Lua 脚本：原子性地验证并删除 refresh token。
+    // 注意必须返回字符串 "-1"：脚本声明了 String 结果类型，
+    // 整数回复会导致 Lettuce 抛 RedisSystemException（500）而非业务 401。
     private static final String REFRESH_TOKEN_LUA_SCRIPT =
             "local key = KEYS[1] " +
             "local value = redis.call('get', key) " +
-            "if not value then return -1 end " +  // -1: token 不存在或已过期
+            "if not value then return '-1' end " +  // "-1": token 不存在或已过期
             "redis.call('del', key) " +
             "return value";  // 返回 userId
 

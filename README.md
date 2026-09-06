@@ -568,10 +568,17 @@ MESSAGE_KEK_LEGACY_MAP={"default":"<旧 MESSAGE_KEK 的值>"}
 
 ```bash
 cd linkx-server
-mvn test                         # 运行单元测试（消息加密等）
+mvn test                         # 运行单元测试 + 集成测试
 mvn -DskipTests package          # 产出 target/linkx-server-*.jar
 java -jar target/linkx-server-1.0.1.jar
 ```
+
+> 集成测试（`src/test/java/com/linkx/server/it/`）覆盖认证 / 好友 / 聊天 / 群聊权限核心链路，需要本机 Docker：
+> 基类会通过 docker CLI 拉起一次性 MySQL 8.4 与 Redis 7.2 容器（自动执行 init.sql 基线 + V2..V125 迁移），
+> 也可通过环境变量 `LINKX_IT_MYSQL_URL`（可选 `LINKX_IT_MYSQL_USERNAME`/`LINKX_IT_MYSQL_PASSWORD`）、
+> `LINKX_IT_REDIS_HOST`/`LINKX_IT_REDIS_PORT` 指向外部实例。
+> 无 Docker 时可跳过集成测试：`mvn test -Dtest='!*IntegrationTest'`。
+> 说明：因 Docker Desktop 29.x 的 CLI 认证代理拦截 docker-java 命名管道请求，此处不使用 Testcontainers。
 
 ### 9.2 桌面客户端
 
