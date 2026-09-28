@@ -12,7 +12,7 @@ import WindowCaptionButtons from './WindowCaptionButtons.vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '../stores/app'
 import { useI18n } from '../i18n'
-import { CHROME_BRAND_LOGO_URL } from '../utils/projectLogo'
+import { WORDMARK_LOGO_URL } from '../utils/projectLogo'
 
 // 定义组件属性及默认值
 withDefaults(
@@ -55,7 +55,7 @@ const selectSessionHint = computed(() => t('chat.selectSession'))
       <img
         v-if="variant === 'profile'"
         class="chrome-brand-logo"
-        :src="CHROME_BRAND_LOGO_URL"
+        :src="WORDMARK_LOGO_URL"
         alt=""
         draggable="false"
       />
@@ -107,21 +107,18 @@ const selectSessionHint = computed(() => t('chat.selectSession'))
 
 .chrome-brand-logo {
   display: block;
-  width: 30px;
-  height: 30px;
+  width: 78px;
+  height: 20px;
   object-fit: contain;
   flex-shrink: 0;
   margin-right: var(--lx-space-sm);
   pointer-events: none;
   user-select: none;
   -webkit-app-region: no-drag;
-  mix-blend-mode: multiply;
-  filter: brightness(0.58) contrast(1.32) saturate(0.9);
 }
 
 :global([data-theme='dark']) .chrome-brand-logo {
-  mix-blend-mode: screen;
-  filter: brightness(1.1) contrast(1.1) saturate(0.95);
+  filter: invert(1);
   opacity: 0.92;
 }
 

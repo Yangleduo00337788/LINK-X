@@ -24,7 +24,7 @@ import { hasRefreshToken } from '../utils/tokenStorage'
 import { useI18n } from '../i18n'
 import { preloadClientResources } from '../utils/preloadClientResources'
 import { openLegalPageInBrowser } from '../utils/legalPage'
-import { CHROME_BRAND_LOGO_URL } from '../utils/projectLogo'
+import { WORDMARK_LOGO_URL } from '../utils/projectLogo'
 import { resolveUserAvatarUrl } from '../utils/defaultAvatar'
 
 const message = useMessage()
@@ -648,7 +648,7 @@ async function handleForgot() {
 
     <div v-if="isElectron" class="login-win-bar">
       <div class="login-brand" aria-label="LinkX">
-        <img class="login-brand-logo" :src="CHROME_BRAND_LOGO_URL" alt="" draggable="false" />
+        <img class="login-brand-logo" :src="WORDMARK_LOGO_URL" alt="" draggable="false" />
       </div>
       <div class="drag-area" />
       <div class="login-win-actions" @click.stop>
@@ -683,7 +683,7 @@ async function handleForgot() {
       <WindowCaptionButtons :show-maximize="false" force-show />
     </div>
     <div v-else class="login-brand login-brand--standalone" aria-label="LinkX">
-      <img class="login-brand-logo" :src="CHROME_BRAND_LOGO_URL" alt="" draggable="false" />
+      <img class="login-brand-logo" :src="WORDMARK_LOGO_URL" alt="" draggable="false" />
     </div>
 
     <div
@@ -1219,13 +1219,16 @@ async function handleForgot() {
 
 .login-brand-logo {
   display: block;
-  width: 30px;
-  height: 30px;
+  width: 78px;
+  height: 20px;
   object-fit: contain;
   flex-shrink: 0;
   pointer-events: none;
-  mix-blend-mode: multiply;
-  filter: brightness(0.58) contrast(1.32) saturate(0.9);
+}
+
+:global([data-theme='dark']) .login-brand-logo {
+  filter: invert(1);
+  opacity: 0.92;
 }
 
 .login-brand--standalone {

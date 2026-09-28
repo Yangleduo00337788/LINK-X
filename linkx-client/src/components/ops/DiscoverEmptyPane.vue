@@ -2,7 +2,7 @@
 <script setup lang="ts">
 /**
  * 未选会话时的主区：有运营内容则展示推荐/活动；
- * 否则仅居中放大灰色 chrome 品牌标（彩色 logo 仍用于列表头像、登录页等）。
+ * 否则仅居中放大灰色 chrome 品牌标（彩色 logo 仍用于列表头像等）。
  */
 import { computed, ref } from 'vue'
 import OpsRecommendCarousel from './OpsRecommendCarousel.vue'
