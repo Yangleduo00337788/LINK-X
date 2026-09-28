@@ -74,7 +74,9 @@ const tabMoreOptions = computed<DropdownOption[]>(() => {
 
 const panelStyle = computed(() => ({
   width: `${panelWidth.value}px`,
-  flex: `0 0 ${panelWidth.value}px`
+  // shrink=1：窗口宽度不足时允许dock收缩（不低于 min-width），避免挤压中间内容列
+  flex: `0 1 ${panelWidth.value}px`,
+  minWidth: '280px'
 }))
 
 function handleCloseTab(key: ExtensionTabKey) {

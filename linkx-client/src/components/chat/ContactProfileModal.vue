@@ -7,12 +7,13 @@
  * 本人资料卡支持点击头像直接更换、右侧「编辑资料」打开弹窗。
  * </p>
  */
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { NIcon } from 'naive-ui'
 import {
   ChatbubbleEllipsesOutline,
   ChevronForwardOutline,
   CameraOutline,
+  CloseOutline,
   NotificationsOutline
 } from '@vicons/ionicons5'
 import Avatar from '../Avatar.vue'
@@ -54,6 +55,23 @@ const { userProfile, savedLogin, isOffline } = storeToRefs(appStore)
 const { onlineFriends } = storeToRefs(contactsStore)
 const { notifyFriendOnline } = storeToRefs(appSettingsStore)
 const { fetchUserMoments } = momentsStore
+
+// 其他弹窗/抽屉打开时自动收起资料卡，避免浮层压住弹窗内容
+watch(() => chatModalsStore.hasBlockingModalOpen, (blocking) => {
+  if (blocking && contactProfileOpen.value) {
+    closeContactProfile()
+  }
+})
+
+// Esc 关闭资料卡（捕获阶段，确保先于 n-modal 的 Esc 处理，实现逐层关闭）；
+// 编辑资料弹窗打开时让位给弹窗自身的 Esc 逻辑
+function onProfileKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape' && contactProfileOpen.value && !chatModalsStore.editProfileOpen) {
+    closeContactProfile()
+  }
+}
+window.addEventListener('keydown', onProfileKeydown, true)
+onBeforeUnmount(() => window.removeEventListener('keydown', onProfileKeydown, true))
 
 const avatarInputRef = ref<HTMLInputElement | null>(null)
 const uploadingAvatar = ref(false)
@@ -439,6 +457,15 @@ async function saveGroup() {
           >
             {{ t('modals.editProfile') }}
           </LxButton>
+          <button
+            type="button"
+            class="profile-close-btn"
+            :title="t('common.close')"
+            :aria-label="t('common.close')"
+            @click="closeContactProfile"
+          >
+            <n-icon :component="CloseOutline" :size="16" />
+          </button>
         </section>
 
         <section v-if="showProfileDetails" class="profile-details">
@@ -679,7 +706,32 @@ async function saveGroup() {
 
 .edit-profile-btn {
   flex-shrink: 0;
-  margin-top: var(--lx-space-sm);
+  /* 下移避开右上角绝对定位的关闭按钮（其占位 y 8–36px） */
+  margin-top: var(--lx-space-xl);
+}
+
+.profile-close-btn {
+  /* 绝对定位右上角：不占用头部行宽，避免挤压昵称/LinkX ID 区域 */
+  position: absolute;
+  top: var(--lx-space);
+  right: var(--lx-space);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--lx-radius);
+  color: var(--lx-text-muted);
+  background: transparent;
+  cursor: pointer;
+  transition: background var(--lx-duration-fast, 0.15s) ease, color var(--lx-duration-fast, 0.15s) ease;
+  z-index: 1;
+}
+
+.profile-close-btn:hover {
+  color: var(--lx-text);
+  background: var(--lx-bg-hover, rgba(0, 0, 0, 0.06));
 }
 
 .profile-details {

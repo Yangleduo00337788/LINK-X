@@ -207,7 +207,9 @@
   --lx-z-dialog-packet: 2300;
   --lx-z-dialog-packet-recv: 2350;
   --lx-z-dialog-input: 2400;
-  --lx-z-dialog-profile: 3000;
+  /* 资料卡浮层：须低于全部弹窗——自定义 dialog 层（2100+）与 Naive UI 动态层
+     （n-modal/n-dropdown 未显式传 z-index 时自 2000 起递增），否则会压住弹窗 */
+  --lx-z-dialog-profile: 1900;
   --lx-z-moments-top: 10040;
   --lx-z-critical: 10050;
   --lx-z-call-backdrop: 11900;

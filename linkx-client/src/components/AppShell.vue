@@ -464,7 +464,8 @@ const showMiddleList = computed(
 
 .col-chat-body.has-extension-dock .col-chat-main {
   flex: 1;
-  min-width: 240px;
+  /* 面板（文件/日历/收藏/设置等）在 240px 下标题与按钮会竖排截断，须保证可读下限 */
+  min-width: 360px;
 }
 
 .col-chat-body.has-extension-dock {

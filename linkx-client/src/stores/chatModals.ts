@@ -42,7 +42,26 @@ export const useChatModalsStore = defineStore('chatModals', {
     profileCardPos: { x: 0, y: 0 }      // 资料卡屏幕坐标（像素）
   }),
 
-  getters: {},
+  getters: {
+    /** 是否有会遮挡/互斥资料卡的弹层打开（编辑资料除外：它由资料卡主动打开） */
+    hasBlockingModalOpen(state): boolean {
+      return state.moreDrawerOpen
+        || state.groupInfoDrawerOpen
+        || state.createGroupOpen
+        || state.comprehensiveSearchOpen
+        || state.momentsModalOpen
+        || state.voiceCallOpen
+        || state.videoCallOpen
+        || state.addMembersOpen
+        || state.groupFilesOpen
+        || state.groupAlbumOpen
+        || state.groupEssenceOpen
+        || state.groupAnnouncementOpen
+        || state.redPacketOpen
+        || state.redPacketReceiveOpen
+        || state.redPacketHistoryOpen
+    }
+  },
 
   actions: {
     /** 切换「更多」抽屉；打开时关闭群资料抽屉 */
