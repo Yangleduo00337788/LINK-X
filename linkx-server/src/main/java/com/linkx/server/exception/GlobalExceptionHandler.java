@@ -25,6 +25,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @Slf4j
 @RestControllerAdvice
@@ -65,8 +66,8 @@ public class GlobalExceptionHandler {
         return json(HttpStatus.BAD_REQUEST, Result.error(400, message));
     }
 
-    @ExceptionHandler(NoHandlerFoundException.class)
-    public ResponseEntity<Result<?>> handleNotFound(NoHandlerFoundException e) {
+    @ExceptionHandler({NoHandlerFoundException.class, NoResourceFoundException.class})
+    public ResponseEntity<Result<?>> handleNotFound(Exception e) {
         return json(HttpStatus.NOT_FOUND, Result.error(404, "接口不存在"));
     }
 
