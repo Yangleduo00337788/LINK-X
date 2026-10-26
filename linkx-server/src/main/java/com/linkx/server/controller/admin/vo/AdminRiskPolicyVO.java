@@ -18,6 +18,8 @@ public class AdminRiskPolicyVO {
     private RateLimitPolicy rateLimits;
     private LoginLockPolicy loginLock;
     private Boolean sensitiveFilterEnabled;
+    private Boolean aiReviewEnabled;
+    private Integer aiReviewHumanScoreMin;
 
     @Data
     @Builder

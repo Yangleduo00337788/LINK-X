@@ -34,10 +34,10 @@ import com.linkx.server.service.FileStorageService;
 import com.linkx.server.service.MediaUrlService;
 import com.linkx.server.service.MessageNotificationService;
 import com.linkx.server.service.ObjectKeyOwnershipService;
-import com.linkx.server.service.SensitiveWordService;
+import com.linkx.server.service.AiContentReviewService;
 import com.linkx.server.service.ShortVideoService;
-import com.linkx.server.storage.ObjectStorageRouter;
 import com.linkx.server.service.admin.AdminReviewService;
+import com.linkx.server.storage.ObjectStorageRouter;
 import com.linkx.server.task.ShortVideoTranscodeAsyncTrigger;
 import com.mybatisflex.core.logicdelete.LogicDeleteManager;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -113,7 +113,7 @@ public class ShortVideoServiceImpl implements ShortVideoService {
     private final MessageNotificationService notificationService;
     private final ImMessagePushService imPushService;
     private final ObjectMapper objectMapper;
-    private final SensitiveWordService sensitiveWordService;
+    private final AiContentReviewService aiContentReviewService;
     private final ObjectProvider<AdminReviewService> adminReviewService;
     private final MessageContentCipher messageContentCipher;
     private final StringRedisTemplate redisTemplate;
@@ -126,7 +126,6 @@ public class ShortVideoServiceImpl implements ShortVideoService {
     public ShortVideoPostVO publish(Long userId, PublishShortVideoDTO dto) {
         SysUser user = requireUser(userId);
         String rawDesc = dto.getDescription() != null ? dto.getDescription().trim() : "";
-        SensitiveHit hit = filterSensitiveOrThrow(userId, rawDesc, SysReviewTask.TARGET_SHORT_VIDEO, null);
         String videoKey = authorizeObjectKey(userId, dto.getVideoKey());
         String coverKey = dto.getCoverKey() != null && !dto.getCoverKey().isBlank()
                 ? authorizeObjectKey(userId, dto.getCoverKey())
@@ -138,7 +137,7 @@ public class ShortVideoServiceImpl implements ShortVideoService {
 
         ShortVideoPost post = ShortVideoPost.builder()
                 .userId(userId)
-                .description(hit.text())
+                .description(rawDesc)
                 .videoKey(videoKey)
                 .storageProvider(objectStorageRouter.activeProvider().toWire())
                 .coverKey(coverKey)
@@ -150,13 +149,13 @@ public class ShortVideoServiceImpl implements ShortVideoService {
                 .build();
         preparePostForStorage(post);
         postMapper.insert(post);
-        syncPostTopics(post.getId(), hit.text());
-        enqueueSensitiveAfterPersist(userId, SysReviewTask.TARGET_SHORT_VIDEO, String.valueOf(post.getId()), hit);
+        syncPostTopics(post.getId(), rawDesc);
+        submitAiReview(userId, SysReviewTask.TARGET_SHORT_VIDEO, String.valueOf(post.getId()), rawDesc);
         if ("pending".equals(post.getTranscodeStatus())) {
             scheduleTranscodeAfterCommit(post.getId());
         }
         return toPostVO(post, user, EMPTY_INTERACTION, Collections.emptyList(), userId, false, 0,
-                ShortVideoHashtagSupport.extract(hit.text()));
+                ShortVideoHashtagSupport.extract(rawDesc));
     }
 
     @Override
@@ -164,11 +163,10 @@ public class ShortVideoServiceImpl implements ShortVideoService {
     public ShortVideoPostVO update(Long userId, Long postId, UpdateShortVideoDTO dto) {
         ShortVideoPost post = requireOwnedPost(userId, postId);
         if (dto.getDescription() != null) {
-            SensitiveHit hit = filterSensitiveOrThrow(
-                    userId, dto.getDescription().trim(), SysReviewTask.TARGET_SHORT_VIDEO, String.valueOf(postId));
-            post.setDescription(hit.text());
-            enqueueSensitiveAfterPersist(userId, SysReviewTask.TARGET_SHORT_VIDEO, String.valueOf(postId), hit);
-            syncPostTopics(postId, hit.text());
+            String desc = dto.getDescription().trim();
+            post.setDescription(desc);
+            submitAiReview(userId, SysReviewTask.TARGET_SHORT_VIDEO, String.valueOf(postId), desc);
+            syncPostTopics(postId, desc);
         }
         if (dto.getCoverKey() != null && !dto.getCoverKey().isBlank()) {
             post.setCoverKey(authorizeObjectKey(userId, dto.getCoverKey()));
@@ -829,9 +827,6 @@ public class ShortVideoServiceImpl implements ShortVideoService {
         if (raw.isEmpty() && imageKey.isEmpty()) {
             throw new CustomException(400, "评论内容不能为空");
         }
-        SensitiveHit hit = raw.isEmpty()
-                ? null
-                : filterSensitiveOrThrow(userId, raw, SysReviewTask.TARGET_SHORT_VIDEO_COMMENT, null);
         List<Long> mentions = sanitizeMentions(dto.getMentions(), userId);
         String mentionJson = mentions.isEmpty() ? null : toJson(mentions);
         String imageStorageProvider = null;
@@ -843,7 +838,7 @@ public class ShortVideoServiceImpl implements ShortVideoService {
         ShortVideoComment comment = ShortVideoComment.builder()
                 .postId(postId)
                 .userId(userId)
-                .content(hit != null ? hit.text() : "")
+                .content(raw)
                 .parentId(dto.getParentId())
                 .mentions(mentionJson)
                 .imageKey(imageKey.isEmpty() ? null : imageKey)
@@ -851,10 +846,7 @@ public class ShortVideoServiceImpl implements ShortVideoService {
                 .build();
         prepareCommentForStorage(comment);
         commentMapper.insert(comment);
-        if (hit != null) {
-            enqueueSensitiveAfterPersist(
-                    userId, SysReviewTask.TARGET_SHORT_VIDEO_COMMENT, String.valueOf(comment.getId()), hit);
-        }
+        submitAiReview(userId, SysReviewTask.TARGET_SHORT_VIDEO_COMMENT, String.valueOf(comment.getId()), raw);
 
         if (!post.getUserId().equals(userId)) {
             String preview = raw.isEmpty() ? "[图片]" : truncate(raw, 100);
@@ -1952,53 +1944,9 @@ public class ShortVideoServiceImpl implements ShortVideoService {
         return new ArrayList<>(set);
     }
 
-    private record SensitiveHit(String text, String matchedWords, String failReason, String original) {
-        boolean matched() {
-            return matchedWords != null && !matchedWords.isBlank();
-        }
-    }
-
-    private SensitiveHit filterSensitiveOrThrow(Long userId, String content, String targetType, String existingTargetId) {
-        if (content == null || content.isBlank()) {
-            return new SensitiveHit("", null, null, content);
-        }
-        SensitiveWordService.FilterResult result = sensitiveWordService.filter(content);
-        if (result.matchedWords().isEmpty()) {
-            return new SensitiveHit(result.text(), null, null, content);
-        }
-        String failReason = result.blocked()
-                ? "blocked"
-                : (result.filtered() ? "filtered" : (result.alerted() ? "alert" : "matched"));
-        String matchedWords = String.join(",", result.matchedWords());
-        if (result.blocked()) {
-            if (existingTargetId != null) {
-                enqueueSensitiveReview(userId, targetType, existingTargetId, content, matchedWords, failReason);
-            } else {
-                enqueueSensitiveReview(userId, targetType, "pending:" + UUID.randomUUID(), content, matchedWords, failReason);
-            }
-            throw new CustomException(400, "内容包含违规词，请修改后重试");
-        }
-        return new SensitiveHit(result.text(), matchedWords, failReason, content);
-    }
-
-    private void enqueueSensitiveAfterPersist(Long userId, String targetType, String targetId, SensitiveHit hit) {
-        if (hit == null || !hit.matched() || "blocked".equals(hit.failReason())) {
-            return;
-        }
-        enqueueSensitiveReview(userId, targetType, targetId, hit.original(), hit.matchedWords(), hit.failReason());
-    }
-
-    private void enqueueSensitiveReview(
-            Long userId, String targetType, String targetId, String content, String matchedWords, String failReason) {
-        AdminReviewService review = adminReviewService.getIfAvailable();
-        if (review == null) {
-            return;
-        }
-        try {
-            review.createFromSensitiveHit(userId, targetType, targetId, null, content, matchedWords, failReason);
-        } catch (Exception e) {
-            log.warn("短视频敏感词入审失败 target={}: {}", targetId, e.getMessage());
-        }
+    private void submitAiReview(Long userId, String targetType, String targetId, String content) {
+        aiContentReviewService.submitAfterCommit(new AiContentReviewService.ReviewRequest(
+                userId, targetType, targetId, null, content, "short_video"));
     }
 
     private void scheduleTranscodeAfterCommit(Long postId) {

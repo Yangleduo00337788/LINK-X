@@ -21,12 +21,10 @@ import com.linkx.server.service.FileStorageService;
 import com.linkx.server.service.GroupAssetService;
 import com.linkx.server.service.MediaUrlService;
 import com.linkx.server.service.ObjectKeyOwnershipService;
-import com.linkx.server.service.SensitiveWordService;
-import com.linkx.server.service.admin.AdminReviewService;
+import com.linkx.server.service.AiContentReviewService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -59,8 +57,7 @@ public class GroupAssetServiceImpl implements GroupAssetService {
     private final FileStorageService fileStorageService;
     private final MediaUrlService mediaUrlService;
     private final ObjectKeyOwnershipService objectKeyOwnershipService;
-    private final SensitiveWordService sensitiveWordService;
-    private final ObjectProvider<AdminReviewService> adminReviewService;
+    private final AiContentReviewService aiContentReviewService;
 
     @Override
     public List<GroupAssetVO> list(Long userId, Long conversationId, String type) {
@@ -101,7 +98,6 @@ public class GroupAssetServiceImpl implements GroupAssetService {
         }
 
         String scanText = joinScanText(dto.getTitle(), dto.getContent(), dto.getFileName());
-        SensitiveHit hit = filterSensitiveOrThrow(userId, conversationId, scanText, null);
 
         GroupAsset asset = GroupAsset.builder()
                 .conversationId(conversationId)
@@ -116,7 +112,7 @@ public class GroupAssetServiceImpl implements GroupAssetService {
                 .downloadCount(0)
                 .build();
         groupAssetMapper.insert(asset);
-        enqueueSensitiveAfterPersist(userId, conversationId, String.valueOf(asset.getId()), hit);
+        submitAiReview(userId, conversationId, String.valueOf(asset.getId()), scanText);
         SysUser uploader = sysUserMapper.selectOneById(userId);
         return toVO(asset, uploader);
     }
@@ -147,7 +143,6 @@ public class GroupAssetServiceImpl implements GroupAssetService {
             String objectKey = fileStorageService.uploadFile(file, null);
             objectKeyOwnershipService.claim(userId, objectKey);
             String scanText = joinScanText(albumName, file.getOriginalFilename());
-            SensitiveHit hit = filterSensitiveOrThrow(userId, conversationId, scanText, null);
 
             GroupAsset asset = GroupAsset.builder()
                     .conversationId(conversationId)
@@ -161,7 +156,7 @@ public class GroupAssetServiceImpl implements GroupAssetService {
                     .downloadCount(0)
                     .build();
             groupAssetMapper.insert(asset);
-            enqueueSensitiveAfterPersist(userId, conversationId, String.valueOf(asset.getId()), hit);
+            submitAiReview(userId, conversationId, String.valueOf(asset.getId()), scanText);
             return toVO(asset, sysUserMapper.selectOneById(userId));
         } catch (CustomException e) {
             throw e;
@@ -317,60 +312,8 @@ public class GroupAssetServiceImpl implements GroupAssetService {
         return sb.toString();
     }
 
-    private SensitiveHit filterSensitiveOrThrow(Long userId, Long conversationId, String content, String existingId) {
-        if (!StringUtils.hasText(content)) {
-            return new SensitiveHit("", null, null);
-        }
-        SensitiveWordService.FilterResult result = sensitiveWordService.filter(content);
-        if (result.matchedWords().isEmpty()) {
-            return new SensitiveHit(result.text(), null, null);
-        }
-        String failReason = result.blocked()
-                ? "blocked"
-                : (result.filtered() ? "filtered" : (result.alerted() ? "alert" : "matched"));
-        String matchedWords = String.join(",", result.matchedWords());
-        if (result.blocked()) {
-            String targetId = existingId != null ? existingId : (userId + ":blocked:" + System.currentTimeMillis());
-            enqueueSensitiveReview(userId, conversationId, targetId, content, matchedWords, failReason);
-            throw new CustomException(400, "内容包含违规敏感词，无法上传");
-        }
-        return new SensitiveHit(result.text(), matchedWords, failReason);
-    }
-
-    private void enqueueSensitiveAfterPersist(Long userId, Long conversationId, String assetId, SensitiveHit hit) {
-        if (hit == null || !hit.matched() || "blocked".equals(hit.failReason())) {
-            return;
-        }
-        enqueueSensitiveReview(userId, conversationId, assetId, hit.text(), hit.matchedWords(), hit.failReason());
-    }
-
-    private void enqueueSensitiveReview(Long userId,
-                                        Long conversationId,
-                                        String targetId,
-                                        String content,
-                                        String matchedWords,
-                                        String failReason) {
-        AdminReviewService reviewService = adminReviewService.getIfAvailable();
-        if (reviewService == null) {
-            return;
-        }
-        try {
-            reviewService.createFromSensitiveHit(
-                    userId,
-                    SysReviewTask.TARGET_GROUP_FILE,
-                    targetId,
-                    conversationId,
-                    content,
-                    matchedWords,
-                    failReason);
-        } catch (Exception e) {
-            log.warn("群文件敏感词入审失败: {}", e.getMessage());
-        }
-    }
-
-    private record SensitiveHit(String text, String matchedWords, String failReason) {
-        boolean matched() {
-            return StringUtils.hasText(matchedWords);
-        }
+    private void submitAiReview(Long userId, Long conversationId, String assetId, String content) {
+        aiContentReviewService.submitAfterCommit(new AiContentReviewService.ReviewRequest(
+                userId, SysReviewTask.TARGET_GROUP_FILE, assetId, conversationId, content, "group_asset"));
     }
 }

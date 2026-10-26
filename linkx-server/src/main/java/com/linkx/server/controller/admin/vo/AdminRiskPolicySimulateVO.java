@@ -16,6 +16,11 @@ import java.util.List;
 public class AdminRiskPolicySimulateVO {
 
     private boolean sensitiveFilterEnabled;
+    private Boolean aiReviewEnabled;
+    private Integer aiReviewHumanScoreMin;
+    private boolean queuedForHuman;
+    private String aiReason;
+    private List<String> aiLabels;
     private boolean blocked;
     private boolean filtered;
     private boolean alerted;

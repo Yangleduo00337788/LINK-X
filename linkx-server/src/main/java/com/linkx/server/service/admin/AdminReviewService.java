@@ -77,6 +77,20 @@ public interface AdminReviewService {
                                 String matchedWords,
                                 String failReason);
 
+    /**
+     * 同步 AI 机审结果到人审队列。
+     * 同 target 已有待审则更新分数/理由；复审未超上限则自动放行该待审单。
+     */
+    void createFromAiReview(Long userId,
+                            String targetType,
+                            String targetId,
+                            Long conversationId,
+                            String content,
+                            int score,
+                            String level,
+                            String reason,
+                            List<String> labels);
+
     /** 补齐尚未入库的举报反馈审核任务 */
     void ensureReportTasks();
 

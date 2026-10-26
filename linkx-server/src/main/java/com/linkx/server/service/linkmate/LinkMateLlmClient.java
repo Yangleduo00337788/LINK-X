@@ -245,11 +245,70 @@ public class LinkMateLlmClient {
         return streamChat(messages, false, new StreamDeltaHandlers(null, onDelta), null).totalTokens();
     }
 
-    private LinkxProperties.LinkMate requireConfig() {
+    public boolean isLlmConfigured() {
         LinkxProperties.LinkMate cfg = linkxProperties.getLinkmate();
+        return cfg != null
+                && StringUtils.hasText(cfg.getApiKey())
+                && StringUtils.hasText(cfg.getBaseUrl());
+    }
+
+    /**
+     * 机审专用：不要求灵伴开关开启，低温短超时，避免拖垮发消息主链路。
+     */
+    public LlmResult chatForReview(List<LlmMessage> messages) {
+        LinkxProperties.LinkMate cfg = requireCredentials();
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("model", LinkMateModelCapability.resolveModel(cfg.getModel(), false));
+        body.put("temperature", 0.1);
+        body.put("max_tokens", 400);
+        body.put("stream", false);
+        ArrayNode msgArray = body.putArray("messages");
+        for (LlmMessage msg : messages) {
+            ObjectNode node = msgArray.addObject();
+            node.put("role", msg.role());
+            node.put("content", msg.content());
+        }
+        HttpRequest request;
+        try {
+            request = HttpRequest.newBuilder()
+                    .uri(URI.create(normalizeBaseUrl(cfg.getBaseUrl()) + "/chat/completions"))
+                    .timeout(Duration.ofSeconds(20))
+                    .header("Authorization", "Bearer " + cfg.getApiKey())
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(body.toString()))
+                    .build();
+        } catch (Exception ex) {
+            throw new CustomException(500, "构建 AI 请求失败");
+        }
+        try {
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                log.warn("AI review LLM error status={} body={}",
+                        response.statusCode(), abbreviate(response.body()));
+                throw new CustomException(502, "AI 服务暂时不可用，请稍后重试");
+            }
+            JsonNode root = objectMapper.readTree(response.body());
+            String content = extractContent(root);
+            int tokens = extractTotalTokens(root, estimateTokens(messages, content));
+            return new LlmResult(content, tokens);
+        } catch (CustomException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            log.warn("AI review LLM request failed", ex);
+            throw new CustomException(502, "AI 服务请求失败");
+        }
+    }
+
+    private LinkxProperties.LinkMate requireConfig() {
+        LinkxProperties.LinkMate cfg = requireCredentials();
         if (!cfg.isEnabled()) {
             throw new CustomException(503, "灵伴服务未启用");
         }
+        return cfg;
+    }
+
+    private LinkxProperties.LinkMate requireCredentials() {
+        LinkxProperties.LinkMate cfg = linkxProperties.getLinkmate();
         if (!StringUtils.hasText(cfg.getApiKey())) {
             throw new CustomException(503, "灵伴服务未配置 API Key");
         }

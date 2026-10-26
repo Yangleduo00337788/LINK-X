@@ -40,14 +40,10 @@ import com.linkx.server.service.FileStorageService;
 import com.linkx.server.service.MediaUrlService;
 import com.linkx.server.service.MessageStormService;
 import com.linkx.server.service.ObjectKeyOwnershipService;
-import com.linkx.server.service.SensitiveWordService;
+import com.linkx.server.service.AiContentReviewService;
 import com.linkx.server.service.ShortVideoService;
 import com.linkx.server.service.UserPreferenceService;
 import com.linkx.server.service.linkmate.LinkMateConstants;
-import com.linkx.server.service.AuditLogService;
-import com.linkx.server.service.admin.AdminRiskEventService;
-import com.linkx.server.service.admin.AdminReviewService;
-import com.linkx.server.entity.SysAuditLog;
 import com.linkx.server.entity.admin.SysReviewTask;
 import com.mybatisflex.core.logicdelete.LogicDeleteManager;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -105,11 +101,8 @@ public class ChatServiceImpl implements ChatService {
     private final RedPacketRecordMapper redPacketRecordMapper;
     private final UserPreferenceService userPreferenceService;
     private final PresenceService presenceService;
-    private final SensitiveWordService sensitiveWordService;
+    private final AiContentReviewService aiContentReviewService;
     private final MessageStormService messageStormService;
-    private final AuditLogService auditLogService;
-    private final AdminRiskEventService adminRiskEventService;
-    private final ObjectProvider<AdminReviewService> adminReviewService;
     private final ObjectProvider<GroupAiAutomationService> groupAiAutomationService;
     private final ObjectProvider<ShortVideoService> shortVideoServiceProvider;
     private final LinkxMetrics linkxMetrics;
@@ -379,50 +372,7 @@ public class ChatServiceImpl implements ChatService {
             storedFileUrl = normalizeAndAuthorizeMediaKey(userId, dto.getFileUrl());
         }
 
-        // 敏感词过滤：文本消息进行 DFA 过滤
         String content = resolveContent(msgType, dto, storedFileUrl);
-        boolean sensitiveAlert = false;
-        String sensitiveFailReason = null;
-        String sensitiveMatchedWords = null;
-        String originalSensitiveContent = content;
-        if (ImMessage.TYPE_TEXT.equals(msgType) && content != null) {
-            SensitiveWordService.FilterResult filterResult = sensitiveWordService.filter(content);
-            if (!filterResult.matchedWords().isEmpty()) {
-                String failReason = filterResult.blocked()
-                        ? "blocked"
-                        : (filterResult.filtered() ? "filtered" : (filterResult.alerted() ? "alert" : "matched"));
-                sensitiveFailReason = failReason;
-                sensitiveMatchedWords = String.join(",", filterResult.matchedWords());
-                auditLogService.log(
-                        SysAuditLog.OperationType.SENSITIVE_WORD_MATCH,
-                        "敏感词命中: " + sensitiveMatchedWords,
-                        userId,
-                        null,
-                        null,
-                        null,
-                        !filterResult.blocked(),
-                        failReason
-                );
-                adminRiskEventService.recordSensitiveMatch(
-                        userId,
-                        sensitiveMatchedWords,
-                        failReason,
-                        dto.getConversationId());
-            }
-            if (filterResult.blocked()) {
-                enqueueSensitiveReview(
-                        userId,
-                        SysReviewTask.TARGET_CONVERSATION,
-                        String.valueOf(dto.getConversationId()),
-                        dto.getConversationId(),
-                        originalSensitiveContent,
-                        sensitiveMatchedWords,
-                        "blocked");
-                throw new CustomException(400, "消息包含违禁内容，无法发送");
-            }
-            content = filterResult.text();
-            sensitiveAlert = filterResult.alerted();
-        }
 
         ImMessage message = ImMessage.builder()
                 .conversationId(dto.getConversationId())
@@ -439,16 +389,9 @@ public class ChatServiceImpl implements ChatService {
                 .deleted(0)
                 .build();
         imMessageRepository.insert(message);
-
-        if (sensitiveFailReason != null && !"blocked".equals(sensitiveFailReason)) {
-            enqueueSensitiveReview(
-                    userId,
-                    SysReviewTask.TARGET_MESSAGE,
-                    String.valueOf(message.getId()),
-                    dto.getConversationId(),
-                    originalSensitiveContent,
-                    sensitiveMatchedWords,
-                    sensitiveFailReason);
+        if (ImMessage.TYPE_TEXT.equals(msgType) && content != null) {
+            submitAiReview(userId, SysReviewTask.TARGET_MESSAGE, String.valueOf(message.getId()),
+                    dto.getConversationId(), content);
         }
 
         Date now = message.getCreateTime() != null ? message.getCreateTime() : new Date();
@@ -459,9 +402,6 @@ public class ChatServiceImpl implements ChatService {
         linkxMetrics.recordMessageSent();
         SysUser sender = sysUserMapper.selectOneById(userId);
         MessageVO vo = toMessageVO(message, sender, userId, loadLastReadMessageId(userId, conversation.getId()));
-        if (sensitiveAlert) {
-            vo.setSensitiveAlert(Boolean.TRUE);
-        }
         scheduleGroupAiProactiveCheck(conversation, message);
         return vo;
     }
@@ -552,23 +492,9 @@ public class ChatServiceImpl implements ChatService {
         return toMessageVO(message, sender, uid, loadLastReadMessageId(uid, message.getConversationId()));
     }
 
-    private void enqueueSensitiveReview(Long userId,
-                                        String targetType,
-                                        String targetId,
-                                        Long conversationId,
-                                        String content,
-                                        String matchedWords,
-                                        String failReason) {
-        AdminReviewService reviewService = adminReviewService.getIfAvailable();
-        if (reviewService == null) {
-            return;
-        }
-        try {
-            reviewService.createFromSensitiveHit(
-                    userId, targetType, targetId, conversationId, content, matchedWords, failReason);
-        } catch (Exception e) {
-            // 入审失败不影响主链路
-        }
+    private void submitAiReview(Long userId, String targetType, String targetId, Long conversationId, String content) {
+        aiContentReviewService.submitAfterCommit(new AiContentReviewService.ReviewRequest(
+                userId, targetType, targetId, conversationId, content, "chat"));
     }
 
     @Override
@@ -2025,61 +1951,17 @@ public class ChatServiceImpl implements ChatService {
             throw new CustomException(400, "编辑内容不能为空");
         }
 
-        // 敏感词过滤
-        String originalContent = sanitized;
-        SensitiveWordService.FilterResult filterResult = sensitiveWordService.filter(sanitized);
-        if (!filterResult.matchedWords().isEmpty()) {
-            String failReason = filterResult.blocked()
-                    ? "blocked"
-                    : (filterResult.filtered() ? "filtered" : (filterResult.alerted() ? "alert" : "matched"));
-            String matchedWords = String.join(",", filterResult.matchedWords());
-            auditLogService.log(
-                    SysAuditLog.OperationType.SENSITIVE_WORD_MATCH,
-                    "敏感词命中(编辑): " + matchedWords,
-                    userId,
-                    null,
-                    null,
-                    null,
-                    !filterResult.blocked(),
-                    failReason
-            );
-            adminRiskEventService.recordSensitiveMatch(userId, matchedWords, failReason, conversationId);
-            if (filterResult.blocked()) {
-                enqueueSensitiveReview(
-                        userId,
-                        SysReviewTask.TARGET_MESSAGE,
-                        String.valueOf(messageId),
-                        conversationId,
-                        originalContent,
-                        matchedWords,
-                        "blocked");
-                throw new CustomException(400, "编辑内容包含违禁内容，无法保存");
-            }
-            enqueueSensitiveReview(
-                    userId,
-                    SysReviewTask.TARGET_MESSAGE,
-                    String.valueOf(messageId),
-                    conversationId,
-                    originalContent,
-                    matchedWords,
-                    failReason);
-        }
-        sanitized = filterResult.text();
-
         message.setContent(sanitized);
         message.setEdited(true);
         message.setEditedTime(new Date());
         imMessageRepository.update(message);
+        submitAiReview(userId, SysReviewTask.TARGET_MESSAGE, String.valueOf(messageId), conversationId, sanitized);
 
         // 刷新会话预览
         refreshConversationLastMessage(conversationId);
 
         SysUser sender = sysUserMapper.selectOneById(userId);
-        MessageVO vo = toMessageVO(message, sender, userId, loadLastReadMessageId(userId, conversationId));
-        if (filterResult.alerted()) {
-            vo.setSensitiveAlert(Boolean.TRUE);
-        }
-        return vo;
+        return toMessageVO(message, sender, userId, loadLastReadMessageId(userId, conversationId));
     }
 
     @Override

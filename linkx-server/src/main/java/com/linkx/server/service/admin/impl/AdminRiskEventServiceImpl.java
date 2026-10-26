@@ -236,6 +236,35 @@ public class AdminRiskEventServiceImpl implements AdminRiskEventService {
     }
 
     @Override
+    public void recordAiContentReview(Long userId,
+                                      int score,
+                                      String level,
+                                      String reason,
+                                      Long conversationId,
+                                      String targetType) {
+        String normalized = StringUtils.hasText(level) ? level.trim().toLowerCase() : "high";
+        String eventLevel = "critical".equals(normalized) || "high".equals(normalized)
+                ? SysRiskEvent.LEVEL_HIGH
+                : ("medium".equals(normalized) ? SysRiskEvent.LEVEL_MEDIUM : SysRiskEvent.LEVEL_LOW);
+        String detail = "AI 机审 " + Math.max(0, Math.min(100, score)) + " 分"
+                + (StringUtils.hasText(reason) ? "：" + reason.trim() : "");
+        insertEvent(SysRiskEvent.builder()
+                .eventType(SysRiskEvent.TYPE_AI_CONTENT_REVIEW)
+                .title("AI 机审送人审")
+                .detail(detail.length() > 500 ? detail.substring(0, 500) : detail)
+                .riskLevel(eventLevel)
+                .status(SysRiskEvent.STATUS_PENDING)
+                .userId(userId)
+                .username(resolveUsername(userId))
+                .targetResourceId(conversationId == null ? null : String.valueOf(conversationId))
+                .targetResourceType(StringUtils.hasText(targetType) ? targetType : "content")
+                .extraData(String.valueOf(score))
+                .createTime(new Date())
+                .updateTime(new Date())
+                .build());
+    }
+
+    @Override
     public void recordSensitiveMatch(Long userId, String matchedWords, String failReason, Long conversationId) {
         String words = matchedWords == null ? "" : matchedWords.trim();
         String level = "blocked".equals(failReason)

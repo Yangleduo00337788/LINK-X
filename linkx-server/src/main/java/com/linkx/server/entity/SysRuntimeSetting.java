@@ -142,6 +142,10 @@ public class SysRuntimeSetting implements Serializable {
     private Integer riskScoreHighMin;
     /** 危急风险分数线 */
     private Integer riskScoreCriticalMin;
+    /** 是否启用 AI 内容机审 */
+    private Boolean aiReviewEnabled;
+    /** AI 风险分达到该值即送人审 */
+    private Integer aiReviewHumanScoreMin;
     /** 登录接口每分钟限流 */
     private Integer rateLimitLoginPerMinute;
     /** 注册接口每分钟限流 */

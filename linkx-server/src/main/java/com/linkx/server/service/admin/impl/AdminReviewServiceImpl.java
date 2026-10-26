@@ -556,6 +556,118 @@ public class AdminReviewServiceImpl implements AdminReviewService {
     }
 
     @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void createFromAiReview(Long userId,
+                                   String targetType,
+                                   String targetId,
+                                   Long conversationId,
+                                   String content,
+                                   int score,
+                                   String level,
+                                   String reason,
+                                   List<String> labels) {
+        if (!StringUtils.hasText(targetType) || !StringUtils.hasText(targetId)) {
+            return;
+        }
+        String type = targetType.trim();
+        String tid = targetId.trim();
+        SysReviewTask existing = reviewTaskMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .where(SysReviewTask::getSourceType).eq(SysReviewTask.SOURCE_AI)
+                        .and(SysReviewTask::getTargetType).eq(type)
+                        .and(SysReviewTask::getTargetId).eq(tid)
+                        .and(SysReviewTask::getStatus).eq(SysReviewTask.STATUS_PENDING)
+                        .limit(1)
+        );
+        String username = resolveUsername(userId);
+        int clamped = Math.max(0, Math.min(100, score));
+        String riskLevel = StringUtils.hasText(level) ? level.trim().toLowerCase() : "high";
+        int humanMin = linkxProperties.getRiskPolicy().getAiReviewHumanScoreMin();
+        boolean queue = clamped >= humanMin;
+        String snapshot = buildAiReviewSnapshot(
+                userId, username, conversationId, type, tid, clamped, humanMin, riskLevel, labels, reason, content);
+        Date now = new Date();
+
+        if (existing != null) {
+            if (queue) {
+                existing.setTitle("AI 机审 " + clamped + " 分");
+                existing.setContentSnapshot(snapshot);
+                existing.setRiskLevel(riskLevel);
+                existing.setUpdateTime(now);
+            } else {
+                existing.setTitle("AI 复审 " + clamped + " 分");
+                existing.setContentSnapshot(snapshot);
+                existing.setRiskLevel(riskLevel);
+                existing.setStatus(SysReviewTask.STATUS_APPROVED);
+                existing.setResolution("AI 复审未超过人审上限 " + humanMin + "，自动放行");
+                existing.setResolvedAt(now);
+                existing.setUpdateTime(now);
+            }
+            reviewTaskMapper.update(existing);
+            return;
+        }
+        if (!queue) {
+            return;
+        }
+
+        SysReviewTask task = SysReviewTask.builder()
+                .sourceType(SysReviewTask.SOURCE_AI)
+                .targetType(type)
+                .targetId(tid)
+                .reporterUserId(null)
+                .reporterUsername("系统")
+                .title("AI 机审 " + clamped + " 分")
+                .contentSnapshot(snapshot)
+                .riskLevel(riskLevel)
+                .status(SysReviewTask.STATUS_PENDING)
+                .escalationCount(0)
+                .createTime(now)
+                .updateTime(now)
+                .build();
+        reviewTaskMapper.insert(task);
+        afterReviewCreated(task);
+    }
+
+    private String buildAiReviewSnapshot(Long userId,
+                                         String username,
+                                         Long conversationId,
+                                         String type,
+                                         String tid,
+                                         int score,
+                                         int humanMin,
+                                         String riskLevel,
+                                         List<String> labels,
+                                         String reason,
+                                         String content) {
+        String labelText = labels == null || labels.isEmpty() ? "" : String.join(",", labels);
+        StringBuilder snapshot = new StringBuilder();
+        snapshot.append("AI 机审 ").append(score).append(" 分（人审上限 ")
+                .append(humanMin).append("）\n");
+        if (userId != null) {
+            snapshot.append("用户ID: ").append(userId).append('\n');
+            if (StringUtils.hasText(username)) {
+                snapshot.append("用户名: ").append(username).append('\n');
+            }
+        }
+        if (conversationId != null) {
+            snapshot.append("会话ID: ").append(conversationId).append('\n');
+        }
+        snapshot.append("目标类型: ").append(type).append('\n');
+        snapshot.append("目标ID: ").append(tid).append('\n');
+        snapshot.append("风险等级: ").append(riskLevel).append('\n');
+        if (StringUtils.hasText(labelText)) {
+            snapshot.append("标签: ").append(labelText).append('\n');
+        }
+        if (StringUtils.hasText(reason)) {
+            snapshot.append("理由: ").append(abbreviate(reason.trim(), 400)).append('\n');
+        }
+        if (StringUtils.hasText(content)) {
+            snapshot.append("内容: ").append(abbreviate(content.trim(), 800));
+        }
+        return snapshot.toString();
+    }
+
+    @Override
     @Transactional
     public void ensureReportTasks() {
         List<Feedback> reports = feedbackMapper.selectListByQuery(

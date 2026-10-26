@@ -201,6 +201,10 @@ public class AdminStatisticsServiceImpl implements AdminStatisticsService {
                         dailyCounts("SELECT DATE(create_time) AS d, COUNT(*) AS c FROM sys_risk_event "
                                 + "WHERE event_type = ? AND create_time >= ? GROUP BY DATE(create_time)",
                                 SysRiskEvent.TYPE_SENSITIVE_WORD_MATCH, start)),
+                series("aiReview", "AI 机审送人审",
+                        dailyCounts("SELECT DATE(create_time) AS d, COUNT(*) AS c FROM sys_risk_event "
+                                + "WHERE event_type = ? AND create_time >= ? GROUP BY DATE(create_time)",
+                                SysRiskEvent.TYPE_AI_CONTENT_REVIEW, start)),
                 series("storm", "消息风暴",
                         dailyCounts("SELECT DATE(create_time) AS d, COUNT(*) AS c FROM sys_risk_event "
                                 + "WHERE event_type = ? AND create_time >= ? GROUP BY DATE(create_time)",

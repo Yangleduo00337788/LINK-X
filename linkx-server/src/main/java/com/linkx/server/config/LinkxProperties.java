@@ -582,6 +582,10 @@ public class LinkxProperties {
         private int scoreMediumMin = 40;
         private int scoreHighMin = 65;
         private int scoreCriticalMin = 85;
+        /** 是否启用 AI 内容机审 */
+        private Boolean aiReviewEnabled = true;
+        /** AI 风险分达到该值（含）即送人审，0–100 */
+        private int aiReviewHumanScoreMin = 65;
 
         public void setMessageStormUserThreshold(int messageStormUserThreshold) {
             this.messageStormUserThreshold = Math.max(1, messageStormUserThreshold);
@@ -617,6 +621,10 @@ public class LinkxProperties {
 
         public void setScoreCriticalMin(int scoreCriticalMin) {
             this.scoreCriticalMin = clampScore(scoreCriticalMin);
+        }
+
+        public void setAiReviewHumanScoreMin(int aiReviewHumanScoreMin) {
+            this.aiReviewHumanScoreMin = clampScore(aiReviewHumanScoreMin);
         }
 
         private static int clampScore(int value) {

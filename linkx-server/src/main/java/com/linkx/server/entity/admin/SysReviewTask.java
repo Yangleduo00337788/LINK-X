@@ -27,6 +27,7 @@ public class SysReviewTask implements Serializable {
 
     public static final String SOURCE_REPORT = "report";
     public static final String SOURCE_SENSITIVE = "sensitive";
+    public static final String SOURCE_AI = "ai";
     public static final String SOURCE_MANUAL = "manual";
 
     public static final String STATUS_PENDING = "pending";

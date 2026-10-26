@@ -43,6 +43,12 @@ public class AdminRiskPolicyUpdateDTO {
     @Max(100)
     private Integer scoreCriticalMin;
 
+    private Boolean aiReviewEnabled;
+
+    @Min(0)
+    @Max(100)
+    private Integer aiReviewHumanScoreMin;
+
     @Min(1)
     private Integer rateLimitLoginPerMinute;
 

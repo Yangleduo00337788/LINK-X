@@ -70,8 +70,10 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
         long pendingReports = canReview ? adminReviewService.countPendingBySource(SysReviewTask.SOURCE_REPORT) : 0L;
 
         Date todayStart = Date.from(LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant());
-        long todaySensitiveHits = canRisk ? adminRiskEventService.countSinceByType(
-                SysRiskEvent.TYPE_SENSITIVE_WORD_MATCH, todayStart) : 0L;
+        long todaySensitiveHits = canRisk
+                ? adminRiskEventService.countSinceByType(SysRiskEvent.TYPE_SENSITIVE_WORD_MATCH, todayStart)
+                + adminRiskEventService.countSinceByType(SysRiskEvent.TYPE_AI_CONTENT_REVIEW, todayStart)
+                : 0L;
         long todayRiskBlocks = canRisk ? adminRiskEventService.countSinceByType(
                 SysRiskEvent.TYPE_RATE_LIMIT, todayStart) : 0L;
 

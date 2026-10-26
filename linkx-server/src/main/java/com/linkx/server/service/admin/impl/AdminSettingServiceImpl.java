@@ -1105,6 +1105,12 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         if (row.getRiskScoreCriticalMin() != null) {
             policy.setScoreCriticalMin(row.getRiskScoreCriticalMin());
         }
+        if (row.getAiReviewEnabled() != null) {
+            policy.setAiReviewEnabled(row.getAiReviewEnabled());
+        }
+        if (row.getAiReviewHumanScoreMin() != null) {
+            policy.setAiReviewHumanScoreMin(row.getAiReviewHumanScoreMin());
+        }
         if (row.getRateLimitLoginPerMinute() != null) {
             auth.setRateLimitLoginPerMinute(row.getRateLimitLoginPerMinute());
         }

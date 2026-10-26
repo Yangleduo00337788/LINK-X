@@ -26,15 +26,13 @@ import com.linkx.server.service.MediaUrlService;
 import com.linkx.server.service.MessageNotificationService;
 import com.linkx.server.service.MomentsService;
 import com.linkx.server.service.ObjectKeyOwnershipService;
-import com.linkx.server.service.SensitiveWordService;
-import com.linkx.server.service.admin.AdminReviewService;
+import com.linkx.server.service.AiContentReviewService;
 import com.linkx.server.entity.admin.SysReviewTask;
 import com.linkx.server.common.SafeExternalUrl;
 import com.mybatisflex.core.logicdelete.LogicDeleteManager;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -66,8 +64,7 @@ public class MomentsServiceImpl implements MomentsService {
     private final MessageNotificationMapper notificationMapper;
     private final ImMessagePushService imPushService;
     private final ObjectMapper objectMapper;
-    private final SensitiveWordService sensitiveWordService;
-    private final ObjectProvider<AdminReviewService> adminReviewService;
+    private final AiContentReviewService aiContentReviewService;
     private final MessageContentCipher messageContentCipher;
     private final LinkxProperties linkxProperties;
 
@@ -87,8 +84,7 @@ public class MomentsServiceImpl implements MomentsService {
         }
 
         String rawContent = hasContent ? dto.getContent().trim() : "";
-        SensitiveHit hit = filterSensitiveOrThrow(userId, rawContent, SysReviewTask.TARGET_MOMENT, null);
-        String postContent = hit.text();
+        String postContent = rawContent;
 
         // 处理 atUsers：序列化为 JSON 字符串
         String atUsersJson = null;
@@ -108,7 +104,7 @@ public class MomentsServiceImpl implements MomentsService {
                 .visibility(visibility)
                 .build();
         postRepository.insert(post);
-        enqueueSensitiveAfterPersist(userId, SysReviewTask.TARGET_MOMENT, String.valueOf(post.getId()), hit);
+        submitAiReview(userId, SysReviewTask.TARGET_MOMENT, String.valueOf(post.getId()), postContent);
 
         List<MomentsImage> savedImages = new ArrayList<>();
         if (dto.getImages() != null && !dto.getImages().isEmpty()) {
@@ -207,10 +203,8 @@ public class MomentsServiceImpl implements MomentsService {
 
         if (dto.getContent() != null) {
             String raw = dto.getContent().trim();
-            SensitiveHit hit = filterSensitiveOrThrow(
-                    userId, raw, SysReviewTask.TARGET_MOMENT, String.valueOf(postId));
-            post.setContent(hit.text());
-            enqueueSensitiveAfterPersist(userId, SysReviewTask.TARGET_MOMENT, String.valueOf(postId), hit);
+            post.setContent(raw);
+            submitAiReview(userId, SysReviewTask.TARGET_MOMENT, String.valueOf(postId), raw);
         }
         if (dto.getLocation() != null) {
             post.setLocation(dto.getLocation().isBlank() ? null : dto.getLocation().trim());
@@ -547,19 +541,16 @@ public class MomentsServiceImpl implements MomentsService {
         }
 
         String rawComment = dto.getContent() == null ? "" : dto.getContent().trim();
-        SensitiveHit commentHit = filterSensitiveOrThrow(
-                userId, rawComment, SysReviewTask.TARGET_MOMENT_COMMENT, null);
 
         MomentsComment comment = MomentsComment.builder()
                 .postId(postId)
                 .userId(userId)
-                .content(commentHit.text())
+                .content(rawComment)
                 .parentId(dto.getParentId())
                 .mentions(mentionJson)
                 .build();
         commentRepository.insert(comment);
-        enqueueSensitiveAfterPersist(
-                userId, SysReviewTask.TARGET_MOMENT_COMMENT, String.valueOf(comment.getId()), commentHit);
+        submitAiReview(userId, SysReviewTask.TARGET_MOMENT_COMMENT, String.valueOf(comment.getId()), rawComment);
 
         // 给动态作者推送消息通知
         if (post != null && !post.getUserId().equals(userId)) {
@@ -1124,63 +1115,8 @@ public class MomentsServiceImpl implements MomentsService {
         return mediaUrlService.resolve(stored);
     }
 
-    private record SensitiveHit(String text, String matchedWords, String failReason, String original) {
-        boolean matched() {
-            return matchedWords != null && !matchedWords.isBlank();
-        }
-    }
-
-    /**
-     * @param existingTargetId 已有目标 ID 时（如编辑动态）在拦截阶段即可入审；新建时传 null，落库后再入审
-     */
-    private SensitiveHit filterSensitiveOrThrow(Long userId, String content, String targetType, String existingTargetId) {
-        if (content == null || content.isBlank()) {
-            return new SensitiveHit("", null, null, content);
-        }
-        SensitiveWordService.FilterResult result = sensitiveWordService.filter(content);
-        if (result.matchedWords().isEmpty()) {
-            return new SensitiveHit(result.text(), null, null, content);
-        }
-        String failReason = result.blocked()
-                ? "blocked"
-                : (result.filtered() ? "filtered" : (result.alerted() ? "alert" : "matched"));
-        String matchedWords = String.join(",", result.matchedWords());
-        if (result.blocked()) {
-            if (existingTargetId != null) {
-                enqueueSensitiveReview(userId, targetType, existingTargetId, content, matchedWords, failReason);
-            } else {
-                // 尚未落库：唯一 targetId，保证每次拦截都能单独入审
-                String tempId = userId + ":blocked:" + System.currentTimeMillis();
-                enqueueSensitiveReview(
-                        userId, targetType, tempId, content, matchedWords, failReason);
-            }
-            throw new CustomException(400, "内容包含违规敏感词，无法发布");
-        }
-        return new SensitiveHit(result.text(), matchedWords, failReason, content);
-    }
-
-    private void enqueueSensitiveAfterPersist(Long userId, String targetType, String targetId, SensitiveHit hit) {
-        if (hit == null || !hit.matched() || "blocked".equals(hit.failReason())) {
-            return;
-        }
-        enqueueSensitiveReview(userId, targetType, targetId, hit.original(), hit.matchedWords(), hit.failReason());
-    }
-
-    private void enqueueSensitiveReview(Long userId,
-                                        String targetType,
-                                        String targetId,
-                                        String content,
-                                        String matchedWords,
-                                        String failReason) {
-        AdminReviewService reviewService = adminReviewService.getIfAvailable();
-        if (reviewService == null) {
-            return;
-        }
-        try {
-            reviewService.createFromSensitiveHit(
-                    userId, targetType, targetId, null, content, matchedWords, failReason);
-        } catch (Exception e) {
-            log.warn("朋友圈敏感词入审失败: {}", e.getMessage());
-        }
+    private void submitAiReview(Long userId, String targetType, String targetId, String content) {
+        aiContentReviewService.submitAfterCommit(new AiContentReviewService.ReviewRequest(
+                userId, targetType, targetId, null, content, "moments"));
     }
 }

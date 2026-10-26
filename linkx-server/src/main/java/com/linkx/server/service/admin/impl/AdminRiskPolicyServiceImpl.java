@@ -13,6 +13,7 @@ import com.linkx.server.entity.SysRuntimeSetting;
 import com.linkx.server.entity.SysSensitiveWord;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.SysRuntimeSettingMapper;
+import com.linkx.server.service.AiContentReviewService;
 import com.linkx.server.service.SensitiveWordService;
 import com.linkx.server.service.admin.AdminRiskPolicyService;
 import com.linkx.server.service.admin.ReviewRiskScoringService;
@@ -34,6 +35,7 @@ public class AdminRiskPolicyServiceImpl implements AdminRiskPolicyService {
     private final LinkxProperties linkxProperties;
     private final SysRuntimeSettingMapper runtimeSettingMapper;
     private final SensitiveWordService sensitiveWordService;
+    private final AiContentReviewService aiContentReviewService;
     private final ReviewRiskScoringService reviewRiskScoringService;
     private final RiskRuleEngine riskRuleEngine;
 
@@ -88,6 +90,14 @@ public class AdminRiskPolicyServiceImpl implements AdminRiskPolicyService {
             policy.setScoreCriticalMin(dto.getScoreCriticalMin());
             row.setRiskScoreCriticalMin(dto.getScoreCriticalMin());
         }
+        if (dto.getAiReviewEnabled() != null) {
+            policy.setAiReviewEnabled(dto.getAiReviewEnabled());
+            row.setAiReviewEnabled(dto.getAiReviewEnabled());
+        }
+        if (dto.getAiReviewHumanScoreMin() != null) {
+            policy.setAiReviewHumanScoreMin(dto.getAiReviewHumanScoreMin());
+            row.setAiReviewHumanScoreMin(dto.getAiReviewHumanScoreMin());
+        }
         if (dto.getRateLimitLoginPerMinute() != null) {
             auth.setRateLimitLoginPerMinute(dto.getRateLimitLoginPerMinute());
             row.setRateLimitLoginPerMinute(dto.getRateLimitLoginPerMinute());
@@ -121,28 +131,39 @@ public class AdminRiskPolicyServiceImpl implements AdminRiskPolicyService {
     @Override
     public AdminRiskPolicySimulateVO simulate(AdminRiskPolicySimulateDTO dto) {
         String text = dto == null || dto.getText() == null ? "" : dto.getText();
-        boolean enabled = !Boolean.FALSE.equals(linkxProperties.getApp().getSensitiveFilterEnabled());
+        boolean wordEnabled = !Boolean.FALSE.equals(linkxProperties.getApp().getSensitiveFilterEnabled());
+        boolean aiEnabled = aiContentReviewService.isEnabled();
+        int humanMin = aiContentReviewService.humanScoreMin();
         SensitiveWordService.FilterResult filterResult = sensitiveWordService.filter(text);
 
         List<String> factors = new ArrayList<>();
         int score = 0;
-        if (filterResult.blocked()) {
-            factors.add("敏感词拦截 +70");
-            score += 70;
-        } else if (filterResult.alerted()) {
-            factors.add("敏感词告警 +50");
-            score += 50;
-        } else if (filterResult.filtered()) {
-            factors.add("敏感词替换 +40");
-            score += 40;
+        String aiReason = null;
+        List<String> aiLabels = List.of();
+        boolean queued = false;
+        if (aiEnabled) {
+            AiContentReviewService.ReviewScore ai = aiContentReviewService.review(text);
+            score = ai.score();
+            queued = ai.queuedForHuman();
+            aiReason = ai.reason();
+            aiLabels = ai.labels();
+            factors.add("AI 机审 " + ai.score() + " 分");
+            if (queued) {
+                factors.add("超过人审上限 " + humanMin + "，将送人审");
+            } else {
+                factors.add("未超过人审上限 " + humanMin + "，自动放行");
+            }
+        } else {
+            factors.add("AI 机审未开启");
         }
         if (!filterResult.matchedWords().isEmpty()) {
-            factors.add("命中词数 " + filterResult.matchedWords().size());
+            factors.add("词库提示命中 " + filterResult.matchedWords().size() + " 个");
         }
         int historyScore = reviewRiskScoringService.computeUserHistoryScore(dto != null ? dto.getSubjectUserId() : null);
         if (historyScore > 0) {
             factors.add("用户历史风险 +" + historyScore);
             score = Math.min(100, score + historyScore);
+            queued = score >= humanMin;
         }
 
         RiskRuleContext ruleContext = RiskRuleContext.builder()
@@ -159,19 +180,24 @@ public class AdminRiskPolicyServiceImpl implements AdminRiskPolicyService {
         RiskRuleEvaluationResult ruleResult = riskRuleEngine.evaluate(ruleContext);
         if (ruleResult.getScoreDelta() > 0) {
             score = Math.min(100, score + ruleResult.getScoreDelta());
+            queued = score >= humanMin;
         }
         factors.addAll(ruleResult.getFactors());
 
         String level = reviewRiskScoringService.scoreToLevel(score);
-
         List<AdminRiskPolicySimulateVO.MatchedWordDetail> details = buildMatchedDetails(filterResult.matchedWords());
 
         return AdminRiskPolicySimulateVO.builder()
-                .sensitiveFilterEnabled(enabled)
-                .blocked(filterResult.blocked() || ruleResult.isBlocked())
-                .filtered(filterResult.filtered())
-                .alerted(filterResult.alerted() || ruleResult.isAlerted())
-                .filteredText(filterResult.text())
+                .sensitiveFilterEnabled(wordEnabled)
+                .aiReviewEnabled(aiEnabled)
+                .aiReviewHumanScoreMin(humanMin)
+                .queuedForHuman(queued)
+                .aiReason(aiReason)
+                .aiLabels(aiLabels)
+                .blocked(false)
+                .filtered(false)
+                .alerted(queued)
+                .filteredText(text)
                 .matchedWords(filterResult.matchedWords())
                 .matchedDetails(details)
                 .riskScore(score)
@@ -232,7 +258,9 @@ public class AdminRiskPolicyServiceImpl implements AdminRiskPolicyService {
                         .adminMaxAttempts(auth.getAdminLoginMaxAttempts())
                         .adminLockMinutes(auth.getAdminLockDurationMinutes())
                         .build())
-                .sensitiveFilterEnabled(!Boolean.FALSE.equals(linkxProperties.getApp().getSensitiveFilterEnabled()))
+                        .sensitiveFilterEnabled(!Boolean.FALSE.equals(linkxProperties.getApp().getSensitiveFilterEnabled()))
+                .aiReviewEnabled(!Boolean.FALSE.equals(policy.getAiReviewEnabled()))
+                .aiReviewHumanScoreMin(policy.getAiReviewHumanScoreMin())
                 .build();
     }
 

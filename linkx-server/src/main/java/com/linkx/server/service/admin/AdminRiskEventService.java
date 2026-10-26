@@ -36,6 +36,14 @@ public interface AdminRiskEventService {
     /** 记录敏感词命中风险事件 */
     void recordSensitiveMatch(Long userId, String matchedWords, String failReason, Long conversationId);
 
+    /** 记录 AI 机审超阈值 */
+    void recordAiContentReview(Long userId,
+                               int score,
+                               String level,
+                               String reason,
+                               Long conversationId,
+                               String targetType);
+
     /** 记录消息风暴风险事件 */
     void recordMessageStorm(Long userId, String eventType, int messageCount, Long conversationId);
 
