@@ -1,0 +1,29 @@
+{
+  "name": "linkx-demo",
+  "private": true,
+  "version": "1.0.0",
+  "description": "LinkX 静态功能演示站（全 MOCK，可部署 Cloudflare Pages）",
+  "type": "module",
+  "scripts": {
+    "dev": "node ./scripts/dev.mjs",
+    "dev:portal": "vite --config vite.portal.config.ts",
+    "dev:admin": "vite --config vite.admin.config.ts",
+    "dev:client": "vite --config vite.client.config.ts",
+    "build": "node ./scripts/build.mjs",
+    "demo:media": "node ./scripts/download-demo-media.mjs",
+    "preview": "vite preview --config vite.portal.config.ts --port 4173"
+  },
+  "dependencies": {
+    "axios": "^1.19.0",
+    "vue": "^3.5.39",
+    "vue-router": "^4.6.4"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.7",
+    "concurrently": "^9.2.1",
+    "typescript": "~5.8.3",
+    "unocss": "^0.59.4",
+    "vite": "^5.4.12",
+    "vue-tsc": "^2.2.12"
+  }
+}
