@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="referrer" content="no-referrer" />
+    <title>LinkX · 演示客户端</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: transparent;
+      }
+      #app {
+        min-height: 100%;
+        border-radius: 20px;
+        overflow: hidden;
+        clip-path: inset(0 round 20px);
+        background: linear-gradient(
+          165deg,
+          #d8ecfb 0%,
+          #e8f3fc 38%,
+          #f4f7fb 72%,
+          #fafbfd 100%
+        );
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="./demo-entry.ts"></script>
+  </body>
+</html>

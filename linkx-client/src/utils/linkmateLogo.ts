@@ -4,8 +4,9 @@
 /** 群聊内灵伴消息的虚拟发送者 ID（与后端 LinkMateConstants.BOT_SENDER_ID 一致） */
 export const LINKMATE_BOT_SENDER_ID = '0'
 
-/** public 目录下的灵伴 Logo（Vite 静态资源） */
-export const LINKMATE_LOGO_PUBLIC_PATH = '/linkmate-logo.png'
+/** public 目录下的灵伴 Logo（Vite 静态资源，跟随 BASE_URL，演示站在 /client/ 下） */
+const logoBase = (import.meta.env.BASE_URL || '/').replace(/\/?$/, '/')
+export const LINKMATE_LOGO_PUBLIC_PATH = `${logoBase}linkmate-logo.png`
 
 /** 将 linkmate-logo 外圈纯黑底替换为白底，供浅色 UI 展示 */
 let cachedWhiteLogo: string | null = null
@@ -29,14 +30,18 @@ export async function loadLinkMateLogoOnWhite(): Promise<string> {
 
   const img = new Image()
   img.crossOrigin = 'anonymous'
-  img.src = '/linkmate-logo.png'
-  await img.decode()
+  img.src = LINKMATE_LOGO_PUBLIC_PATH
+  try {
+    await img.decode()
+  } catch {
+    return LINKMATE_LOGO_PUBLIC_PATH
+  }
 
   const canvas = document.createElement('canvas')
   canvas.width = img.width
   canvas.height = img.height
   const ctx = canvas.getContext('2d')
-  if (!ctx) return '/linkmate-logo.png'
+  if (!ctx) return LINKMATE_LOGO_PUBLIC_PATH
 
   ctx.drawImage(img, 0, 0)
   const data = ctx.getImageData(0, 0, canvas.width, canvas.height)

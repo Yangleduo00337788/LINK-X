@@ -7,7 +7,7 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 // 创建路由实例
 const router = createRouter({
   // 使用 Hash 模式（#/path），兼容 Electron file:// 与 Web 部署无需服务端配置
-  history: createWebHashHistory(),
+  history: createWebHashHistory(import.meta.env.BASE_URL),
   // 路由表：主窗口 + 两个独立 Electron 子窗口
   routes: [
     {

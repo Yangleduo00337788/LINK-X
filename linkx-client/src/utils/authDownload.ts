@@ -13,20 +13,26 @@ import { t } from '../i18n'
 
 const apiBase = API_BASE_URL
 
+function resolveAuthApiUrl(apiPath: string): string {
+  const path = apiPath.startsWith('/') ? apiPath : `/${apiPath}`
+  const joined = `${apiBase}${path}`
+  if (/^https?:\/\//i.test(joined)) return joined
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'http://127.0.0.1'
+  return new URL(joined, origin).toString()
+}
+
 async function authFetch(apiPath: string): Promise<Response | null> {
   const isWeb = isWebEnvironment()
   const token = await getToken('accessToken')
   if (!isWeb && !token) {
     return null
   }
-  const path = apiPath.startsWith('/') ? apiPath : `/${apiPath}`
-  const url = new URL(`${apiBase}${path}`)
   const headers: Record<string, string> = {}
   if (token) {
     headers.Authorization = `Bearer ${token}`
   }
   try {
-    const res = await fetch(url.toString(), {
+    const res = await fetch(resolveAuthApiUrl(apiPath), {
       headers,
       credentials: isWeb ? 'include' : 'same-origin'
     })
@@ -83,8 +89,7 @@ export async function downloadAuthenticatedApi(
     return { ok: false, message: t('errors.wsNotLoggedIn') }
   }
 
-  const path = apiPath.startsWith('/') ? apiPath : `/${apiPath}`
-  const url = new URL(`${apiBase}${path}`)
+  const url = new URL(resolveAuthApiUrl(apiPath))
   if (query) {
     for (const [k, v] of Object.entries(query)) {
       if (v != null && v !== '') url.searchParams.set(k, v)

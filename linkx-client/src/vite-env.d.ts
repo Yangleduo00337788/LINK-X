@@ -12,6 +12,8 @@ interface ImportMetaEnv {
   readonly VITE_HELP_PAGE_BASE_URL?: string
   /** WebRTC ICE 服务器 JSON 数组（可含 TURN） */
   readonly VITE_ICE_SERVERS?: string
+  /** 静态演示站：显示演示标识与仓库入口 */
+  readonly VITE_LINKX_DEMO?: string
 }
 
 interface ImportMeta {
