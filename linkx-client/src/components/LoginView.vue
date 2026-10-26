@@ -25,6 +25,7 @@ import { useI18n } from '../i18n'
 import { preloadClientResources } from '../utils/preloadClientResources'
 import { openLegalPageInBrowser } from '../utils/legalPage'
 import { WORDMARK_LOGO_URL } from '../utils/projectLogo'
+import DemoModeBrand from './DemoModeBrand.vue'
 import { resolveUserAvatarUrl } from '../utils/defaultAvatar'
 
 const message = useMessage()
@@ -649,6 +650,7 @@ async function handleForgot() {
     <div v-if="isElectron" class="login-win-bar">
       <div class="login-brand" aria-label="LinkX">
         <img class="login-brand-logo" :src="WORDMARK_LOGO_URL" alt="" draggable="false" />
+        <DemoModeBrand />
       </div>
       <div class="drag-area" />
       <div class="login-win-actions" @click.stop>
@@ -684,6 +686,7 @@ async function handleForgot() {
     </div>
     <div v-else class="login-brand login-brand--standalone" aria-label="LinkX">
       <img class="login-brand-logo" :src="WORDMARK_LOGO_URL" alt="" draggable="false" />
+      <DemoModeBrand />
     </div>
 
     <div
@@ -1237,6 +1240,10 @@ async function handleForgot() {
   left: 0;
   z-index: calc(var(--lx-z-sticky) + 1);
   pointer-events: none;
+}
+
+.login-brand--standalone :deep(.demo-mode-brand) {
+  pointer-events: auto;
 }
 
 .login-page--compact .login-brand {

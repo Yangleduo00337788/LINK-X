@@ -2251,6 +2251,17 @@ export default {
     restore: '向下还原',
     close: '关闭'
   },
+  demo: {
+    currentMode: '当前模式：',
+    demoMode: '演示模式',
+    github: 'GitHub 仓库',
+    gitee: 'Gitee 仓库',
+    splashTitle: '演示说明',
+    splashMock: '本站展示的数据、接口与交互全部为本地 Mock 模拟，不连接真实服务器，也不产生真实业务。',
+    splashSource: '想要真实体验，请查看源码。',
+    adminEntry: '管理后台',
+    adminHint: '点击进入 B 端运营后台'
+  },
   extra: {
     opFail: '操作失败',
     selectFriend: '选择好友',

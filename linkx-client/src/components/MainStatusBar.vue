@@ -13,6 +13,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '../stores/app'
 import { useI18n } from '../i18n'
 import { WORDMARK_LOGO_URL } from '../utils/projectLogo'
+import DemoModeBrand from './DemoModeBrand.vue'
 
 // 定义组件属性及默认值
 withDefaults(
@@ -59,6 +60,7 @@ const selectSessionHint = computed(() => t('chat.selectSession'))
         alt=""
         draggable="false"
       />
+      <DemoModeBrand v-if="variant === 'profile'" />
       <!-- chat 变体标题区 -->
       <template v-if="variant === 'chat'">
         <div class="profile-col">
@@ -129,6 +131,7 @@ const selectSessionHint = computed(() => t('chat.selectSession'))
   min-width: 12px;
   flex-shrink: 0;
   height: 40px;
+  overflow: visible;
   -webkit-app-region: drag;
 }
 

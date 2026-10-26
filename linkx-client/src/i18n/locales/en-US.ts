@@ -2251,6 +2251,18 @@ export default {
     restore: 'Restore',
     close: 'Close'
   },
+  demo: {
+    currentMode: 'Mode: ',
+    demoMode: 'Demo',
+    github: 'GitHub repository',
+    gitee: 'Gitee repository',
+    splashTitle: 'Demo notice',
+    splashMock:
+      'All data, APIs, and interactions on this site are local mocks. They do not connect to a real server or create real business activity.',
+    splashSource: 'For the real product experience, open the source code.',
+    adminEntry: 'Admin',
+    adminHint: 'Click to open the admin console'
+  },
   extra: {
     opFail: 'Operation failed',
     selectFriend: 'Select friend',

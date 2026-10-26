@@ -22,6 +22,7 @@ import {
   type GlobalThemeOverrides
 } from 'naive-ui'
 import App from './App.vue'
+import DemoWelcomeDialog from './components/DemoWelcomeDialog.vue'
 import LockScreen from './components/LockScreen.vue'
 import InAppToastBridge from './components/InAppToastBridge.vue'
 import WindowResizeEdges from './components/WindowResizeEdges.vue'
@@ -154,6 +155,7 @@ watch(theme, syncHtmlTheme)
             <WindowResizeEdges v-if="!useNativeFrame" />
           </Teleport>
           <App />
+          <DemoWelcomeDialog />
           <Teleport to="body">
             <LockScreen v-if="isLoggedIn && isLocked" />
           </Teleport>
