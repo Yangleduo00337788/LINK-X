@@ -38,7 +38,7 @@ function applyVisualPreferences(input: {
   const pal = primaryPalette(input.primaryColor)
   const rgb = hexToRgb(input.primaryColor)
   const radius = input.roundedCorners ? '8px' : '4px'
-  const cardRadius = input.roundedCorners ? '12px' : '4px'
+  const cardRadius = radius
 
   root.style.setProperty('--lx-accent', pal.primary)
   root.style.setProperty('--lx-oa-blue', pal.primary)

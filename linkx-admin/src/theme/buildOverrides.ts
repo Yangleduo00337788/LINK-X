@@ -101,7 +101,7 @@ export function buildThemeOverrides(
   rounded: boolean
 ): GlobalThemeOverrides {
   const radius = rounded ? '8px' : '4px'
-  const cardRadius = rounded ? '12px' : '4px'
+  const cardRadius = radius
   const base = theme === 'dark' ? darkThemeOverrides : lightThemeOverrides
   const merged = withPrimary(base, primaryHex)
   return {

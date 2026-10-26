@@ -145,19 +145,20 @@ function goHome() {
 
 <style scoped>
 .oa-nav-block {
-  margin-bottom: 16px;
+  margin-bottom: 8px;
 }
 
 .oa-tabs-bar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  margin-bottom: 12px;
-  border: 1px solid var(--lx-border);
-  border-radius: var(--lx-radius-card, 12px);
-  background: var(--lx-card);
-  box-shadow: var(--lx-card-shadow);
+  gap: 4px;
+  padding: 0 0 8px;
+  margin-bottom: 4px;
+  border: none;
+  border-bottom: 1px solid var(--lx-border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   overflow-x: auto;
 }
 
@@ -216,13 +217,13 @@ function goHome() {
   opacity: 1;
 }
 
-/* ── Page header card ── */
+/* ── 页头贴在灰底上，不再单独成卡 ── */
 .oa-page-header {
-  padding: 16px 20px 18px;
-  background: var(--lx-card);
-  border: 1px solid var(--lx-border);
-  border-radius: var(--lx-radius-card, 12px);
-  box-shadow: var(--lx-card-shadow);
+  padding: 4px 4px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .oa-breadcrumb {

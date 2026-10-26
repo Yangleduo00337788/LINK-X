@@ -1095,11 +1095,12 @@ onUnmounted(() => {
 .stat-strip {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
-  gap: 12px;
-  padding: 0;
-  overflow: visible;
-  background: transparent;
-  border: none;
+  gap: 0;
+  padding: 4px 0;
+  overflow: hidden;
+  background: var(--lx-card);
+  border: 1px solid var(--lx-border);
+  border-radius: var(--lx-radius-card, 8px);
   box-shadow: none;
 }
 
@@ -1108,12 +1109,17 @@ onUnmounted(() => {
   width: 100%;
   padding: 16px 12px;
   text-align: center;
-  border: 1px solid var(--lx-border);
-  border-radius: var(--lx-radius-card, 12px);
-  background: var(--lx-card);
-  box-shadow: var(--lx-card-shadow);
+  border: none;
+  border-right: 1px solid var(--lx-border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   font: inherit;
   color: inherit;
+}
+
+.stat-cell:last-child {
+  border-right: none;
 }
 
 .stat-cell--clickable {
@@ -1171,7 +1177,7 @@ onUnmounted(() => {
 .oa-panel-head {
   padding: 12px 20px;
   border-bottom: 1px solid var(--lx-border);
-  background: color-mix(in srgb, var(--lx-body) 55%, var(--lx-card));
+  background: var(--lx-card);
 }
 
 .oa-panel-head-row {
@@ -1217,8 +1223,8 @@ onUnmounted(() => {
 
 .todo-grid {
   display: grid;
-  gap: 12px;
-  padding: 16px;
+  gap: 0;
+  padding: 8px 4px 12px;
 }
 
 .todo-cell {
@@ -1227,11 +1233,11 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 88px;
-  padding: 12px 10px;
-  border: 1px solid var(--lx-border);
-  border-radius: var(--lx-radius-control, 8px);
-  background: color-mix(in srgb, var(--lx-body) 40%, var(--lx-card));
+  min-height: 72px;
+  padding: 10px 8px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
   cursor: pointer;
   transition: background 0.15s ease;
 }
@@ -1280,9 +1286,9 @@ onUnmounted(() => {
   align-items: center;
   gap: 6px;
   padding: 14px 10px;
-  border: 1px solid rgba(255, 77, 79, 0.18);
-  border-radius: var(--lx-radius-control, 8px);
-  background: var(--lx-card);
+  border: none;
+  border-radius: 0;
+  background: transparent;
   cursor: pointer;
 }
 
@@ -1303,7 +1309,7 @@ onUnmounted(() => {
 }
 
 .notice-table :deep(.n-data-table-th) {
-  background: color-mix(in srgb, var(--lx-body) 55%, var(--lx-card));
+  background: var(--lx-card);
   font-size: 12px;
 }
 
@@ -1386,25 +1392,24 @@ onUnmounted(() => {
   padding: 12px 8px;
   border: none;
   border-radius: 8px;
-  background: var(--lx-card);
+  background: transparent;
   cursor: pointer;
-  transition: transform 0.15s ease, opacity 0.15s ease;
+  transition: background 0.15s ease;
 }
 
 .module-cell:hover {
-  transform: translateY(-2px);
-  opacity: 0.92;
+  background: color-mix(in srgb, var(--lx-oa-blue) 8%, var(--lx-card));
 }
 
 .module-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
   display: grid;
   place-items: center;
   color: #fff;
   background: var(--module-bg);
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--module-bg) 35%, transparent);
+  box-shadow: none;
 }
 
 .module-label {
@@ -1422,10 +1427,10 @@ onUnmounted(() => {
 }
 
 .risk-cell {
-  padding: 12px 14px;
-  border: 1px solid var(--lx-border);
-  border-radius: var(--lx-radius-control, 8px);
-  background: color-mix(in srgb, var(--lx-body) 40%, var(--lx-card));
+  padding: 8px 4px 12px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
 }
 
 .risk-label {
@@ -1542,7 +1547,7 @@ onUnmounted(() => {
   width: 100%;
   padding: 12px 20px;
   border: none;
-  background: color-mix(in srgb, var(--lx-body) 55%, var(--lx-card));
+  background: var(--lx-card);
   cursor: pointer;
   text-align: left;
 }
@@ -1582,10 +1587,10 @@ onUnmounted(() => {
 
 .chart-card {
   min-width: 0;
-  padding: 12px;
-  border: 1px solid var(--lx-border);
-  border-radius: var(--lx-radius);
-  background: color-mix(in srgb, var(--lx-body) 28%, var(--lx-card));
+  padding: 12px 4px 8px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
 }
 
 .chart-card--wide {

@@ -20,7 +20,7 @@
   --lx-accent-hover-bg: rgba(var(--lx-primary-rgb), 0.06);
   --lx-radius: 8px;
   --lx-radius-control: 8px;
-  --lx-radius-card: 12px;
+  --lx-radius-card: 8px;
   --lx-sider-dark: #2e2e2e;
 }
 
@@ -43,8 +43,8 @@
   --lx-captcha-bg: #262626;
   --lx-avatar-bg: #303030;
   --lx-avatar-mask: rgba(0, 0, 0, 0.55);
-  --lx-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.24);
-  --lx-card-shadow-hover: 0 2px 8px rgba(0, 0, 0, 0.32);
+  --lx-card-shadow: none;
+  --lx-card-shadow-hover: none;
   --lx-accent-2: #10AEFF;
   --lx-accent-teal: #91D300;
   --lx-oa-red: #FA5151;
@@ -73,8 +73,8 @@
   --lx-captcha-bg: #fafafa;
   --lx-avatar-bg: #f0f0f0;
   --lx-avatar-mask: rgba(0, 0, 0, 0.45);
-  --lx-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
-  --lx-card-shadow-hover: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --lx-card-shadow: none;
+  --lx-card-shadow-hover: none;
   --lx-accent-2: #10AEFF;
   --lx-accent-teal: #91D300;
   --lx-oa-red: #FA5151;
@@ -185,14 +185,14 @@ a:hover {
   line-height: 1.5;
 }
 
-/* ── OA panel / card ── */
+/* ── OA panel / sheet（灰底上的白工作面，不做浮起卡片） ── */
 .page-card,
 .page-shell,
 .lx-surface-card {
   background: var(--lx-card);
   border: 1px solid var(--lx-border);
-  border-radius: var(--lx-radius-card, 12px);
-  box-shadow: var(--lx-card-shadow);
+  border-radius: var(--lx-radius-card, 8px);
+  box-shadow: none;
 }
 
 .page-card {
@@ -230,11 +230,33 @@ a:hover {
   max-width: 100%;
 }
 
+.page-shell .n-data-table,
+.page-shell .n-data-table-wrapper,
+.page-shell .n-data-table-base-table {
+  border-radius: 0;
+}
+
+.page-shell :deep(.n-data-table .n-data-table-wrapper),
+.page-shell .n-data-table .n-data-table-wrapper {
+  --n-merged-border-color: transparent;
+}
+
 .page-shell .n-data-table .n-scrollbar-rail--horizontal,
 .page .n-data-table .n-scrollbar-rail--horizontal {
   opacity: 1 !important;
   height: 10px;
   bottom: 2px;
+}
+
+/* 壳内不再套第二层卡片，避免白底叠白底 */
+.page-shell .page-card,
+.page-shell .lx-panel,
+.page-shell .lx-surface-card,
+.page-shell .chart-panel {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
 }
 
 .page-shell > .n-tabs {
@@ -253,9 +275,9 @@ a:hover {
 .lx-panel {
   background: var(--lx-card);
   border: 1px solid var(--lx-border);
-  border-radius: var(--lx-radius-card, 12px);
+  border-radius: var(--lx-radius-card, 8px);
   padding: 0;
-  box-shadow: var(--lx-card-shadow);
+  box-shadow: none;
   min-width: 0;
   position: relative;
   overflow: hidden;
@@ -268,7 +290,7 @@ a:hover {
 .lx-panel-head {
   padding: 12px 20px;
   border-bottom: 1px solid var(--lx-border);
-  background: var(--lx-panel-head-bg);
+  background: var(--lx-card);
   margin-bottom: 0;
 }
 
@@ -370,7 +392,7 @@ a:hover {
   font-weight: 600;
   color: var(--lx-text);
   border-bottom: 1px solid var(--lx-border);
-  background: var(--lx-panel-head-bg);
+  background: var(--lx-card);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -534,7 +556,7 @@ a:hover {
   border: 1px solid var(--lx-border);
   border-radius: var(--lx-radius);
   padding: 20px;
-  box-shadow: var(--lx-card-shadow);
+  box-shadow: none;
 }
 
 .page .whitelist h3 {
@@ -556,11 +578,11 @@ a:hover {
 }
 
 .page .toolbar {
-  background: var(--lx-card);
-  border: 1px solid var(--lx-border);
-  border-radius: var(--lx-radius);
-  padding: 16px 20px;
-  box-shadow: var(--lx-card-shadow);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0 0 12px;
+  box-shadow: none;
 }
 
 .page .muted {
