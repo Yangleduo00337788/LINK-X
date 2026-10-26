@@ -301,6 +301,12 @@ public class AdminRiskEventServiceImpl implements AdminRiskEventService {
     @Override
     public void recordRateLimit(Long userId, String identity, String scope, String ip) {
         String scopeLabel = StringUtils.hasText(scope) ? scope.trim() : "unknown";
+        if ("global-default".equalsIgnoreCase(scopeLabel)) {
+            return;
+        }
+        if (hasOpenRateLimit(userId, scopeLabel, ip)) {
+            return;
+        }
         String idLabel = StringUtils.hasText(identity) ? identity.trim() : "-";
         insertEvent(SysRiskEvent.builder()
                 .eventType(SysRiskEvent.TYPE_RATE_LIMIT)
@@ -317,6 +323,22 @@ public class AdminRiskEventServiceImpl implements AdminRiskEventService {
                 .createTime(new Date())
                 .updateTime(new Date())
                 .build());
+    }
+
+    /** 同一用户/IP + 限流范围若已有未处置记录，不再重复落库。 */
+    private boolean hasOpenRateLimit(Long userId, String scope, String ip) {
+        QueryWrapper qw = QueryWrapper.create()
+                .where(SysRiskEvent::getEventType).eq(SysRiskEvent.TYPE_RATE_LIMIT)
+                .and(SysRiskEvent::getStatus).eq(SysRiskEvent.STATUS_PENDING)
+                .and(SysRiskEvent::getExtraData).eq(scope);
+        if (userId != null) {
+            qw.and(SysRiskEvent::getUserId).eq(userId);
+        } else if (StringUtils.hasText(ip)) {
+            qw.and(SysRiskEvent::getIp).eq(ip);
+        } else {
+            return false;
+        }
+        return riskEventMapper.selectCountByQuery(qw) > 0;
     }
 
     private void insertEvent(SysRiskEvent event) {

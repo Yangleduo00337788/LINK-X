@@ -503,7 +503,7 @@ export default {
     pendingReports: 'Pending reports',
     todaySensitiveHits: 'Sensitive hits today',
     todayRiskBlocks: 'Risk blocks today',
-    riskEvents: 'Risk events (24h)',
+    riskEvents: 'Pending risk events',
     riskEvents24h: 'Risk events (24h)',
     banner1Title: 'Welcome to LinkX Admin',
     banner1Desc: 'Manage users, access control, logs and feedback in one place.',

@@ -41,6 +41,11 @@ public class RateLimitInterceptor implements HandlerInterceptor {
             return true;
         }
         RateLimit annotation = hm.getMethodAnnotation(RateLimit.class);
+        String servletPath = request.getServletPath();
+        // 管理端列表/轮询接口多，未标注的默认桶会把运营操作记成风控事件
+        if (annotation == null && servletPath != null && servletPath.startsWith("/admin/")) {
+            return true;
+        }
         BizRateLimitPolicyResolver.ResolvedLimit policy = bizRateLimitPolicyResolver.resolve(annotation);
         String identity;
         String scope;

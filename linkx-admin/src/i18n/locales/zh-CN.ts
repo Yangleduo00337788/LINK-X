@@ -501,7 +501,7 @@ export default {
     pendingReports: '待处理举报',
     todaySensitiveHits: '今日敏感词命中',
     todayRiskBlocks: '今日风控拦截',
-    riskEvents: '风险事件(24h)',
+    riskEvents: '待处理风险',
     riskEvents24h: '近 24h 风险',
     banner1Title: '欢迎使用 LinkX Admin',
     banner1Desc: '统一管理用户、权限、日志与反馈，掌握系统运行态势。',
