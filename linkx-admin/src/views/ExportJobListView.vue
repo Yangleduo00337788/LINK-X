@@ -68,7 +68,7 @@ function statusMeta(status?: ExportJobStatus) {
 const columns = computed<DataTableColumns<ExportJob>>(() => {
   void locale.value
   return [
-    { title: 'ID', key: 'id', width: 80 },
+    { title: 'ID', key: 'id', width: 180, ellipsis: { tooltip: true } },
     {
       title: t('exportJob.module'),
       key: 'module',

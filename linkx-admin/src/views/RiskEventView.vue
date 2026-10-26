@@ -141,7 +141,7 @@ const columns = computed<DataTableColumns<RiskEventItem>>(() => {
   void locale.value
   return [
     { type: 'selection', disabled: (row) => row.status !== 'pending' },
-    { title: 'ID', key: 'id', width: 90 },
+    { title: 'ID', key: 'id', width: 180, ellipsis: { tooltip: true } },
     {
       title: t('risk.eventType'),
       key: 'eventType',

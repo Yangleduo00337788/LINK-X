@@ -187,7 +187,7 @@ function displayImage(row: BannerItem) {
 const columns = computed<DataTableColumns<BannerItem>>(() => {
   void locale.value
   return [
-    { title: 'ID', key: 'id', width: 90 },
+    { title: 'ID', key: 'id', width: 180, ellipsis: { tooltip: true } },
     {
       title: t('banner.preview'),
       key: 'imageUrl',

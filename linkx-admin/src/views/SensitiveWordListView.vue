@@ -92,7 +92,7 @@ const rules = computed<FormRules>(() => {
 const columns = computed<DataTableColumns<SensitiveWordItem>>(() => {
   void locale.value
   return [
-    { title: 'ID', key: 'id', width: 90 },
+    { title: 'ID', key: 'id', width: 180, ellipsis: { tooltip: true } },
     { title: t('sensitive.word'), key: 'word', ellipsis: { tooltip: true } },
     {
       title: t('sensitive.category'),

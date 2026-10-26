@@ -154,7 +154,7 @@ function unpublishConfirmText(row: NoticeItem) {
 const columns = computed<DataTableColumns<NoticeItem>>(() => {
   void locale.value
   return [
-    { title: 'ID', key: 'id', width: 90 },
+    { title: 'ID', key: 'id', width: 180, ellipsis: { tooltip: true } },
     { title: t('notice.title'), key: 'title', ellipsis: { tooltip: true } },
     {
       title: t('notice.targetSide'),

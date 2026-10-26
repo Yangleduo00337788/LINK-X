@@ -240,7 +240,7 @@ const taskColumns = computed<DataTableColumns<SnailJobTaskItem>>(() => {
 const batchColumns = computed<DataTableColumns<SnailJobBatchItem>>(() => {
   void locale.value
   return [
-    { title: 'ID', key: 'id', width: 80 },
+    { title: 'ID', key: 'id', width: 140, ellipsis: { tooltip: true } },
     {
       title: t('scheduledTask.lastRun'),
       key: 'executionAt',

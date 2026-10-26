@@ -119,7 +119,7 @@ function statusTag(row: FeedbackItem) {
 const columns = computed<DataTableColumns<FeedbackItem>>(() => {
   void locale.value
   return [
-    { title: 'ID', key: 'id', width: 80 },
+    { title: 'ID', key: 'id', width: 180, ellipsis: { tooltip: true } },
     { title: t('feedback.user'), key: 'username', width: 120 },
     { title: t('feedback.type'), key: 'type', width: 100 },
     { title: t('feedback.content'), key: 'content', ellipsis: { tooltip: true } },

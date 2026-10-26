@@ -153,7 +153,7 @@ function onDeptChecked(keys: Array<string | number>) {
 const columns = computed<DataTableColumns<AdminRole>>(() => {
   void locale.value
   return [
-    { title: 'ID', key: 'id', width: 80 },
+    { title: 'ID', key: 'id', width: 100, ellipsis: { tooltip: true } },
     { title: t('role.roleCode'), key: 'roleCode' },
     { title: t('role.roleName'), key: 'roleName' },
     {

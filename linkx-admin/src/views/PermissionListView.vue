@@ -71,7 +71,7 @@ const statusFormOptions = computed(() => {
 const columns = computed<DataTableColumns<AdminPermission>>(() => {
   void locale.value
   return [
-    { title: 'ID', key: 'id', width: 80 },
+    { title: 'ID', key: 'id', width: 100, ellipsis: { tooltip: true } },
     { title: t('permission.permissionCode'), key: 'permissionCode', ellipsis: { tooltip: true } },
     {
       title: t('permission.permissionName'),

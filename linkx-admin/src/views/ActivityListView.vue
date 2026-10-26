@@ -133,7 +133,7 @@ function toMillis(value?: string | number | Date | null): number | null {
 const columns = computed<DataTableColumns<ActivityItem>>(() => {
   void locale.value
   return [
-    { title: 'ID', key: 'id', width: 90 },
+    { title: 'ID', key: 'id', width: 180, ellipsis: { tooltip: true } },
     {
       title: t('activity.preview'),
       key: 'coverUrl',

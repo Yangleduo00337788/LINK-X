@@ -57,7 +57,7 @@ const resultStatusOptions = computed(() => {
 const columns = computed<DataTableColumns<AuditLog>>(() => {
   void locale.value
   return [
-    { title: 'ID', key: 'id', width: 80 },
+    { title: 'ID', key: 'id', width: 180, ellipsis: { tooltip: true } },
     { title: t('audit.operationType'), key: 'operationType', width: 140 },
     { title: t('common.description'), key: 'description', width: 220, ellipsis: { tooltip: true } },
     {

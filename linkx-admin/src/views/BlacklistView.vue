@@ -95,7 +95,7 @@ function statusTag(status?: string) {
 const columns = computed<DataTableColumns<BlacklistItem>>(() => {
   void locale.value
   return [
-    { title: 'ID', key: 'id', width: 90 },
+    { title: 'ID', key: 'id', width: 180, ellipsis: { tooltip: true } },
     {
       title: t('user.username'),
       key: 'username',

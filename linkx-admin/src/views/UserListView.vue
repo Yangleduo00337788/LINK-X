@@ -124,10 +124,10 @@ function actionOptions(row: AdminUserListItem): DropdownOption[] {
 const columns = computed<DataTableColumns<AdminUserListItem>>(() => {
   void locale.value
   return [
-    { title: 'ID', key: 'id', width: 80 },
-    { title: t('user.username'), key: 'username', ellipsis: { tooltip: true } },
-    { title: t('user.nickname'), key: 'nickname', ellipsis: { tooltip: true } },
-    { title: t('user.email'), key: 'email', ellipsis: { tooltip: true } },
+    { title: 'ID', key: 'id', width: 180, ellipsis: { tooltip: true } },
+    { title: t('user.username'), key: 'username', width: 140, ellipsis: { tooltip: true } },
+    { title: t('user.nickname'), key: 'nickname', width: 120, ellipsis: { tooltip: true } },
+    { title: t('user.email'), key: 'email', width: 180, ellipsis: { tooltip: true } },
     {
       title: t('common.status'),
       key: 'status',
@@ -140,6 +140,8 @@ const columns = computed<DataTableColumns<AdminUserListItem>>(() => {
     {
       title: t('user.roles'),
       key: 'roles',
+      width: 140,
+      ellipsis: { tooltip: true },
       render: (row) => (row.roles?.length ? row.roles.join(', ') : t('common.none')),
     },
     {
@@ -151,7 +153,7 @@ const columns = computed<DataTableColumns<AdminUserListItem>>(() => {
     {
       title: t('common.actions'),
       key: 'actions',
-      width: 180,
+      width: 132,
       fixed: 'right',
       render: (row) => {
         const opts = actionOptions(row)
@@ -355,7 +357,7 @@ onMounted(() => {
             v-model:value="query.range"
             type="datetimerange"
             clearable
-            style="width: 360px"
+            style="width: min(360px, 100%)"
           />
           <NButton type="primary" @click="search">{{ t('common.search') }}</NButton>
         </NSpace>
@@ -387,7 +389,7 @@ onMounted(() => {
             load()
           },
         }"
-        :scroll-x="1100"
+        :scroll-x="1280"
         remote
       />
     </div>

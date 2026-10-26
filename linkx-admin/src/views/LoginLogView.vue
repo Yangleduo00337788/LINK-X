@@ -44,7 +44,7 @@ const resultOptions = computed(() => {
 const columns = computed<DataTableColumns<LoginLog>>(() => {
   void locale.value
   return [
-    { title: 'ID', key: 'id', width: 80 },
+    { title: 'ID', key: 'id', width: 180, ellipsis: { tooltip: true } },
     { title: t('loginLog.userId'), key: 'userId', width: 100 },
     { title: t('loginLog.username'), key: 'username', width: 140 },
     {
