@@ -26,7 +26,7 @@ npm run dev
 
 ## 演示图片资源
 
-首次或更新素材时下载真实图片到 `public/demo-media`（门户 / 客户端 / 管理端共用）：
+首次或更新素材时下载真实图片到门户 `portal/public/demo-media`：
 
 ```bash
 cd linkx-demo

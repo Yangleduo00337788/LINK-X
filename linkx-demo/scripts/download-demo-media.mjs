@@ -1,17 +1,13 @@
 /**
  * 作者：yangleduo
- * 下载演示用真实图片到 portal / client 静态目录（可重复执行）
+ * 下载演示用真实图片到门户静态目录（可重复执行）
  */
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const demoRoot = fileURLToPath(new URL('..', import.meta.url))
-const targets = [
-  path.join(demoRoot, 'portal/public/demo-media'),
-  path.join(demoRoot, '../linkx-client/public/demo-media'),
-  path.join(demoRoot, '../linkx-admin/public/demo-media'),
-]
+const targets = [path.join(demoRoot, 'portal/public/demo-media')]
 
 const files = [
   { file: 'avatar-01.jpg', url: 'https://picsum.photos/seed/linkx-a01/256/256' },

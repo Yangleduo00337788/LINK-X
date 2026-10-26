@@ -7,11 +7,7 @@ import { fileURLToPath } from 'node:url'
 import type { ServerResponse } from 'node:http'
 
 const demoRoot = fileURLToPath(new URL('../../..', import.meta.url))
-const mediaRoots = [
-  path.join(demoRoot, 'portal/public/demo-media'),
-  path.join(demoRoot, '../linkx-client/public/demo-media'),
-  path.join(demoRoot, '../linkx-admin/public/demo-media'),
-]
+const mediaRoots = [path.join(demoRoot, 'portal/public/demo-media')]
 
 function resolveMediaFile(relative: string): string | null {
   for (const root of mediaRoots) {
