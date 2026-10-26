@@ -20,7 +20,7 @@ function applyDom(locale: AppLocale, theme: AppTheme) {
 }
 
 function clampOpacity(v: number) {
-  if (Number.isNaN(v)) return 0.12
+  if (Number.isNaN(v)) return 0.06
   return Math.min(0.5, Math.max(0.02, v))
 }
 
@@ -38,6 +38,7 @@ function applyVisualPreferences(input: {
   const pal = primaryPalette(input.primaryColor)
   const rgb = hexToRgb(input.primaryColor)
   const radius = input.roundedCorners ? '8px' : '4px'
+  const cardRadius = input.roundedCorners ? '12px' : '4px'
 
   root.style.setProperty('--lx-accent', pal.primary)
   root.style.setProperty('--lx-oa-blue', pal.primary)
@@ -45,6 +46,8 @@ function applyVisualPreferences(input: {
   root.style.setProperty('--lx-accent-hover', pal.hover)
   root.style.setProperty('--lx-accent-pressed', pal.pressed)
   root.style.setProperty('--lx-radius', radius)
+  root.style.setProperty('--lx-radius-card', cardRadius)
+  root.style.setProperty('--lx-radius-control', radius)
   if (rgb) {
     root.style.setProperty('--lx-primary-rgb', `${rgb.r}, ${rgb.g}, ${rgb.b}`)
     root.style.setProperty('--lx-login-grad-1', `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.22)`)
@@ -78,14 +81,14 @@ export const usePreferencesStore = defineStore(
     const menuAccordion = ref(true)
     const footerEnabled = ref(false)
     const footerText = ref('')
-    const roundedCorners = ref(false)
+    const roundedCorners = ref(true)
     const formStyle = ref<FormContainerStyle>('drawer')
     const grayscaleMode = ref(false)
 
     const watermarkEnabled = ref(true)
     const watermarkFullscreen = ref(true)
     const watermarkLines = ref<string[]>([])
-    const watermarkOpacity = ref(0.12)
+    const watermarkOpacity = ref(0.06)
     const voiceNotifyEnabled = ref(true)
     const speechVoiceUri = ref('')
 
@@ -254,6 +257,13 @@ export const usePreferencesStore = defineStore(
         }
       } catch {
         /* ignore */
+      }
+      if (primaryColor.value.toLowerCase() === '#1890ff') {
+        primaryColor.value = DEFAULT_PRIMARY_COLOR
+      }
+      roundedCorners.value = true
+      if (watermarkOpacity.value >= 0.12) {
+        watermarkOpacity.value = 0.06
       }
       syncAppearanceTheme()
       setI18nLocale(locale.value)

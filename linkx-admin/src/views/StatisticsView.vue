@@ -996,7 +996,7 @@ onMounted(() => {
 .kpi-card {
   background: var(--lx-card);
   border: 1px solid var(--lx-border);
-  border-radius: var(--lx-radius);
+  border-radius: var(--lx-radius-card, 12px);
   padding: 16px 20px 10px;
   box-shadow: var(--lx-card-shadow);
   display: flex;
@@ -1046,7 +1046,7 @@ onMounted(() => {
 .chart-panel {
   background: var(--lx-card);
   border: 1px solid var(--lx-border);
-  border-radius: var(--lx-radius);
+  border-radius: var(--lx-radius-card, 12px);
   padding: 0;
   box-shadow: var(--lx-card-shadow);
   min-width: 0;

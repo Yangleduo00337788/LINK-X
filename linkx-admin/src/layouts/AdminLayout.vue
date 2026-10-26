@@ -381,6 +381,16 @@ const watermarkContent = computed(() => {
 const showFullscreenWm = computed(() => watermarkEnabled.value && watermarkFullscreen.value)
 const showContentWm = computed(() => watermarkEnabled.value && !watermarkFullscreen.value)
 
+const watermarkTile = {
+  fontSize: 12,
+  lineHeight: 16,
+  width: 360,
+  height: 260,
+  xOffset: 56,
+  yOffset: 110,
+  rotate: -22,
+}
+
 const resolvedFooterText = computed(() => {
   const custom = footerText.value?.trim()
   return custom || t('themeConfig.footerText')
@@ -556,7 +566,7 @@ async function onUserSelect(key: string) {
         </NLayoutHeader>
         <NLayoutContent
           class="main-content"
-          :content-style="`padding: 12px 16px 20px; min-height: ${contentMinHeight};`"
+          :content-style="`padding: 16px 20px 24px; min-height: ${contentMinHeight};`"
           native-scrollbar
         >
           <div class="content-inner">
@@ -568,13 +578,13 @@ async function onUserSelect(key: string) {
               :content="watermarkContent"
               cross
               selectable
-              :font-size="14"
-              :line-height="18"
-              :width="220"
-              :height="140"
-              :x-offset="12"
-              :y-offset="60"
-              :rotate="-18"
+              :font-size="watermarkTile.fontSize"
+              :line-height="watermarkTile.lineHeight"
+              :width="watermarkTile.width"
+              :height="watermarkTile.height"
+              :x-offset="watermarkTile.xOffset"
+              :y-offset="watermarkTile.yOffset"
+              :rotate="watermarkTile.rotate"
               :font-color="watermarkFontColor"
             >
               <div class="wm-fill" />
@@ -632,7 +642,7 @@ async function onUserSelect(key: string) {
       </NLayoutHeader>
       <NLayoutContent
         class="main-content"
-        :content-style="`padding: 12px 16px 20px; min-height: ${contentMinHeight};`"
+        :content-style="`padding: 16px 20px 24px; min-height: ${contentMinHeight};`"
         native-scrollbar
       >
         <div class="content-inner">
@@ -644,13 +654,13 @@ async function onUserSelect(key: string) {
             :content="watermarkContent"
             cross
             selectable
-            :font-size="14"
-            :line-height="18"
-            :width="220"
-            :height="140"
-            :x-offset="12"
-            :y-offset="60"
-            :rotate="-18"
+            :font-size="watermarkTile.fontSize"
+            :line-height="watermarkTile.lineHeight"
+            :width="watermarkTile.width"
+            :height="watermarkTile.height"
+            :x-offset="watermarkTile.xOffset"
+            :y-offset="watermarkTile.yOffset"
+            :rotate="watermarkTile.rotate"
             :font-color="watermarkFontColor"
           >
             <div class="wm-fill" />
@@ -710,7 +720,7 @@ async function onUserSelect(key: string) {
           bordered
           collapse-mode="width"
           :collapsed-width="64"
-          :width="200"
+          :width="220"
           :collapsed="collapsed"
           show-trigger
           :class="siderClass"
@@ -745,7 +755,7 @@ async function onUserSelect(key: string) {
         <NLayout>
           <NLayoutContent
             class="main-content"
-            :content-style="`padding: 12px 16px 20px; min-height: ${contentMinHeight};`"
+            :content-style="`padding: 16px 20px 24px; min-height: ${contentMinHeight};`"
             native-scrollbar
           >
             <div class="content-inner">
@@ -757,13 +767,13 @@ async function onUserSelect(key: string) {
                 :content="watermarkContent"
                 cross
                 selectable
-                :font-size="14"
-                :line-height="18"
-                :width="220"
-                :height="140"
-                :x-offset="12"
-                :y-offset="60"
-                :rotate="-18"
+                :font-size="watermarkTile.fontSize"
+                :line-height="watermarkTile.lineHeight"
+                :width="watermarkTile.width"
+                :height="watermarkTile.height"
+                :x-offset="watermarkTile.xOffset"
+                :y-offset="watermarkTile.yOffset"
+                :rotate="watermarkTile.rotate"
                 :font-color="watermarkFontColor"
               >
                 <div class="wm-fill" />
@@ -783,13 +793,13 @@ async function onUserSelect(key: string) {
       :content="watermarkContent"
       cross
       selectable
-      :font-size="14"
-      :line-height="18"
-      :width="220"
-      :height="140"
-      :x-offset="16"
-      :y-offset="80"
-      :rotate="-18"
+      :font-size="watermarkTile.fontSize"
+      :line-height="watermarkTile.lineHeight"
+      :width="watermarkTile.width"
+      :height="watermarkTile.height"
+      :x-offset="watermarkTile.xOffset"
+      :y-offset="watermarkTile.yOffset"
+      :rotate="watermarkTile.rotate"
       :z-index="30"
       :font-color="watermarkFontColor"
     >
@@ -826,8 +836,8 @@ async function onUserSelect(key: string) {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 64px;
-  padding: 0 12px;
+  height: 56px;
+  padding: 0 16px;
   box-sizing: border-box;
   border-bottom: 1px solid var(--lx-border);
   background: var(--lx-sider-bg, var(--lx-brand-bg));
@@ -836,8 +846,8 @@ async function onUserSelect(key: string) {
 
 .sider-menu-wrap {
   position: relative;
-  padding: 8px 0 12px;
-  height: calc(100vh - 64px);
+  padding: 8px 0 16px;
+  height: calc(100vh - 56px);
   overflow: auto;
   background: var(--lx-sider-bg, var(--lx-brand-bg));
   scrollbar-width: none;
@@ -866,9 +876,9 @@ async function onUserSelect(key: string) {
 
 .sider-menu-hover {
   position: absolute;
-  left: 8px;
-  right: 8px;
-  border-radius: var(--lx-radius);
+  left: 10px;
+  right: 10px;
+  border-radius: var(--lx-radius-control, 8px);
   background: color-mix(in srgb, var(--lx-oa-blue) 10%, transparent);
   pointer-events: none;
   z-index: 0;
@@ -886,6 +896,17 @@ async function onUserSelect(key: string) {
 .admin-sider :deep(.n-menu) {
   position: relative;
   z-index: 1;
+  padding: 0 8px;
+}
+
+.admin-sider :deep(.n-menu-item),
+.admin-sider :deep(.n-submenu) {
+  margin: 2px 0;
+}
+
+.admin-sider :deep(.n-menu-item-content) {
+  position: relative;
+  border-radius: var(--lx-radius-control, 8px) !important;
 }
 
 .admin-sider :deep(.n-menu-item-content:hover) {
@@ -894,7 +915,12 @@ async function onUserSelect(key: string) {
 
 .admin-sider:not(.admin-sider--dark) :deep(.n-menu-item-content--selected),
 .admin-sider:not(.admin-sider--dark) :deep(.n-menu-item-content--child-active) {
-  background-color: color-mix(in srgb, var(--lx-oa-blue) 8%, transparent) !important;
+  background-color: color-mix(in srgb, var(--lx-oa-blue) 10%, transparent) !important;
+}
+
+.admin-sider--dark :deep(.n-menu-item-content--selected),
+.admin-sider--dark :deep(.n-menu-item-content--child-active) {
+  background-color: rgba(255, 255, 255, 0.08) !important;
 }
 
 .admin-sider {
@@ -908,14 +934,32 @@ async function onUserSelect(key: string) {
 }
 
 .admin-sider--dark {
-  --lx-sider-bg: #001529;
+  --lx-sider-bg: var(--lx-sider-dark, #2e2e2e);
   --lx-border: rgba(255, 255, 255, 0.08);
 }
 
 .admin-sider--dark .brand,
 .admin-sider--dark .sider-menu-wrap {
-  background: #001529;
+  background: var(--lx-sider-dark, #2e2e2e);
   border-color: rgba(255, 255, 255, 0.08);
+}
+
+.admin-sider :deep(.n-menu-item-content--selected)::after,
+.admin-sider :deep(.n-menu-item-content--child-active)::after {
+  display: none !important;
+}
+
+.admin-sider :deep(.n-menu-item-content--selected)::before,
+.admin-sider :deep(.n-menu-item-content--child-active)::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--lx-accent);
+  z-index: 1;
 }
 
 .admin-sider--light {
@@ -923,7 +967,7 @@ async function onUserSelect(key: string) {
 }
 
 .header {
-  height: 48px;
+  height: 56px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -931,7 +975,7 @@ async function onUserSelect(key: string) {
   background: var(--lx-card);
   border-bottom: 1px solid var(--lx-border);
   box-shadow: none;
-  gap: 12px;
+  gap: 16px;
 }
 
 .header--top {
@@ -975,7 +1019,7 @@ async function onUserSelect(key: string) {
 }
 
 .header.header--dark-nav:not(.header--primary) {
-  background: #001529 !important;
+  background: var(--lx-sider-dark, #2e2e2e) !important;
   border-bottom-color: rgba(255, 255, 255, 0.08) !important;
 }
 
@@ -1009,7 +1053,8 @@ async function onUserSelect(key: string) {
 }
 
 .header :deep(.n-button) {
-  height: 32px;
+  height: 36px;
+  border-radius: var(--lx-radius-control, 8px);
 }
 
 .header-avatar {
@@ -1035,7 +1080,7 @@ async function onUserSelect(key: string) {
 .content-inner {
   position: relative;
   min-height: 100%;
-  padding-right: 8px;
-  padding-bottom: 56px;
+  min-width: 0;
+  padding-bottom: 48px;
 }
 </style>

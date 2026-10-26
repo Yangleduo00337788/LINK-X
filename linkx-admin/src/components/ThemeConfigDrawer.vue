@@ -383,7 +383,7 @@ const formStyleOptions = computed(() => [
 }
 
 .layout-thumb-nav.is-dark {
-  background: #001529;
+  background: var(--lx-sider-dark, #2e2e2e);
 }
 
 .layout-thumb-nav.is-light {
@@ -414,7 +414,7 @@ const formStyleOptions = computed(() => [
 }
 
 .layout-thumb-header.is-dark {
-  background: #001529;
+  background: var(--lx-sider-dark, #2e2e2e);
 }
 
 .layout-thumb-header.is-light {

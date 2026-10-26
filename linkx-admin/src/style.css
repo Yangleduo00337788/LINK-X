@@ -9,16 +9,19 @@
 
 /* 主题色由 preferences.applyVisualPreferences 写入 inline，避免被主题块覆盖 */
 :root {
-  --lx-oa-blue: #1890ff;
-  --lx-accent: #1890ff;
-  --lx-stat-accent: #1890ff;
-  --lx-accent-hover: #40a9ff;
-  --lx-accent-pressed: #096dd9;
-  --lx-primary-rgb: 24, 144, 255;
+  --lx-oa-blue: #07C160;
+  --lx-accent: #07C160;
+  --lx-stat-accent: #07C160;
+  --lx-accent-hover: #06AD56;
+  --lx-accent-pressed: #059048;
+  --lx-primary-rgb: 7, 193, 96;
   --lx-accent-soft-bg: rgba(var(--lx-primary-rgb), 0.12);
   --lx-accent-soft-border: rgba(var(--lx-primary-rgb), 0.35);
   --lx-accent-hover-bg: rgba(var(--lx-primary-rgb), 0.06);
-  --lx-radius: 4px;
+  --lx-radius: 8px;
+  --lx-radius-control: 8px;
+  --lx-radius-card: 12px;
+  --lx-sider-dark: #2e2e2e;
 }
 
 [data-theme='dark'] {
@@ -33,49 +36,49 @@
   --lx-brand-text-muted: #a6a6a6;
   --lx-scrollbar: #434343;
   --lx-login-grad-1: rgba(var(--lx-primary-rgb), 0.22);
-  --lx-login-grad-2: rgba(19, 194, 194, 0.14);
-  --lx-login-grad-3: rgba(114, 46, 209, 0.1);
-  --lx-login-base: linear-gradient(145deg, #0a0e14 0%, #101820 38%, #0d1520 68%, #0a1018 100%);
+  --lx-login-grad-2: rgba(7, 193, 96, 0.12);
+  --lx-login-grad-3: rgba(16, 174, 255, 0.08);
+  --lx-login-base: linear-gradient(145deg, #1a1a1a 0%, #242424 42%, #1f1f1f 100%);
   --lx-login-card: rgba(31, 31, 31, 0.96);
   --lx-captcha-bg: #262626;
   --lx-avatar-bg: #303030;
   --lx-avatar-mask: rgba(0, 0, 0, 0.55);
   --lx-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.24);
   --lx-card-shadow-hover: 0 2px 8px rgba(0, 0, 0, 0.32);
-  --lx-accent-2: #722ed1;
-  --lx-accent-teal: #13c2c2;
-  --lx-oa-red: #cf1322;
-  --lx-oa-green: #52c41a;
+  --lx-accent-2: #10AEFF;
+  --lx-accent-teal: #91D300;
+  --lx-oa-red: #FA5151;
+  --lx-oa-green: #07C160;
   --lx-panel-head-bg: #262626;
   --lx-table-head-bg: #262626;
   --lx-surface-mesh: none;
 }
 
 [data-theme='light'] {
-  --lx-body: #f5f7fa;
+  --lx-body: #ededed;
   --lx-card: #ffffff;
-  --lx-border: #e8eaed;
-  --lx-text: #303133;
-  --lx-text-2: #606266;
-  --lx-text-3: #757575;
+  --lx-border: rgba(0, 0, 0, 0.08);
+  --lx-text: rgba(0, 0, 0, 0.9);
+  --lx-text-2: rgba(0, 0, 0, 0.55);
+  --lx-text-3: rgba(0, 0, 0, 0.3);
   --lx-brand-bg: #ffffff;
-  --lx-brand-text: #303133;
-  --lx-brand-text-muted: #909399;
-  --lx-scrollbar: #c0c4cc;
+  --lx-brand-text: rgba(0, 0, 0, 0.9);
+  --lx-brand-text-muted: rgba(0, 0, 0, 0.45);
+  --lx-scrollbar: #c8c8c8;
   --lx-login-grad-1: rgba(var(--lx-primary-rgb), 0.16);
-  --lx-login-grad-2: rgba(19, 194, 194, 0.12);
-  --lx-login-grad-3: rgba(114, 46, 209, 0.08);
-  --lx-login-base: linear-gradient(145deg, #e8f4ff 0%, #f0f7ff 35%, #f5f8fc 70%, #f7f9fb 100%);
+  --lx-login-grad-2: rgba(7, 193, 96, 0.1);
+  --lx-login-grad-3: rgba(16, 174, 255, 0.06);
+  --lx-login-base: linear-gradient(145deg, #f6f6f6 0%, #f0f7f3 38%, #f7f7f7 100%);
   --lx-login-card: rgba(255, 255, 255, 0.98);
   --lx-captcha-bg: #fafafa;
   --lx-avatar-bg: #f0f0f0;
   --lx-avatar-mask: rgba(0, 0, 0, 0.45);
   --lx-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
   --lx-card-shadow-hover: 0 2px 8px rgba(0, 0, 0, 0.06);
-  --lx-accent-2: #722ed1;
-  --lx-accent-teal: #13c2c2;
-  --lx-oa-red: #cf1322;
-  --lx-oa-green: #52c41a;
+  --lx-accent-2: #10AEFF;
+  --lx-accent-teal: #91D300;
+  --lx-oa-red: #FA5151;
+  --lx-oa-green: #07C160;
   --lx-panel-head-bg: #fafafa;
   --lx-table-head-bg: #fafafa;
   --lx-surface-mesh: none;
@@ -103,7 +106,7 @@ a {
 }
 
 a:hover {
-  color: var(--lx-accent-hover, #40a9ff);
+  color: var(--lx-accent-hover, #06AD56);
 }
 
 ::-webkit-scrollbar {
@@ -120,14 +123,15 @@ a:hover {
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
 }
 
 .header-action-btn.n-button {
-  width: 32px;
-  height: 32px;
-  min-width: 32px;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
   padding: 0;
+  border-radius: var(--lx-radius-control, 8px);
 }
 
 .header-action-btn.n-button :deep(.n-button__content) {
@@ -137,15 +141,17 @@ a:hover {
 }
 
 .header-user-btn.n-button {
-  height: 32px;
-  padding: 0 10px;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: var(--lx-radius-control, 8px);
 }
 
 /* ── Page layout ── */
 .page {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
+  min-width: 0;
 }
 
 .page-header {
@@ -185,7 +191,7 @@ a:hover {
 .lx-surface-card {
   background: var(--lx-card);
   border: 1px solid var(--lx-border);
-  border-radius: var(--lx-radius);
+  border-radius: var(--lx-radius-card, 12px);
   box-shadow: var(--lx-card-shadow);
 }
 
@@ -196,6 +202,7 @@ a:hover {
 .page-shell {
   padding: 20px;
   overflow: hidden;
+  min-width: 0;
 }
 
 .page-shell > .page-toolbar {
@@ -212,6 +219,22 @@ a:hover {
 
 .page-shell > .n-data-table {
   margin-top: 4px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.page-shell .n-data-table-wrapper,
+.page .n-data-table-wrapper {
+  width: 100%;
+  max-width: 100%;
+}
+
+.page-shell .n-data-table .n-scrollbar-rail--horizontal,
+.page .n-data-table .n-scrollbar-rail--horizontal {
+  opacity: 1 !important;
+  height: 10px;
+  bottom: 2px;
 }
 
 .page-shell > .n-tabs {
@@ -230,7 +253,7 @@ a:hover {
 .lx-panel {
   background: var(--lx-card);
   border: 1px solid var(--lx-border);
-  border-radius: var(--lx-radius);
+  border-radius: var(--lx-radius-card, 12px);
   padding: 0;
   box-shadow: var(--lx-card-shadow);
   min-width: 0;
@@ -308,6 +331,28 @@ a:hover {
 
 .page-toolbar {
   margin-bottom: 16px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px 12px;
+}
+
+.page-toolbar.n-space {
+  flex-wrap: wrap;
+}
+
+.page-toolbar > .n-space {
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.page-toolbar > :last-child {
+  margin-left: auto;
+}
+
+.page-toolbar .n-date-picker {
+  width: min(360px, 100%) !important;
+  max-width: 100%;
 }
 
 /* ── Monitor / chart cards ── */
@@ -423,11 +468,17 @@ a:hover {
   color: var(--lx-text) !important;
   padding: 12px 16px !important;
   border-bottom: 1px solid var(--lx-border) !important;
+  white-space: nowrap;
+}
+
+.page-shell .n-data-table-th,
+.page .n-data-table-th {
+  white-space: nowrap;
 }
 
 .page-shell .n-data-table .n-data-table-tr:not(.n-data-table-tr--summary):hover .n-data-table-td,
 .page .n-data-table .n-data-table-tr:not(.n-data-table-tr--summary):hover .n-data-table-td {
-  background: #f5f7fa !important;
+  background: color-mix(in srgb, var(--lx-oa-blue) 6%, var(--lx-card)) !important;
 }
 
 [data-theme='dark'] .page-shell .n-data-table .n-data-table-tr:not(.n-data-table-tr--summary):hover .n-data-table-td,
@@ -449,45 +500,7 @@ a:hover {
   background-color: var(--lx-oa-blue);
 }
 
-/* ── Sidebar menu (Gougu OA: white + left blue bar) ── */
-.n-menu .n-menu-item-content {
-  border-radius: 0 !important;
-  margin: 0 !important;
-  width: 100% !important;
-  padding-left: 16px !important;
-}
-
-.n-menu .n-menu-item-content::before {
-  display: none !important;
-}
-
-.n-menu .n-menu-item-content--selected,
-.n-menu .n-menu-item-content--child-active {
-  position: relative !important;
-  border-left: 0 !important;
-  box-shadow: none !important;
-}
-
-.n-menu .n-menu-item-content--selected::after,
-.n-menu .n-submenu-child-active > .n-menu-item-content::after,
-.n-menu .n-menu-item-content--child-active::after {
-  content: '' !important;
-  display: block !important;
-  position: absolute !important;
-  right: 0 !important;
-  left: auto !important;
-  top: 0 !important;
-  bottom: 0 !important;
-  width: 3px !important;
-  height: auto !important;
-  border: none !important;
-  border-radius: 0 !important;
-  background: var(--lx-oa-blue) !important;
-}
-
-.n-menu .n-submenu-children .n-menu-item-content {
-  padding-left: 48px !important;
-}
+/* 侧栏菜单圆角 / 选中条由 AdminLayout 控制，避免全局把顶栏菜单压成直角 */
 
 /* ── OA block title (settings etc.) ── */
 .block-title {
@@ -655,10 +668,10 @@ a:hover {
 
 /* 次要按钮：深色字 + 浅色底（禁止白字叠浅底造成花屏感） */
 .n-button--error-type.n-button--secondary {
-  color: #cf1322 !important;
+  color: var(--lx-oa-red) !important;
   background: #fff1f0 !important;
   border-color: #ffccc7 !important;
-  --n-text-color: #cf1322 !important;
+  --n-text-color: var(--lx-oa-red) !important;
   --n-color: #fff1f0 !important;
   --n-border: 1px solid #ffccc7 !important;
 }
@@ -719,8 +732,8 @@ a:hover {
 
 .n-data-table .n-button--error-type.n-button--secondary,
 .n-data-table .n-button--error-type[style*='--n-height: initial'] {
-  color: #cf1322 !important;
-  --n-text-color: #cf1322 !important;
+  color: var(--lx-oa-red) !important;
+  --n-text-color: var(--lx-oa-red) !important;
 }
 
 .n-data-table .n-button--warning-type.n-button--secondary,
@@ -753,7 +766,7 @@ a:hover {
 }
 
 [data-theme='light'] .n-tag.n-tag--error-type {
-  color: #cf1322 !important;
+  color: var(--lx-oa-red) !important;
   background-color: #fff1f0 !important;
   border: 1px solid #ffccc7 !important;
 }

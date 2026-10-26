@@ -145,18 +145,19 @@ function goHome() {
 
 <style scoped>
 .oa-nav-block {
-  margin-bottom: 12px;
+  margin-bottom: 16px;
 }
 
-/* ── Tabs bar (Gougu OA style) ── */
 .oa-tabs-bar {
   display: flex;
-  align-items: flex-end;
-  gap: 4px;
-  padding: 0 4px;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
   margin-bottom: 12px;
-  border-bottom: 1px solid var(--lx-border);
-  background: transparent;
+  border: 1px solid var(--lx-border);
+  border-radius: var(--lx-radius-card, 12px);
+  background: var(--lx-card);
+  box-shadow: var(--lx-card-shadow);
   overflow-x: auto;
 }
 
@@ -165,10 +166,10 @@ function goHome() {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 36px;
-  padding: 0 14px;
+  height: 32px;
+  padding: 0 12px;
   border: none;
-  border-radius: 4px 4px 0 0;
+  border-radius: var(--lx-radius-control, 8px);
   background: transparent;
   color: var(--lx-text-2);
   font-size: 13px;
@@ -185,17 +186,11 @@ function goHome() {
 .oa-tab.active {
   color: var(--lx-oa-blue);
   font-weight: 600;
-  background: var(--lx-card);
+  background: var(--lx-accent-soft-bg);
 }
 
 .oa-tab.active::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -1px;
-  height: 2px;
-  background: var(--lx-oa-blue);
+  display: none;
 }
 
 .oa-tab-label {
@@ -210,23 +205,23 @@ function goHome() {
   justify-content: center;
   width: 16px;
   height: 16px;
-  border-radius: 2px;
+  border-radius: var(--lx-radius-control, 8px);
   color: var(--lx-text-3);
   opacity: 0.7;
 }
 
 .oa-tab-close:hover {
   color: var(--lx-oa-red);
-  background: rgba(207, 19, 34, 0.08);
+  background: color-mix(in srgb, var(--lx-oa-red) 10%, transparent);
   opacity: 1;
 }
 
 /* ── Page header card ── */
 .oa-page-header {
-  padding: 14px 20px 16px;
+  padding: 16px 20px 18px;
   background: var(--lx-card);
   border: 1px solid var(--lx-border);
-  border-radius: var(--lx-radius);
+  border-radius: var(--lx-radius-card, 12px);
   box-shadow: var(--lx-card-shadow);
 }
 
@@ -288,7 +283,7 @@ function goHome() {
   align-items: center;
   gap: 10px;
   margin: 0;
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 600;
   line-height: 1.35;
   color: var(--lx-text);
@@ -297,8 +292,8 @@ function goHome() {
 .oa-page-title::before {
   content: '';
   width: 3px;
-  height: 16px;
-  border-radius: 2px;
+  height: 18px;
+  border-radius: 999px;
   background: var(--lx-oa-blue);
   flex-shrink: 0;
 }

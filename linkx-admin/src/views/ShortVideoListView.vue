@@ -199,7 +199,7 @@ function renderCoverCell(coverUrl: string | null | undefined, postId?: string | 
         height: 64,
         objectFit: 'cover',
         previewDisabled: true,
-        style: 'border-radius: 4px; display: block;',
+        style: 'border-radius: 8px; display: block;',
       })
     : h('div', { class: 'sv-admin-cover-ph' }, '—')
   return h(
@@ -870,7 +870,7 @@ watch(activeTab, tab => {
 .sv-admin-cover-ph {
   width: 48px;
   height: 64px;
-  border-radius: 4px;
+  border-radius: var(--lx-radius-control, 8px);
   background: var(--n-action-color);
   color: var(--n-text-color-3);
   display: flex;

@@ -31,12 +31,12 @@ echarts.use([
 export function chartPrimaryColor() {
   return (
     getComputedStyle(document.documentElement).getPropertyValue('--lx-oa-blue').trim() ||
-    '#1890ff'
+    '#07C160'
   )
 }
 
-/** LinkX analytics palette — first color follows theme primary */
-export const LX_CHART_COLORS = ['#3D7EFF', '#14B8A6', '#F59E0B', '#8B5CF6', '#EF4444', '#64748B']
+/** LinkX analytics palette — first color follows theme primary（WeUI 辅色） */
+export const LX_CHART_COLORS = ['#07C160', '#10AEFF', '#FA9D3B', '#576B95', '#FA5151', '#91D300']
 
 export function chartColors() {
   const primary = chartPrimaryColor()

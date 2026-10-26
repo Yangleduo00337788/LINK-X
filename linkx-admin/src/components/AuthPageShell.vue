@@ -121,7 +121,7 @@ withDefaults(
   left: 10%;
   width: 42%;
   height: 38%;
-  background: radial-gradient(circle, rgba(24, 144, 255, 0.35) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(7, 193, 96, 0.35) 0%, transparent 70%);
 }
 
 .auth-aurora-b {
@@ -129,7 +129,7 @@ withDefaults(
   right: -6%;
   width: 36%;
   height: 34%;
-  background: radial-gradient(circle, rgba(19, 194, 194, 0.28) 0%, transparent 72%);
+  background: radial-gradient(circle, rgba(7, 193, 96, 0.22) 0%, transparent 72%);
   animation-delay: -6s;
 }
 
@@ -138,7 +138,7 @@ withDefaults(
   left: 24%;
   width: 48%;
   height: 40%;
-  background: radial-gradient(circle, rgba(114, 46, 209, 0.2) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(16, 174, 255, 0.16) 0%, transparent 70%);
   animation-delay: -11s;
 }
 
@@ -154,7 +154,7 @@ withDefaults(
   left: 6%;
   width: 180px;
   height: 180px;
-  background: radial-gradient(circle, rgba(24, 144, 255, 0.16) 0%, transparent 68%);
+  background: radial-gradient(circle, rgba(7, 193, 96, 0.16) 0%, transparent 68%);
 }
 
 .auth-orb-b {
@@ -162,7 +162,7 @@ withDefaults(
   right: 8%;
   width: 160px;
   height: 160px;
-  background: radial-gradient(circle, rgba(19, 194, 194, 0.14) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(16, 174, 255, 0.12) 0%, transparent 70%);
   animation-delay: -7s;
 }
 
@@ -183,7 +183,7 @@ withDefaults(
 }
 
 [data-theme='light'] .auth-vignette {
-  background: radial-gradient(ellipse at center, transparent 50%, rgba(9, 109, 217, 0.08) 100%);
+  background: radial-gradient(ellipse at center, transparent 50%, rgba(7, 193, 96, 0.08) 100%);
   opacity: 0.65;
 }
 
@@ -205,7 +205,7 @@ withDefaults(
 .auth-page--immersive {
   padding: 0;
   place-items: stretch;
-  background: linear-gradient(135deg, #eef4fb 0%, #f3f7fc 42%, #f7faff 100%);
+  background: linear-gradient(135deg, #f6f6f6 0%, #f0f7f3 42%, #f7f7f7 100%);
 }
 
 .auth-page--immersive::after {
@@ -297,7 +297,7 @@ withDefaults(
   position: relative;
   min-height: 280px;
   overflow: hidden;
-  background: #e8f0fa;
+  background: #e6f9ef;
 }
 
 .auth-visual-fallback {

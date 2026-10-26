@@ -8,7 +8,7 @@ import { darkThemeOverrides, lightThemeOverrides } from './overrides'
 
 function primaryRgba(hex: string, alpha: number) {
   const rgb = hexToRgb(hex)
-  if (!rgb) return `rgba(24, 144, 255, ${alpha})`
+  if (!rgb) return `rgba(7, 193, 96, ${alpha})`
   return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`
 }
 
@@ -101,6 +101,7 @@ export function buildThemeOverrides(
   rounded: boolean
 ): GlobalThemeOverrides {
   const radius = rounded ? '8px' : '4px'
+  const cardRadius = rounded ? '12px' : '4px'
   const base = theme === 'dark' ? darkThemeOverrides : lightThemeOverrides
   const merged = withPrimary(base, primaryHex)
   return {
@@ -123,15 +124,15 @@ export function buildThemeOverrides(
     },
     Card: {
       ...merged.Card,
-      borderRadius: radius,
+      borderRadius: cardRadius,
     },
     Modal: {
       ...merged.Modal,
-      borderRadius: radius,
+      borderRadius: cardRadius,
     },
     Drawer: {
       ...merged.Drawer,
-      borderRadius: radius,
+      borderRadius: cardRadius,
     },
     Tag: {
       ...merged.Tag,
@@ -139,7 +140,7 @@ export function buildThemeOverrides(
     },
     Dialog: {
       ...merged.Dialog,
-      borderRadius: radius,
+      borderRadius: cardRadius,
     },
     Popover: {
       ...merged.Popover,
@@ -148,6 +149,101 @@ export function buildThemeOverrides(
     FloatButton: {
       ...merged.FloatButton,
       borderRadius: radius,
+    },
+    Menu: {
+      ...merged.Menu,
+      borderRadius: radius,
+    },
+    DataTable: {
+      ...merged.DataTable,
+      borderRadius: cardRadius,
+    },
+    Pagination: {
+      ...merged.Pagination,
+      itemBorderRadius: radius,
+      buttonBorderRadius: radius,
+    },
+    Alert: {
+      ...merged.Alert,
+      borderRadius: cardRadius,
+    },
+    Dropdown: {
+      ...merged.Dropdown,
+      borderRadius: radius,
+    },
+    Tooltip: {
+      ...merged.Tooltip,
+      borderRadius: radius,
+    },
+    Message: {
+      ...merged.Message,
+      borderRadius: radius,
+    },
+    Notification: {
+      ...merged.Notification,
+      borderRadius: cardRadius,
+    },
+    Checkbox: {
+      ...merged.Checkbox,
+      borderRadius: radius,
+    },
+    Radio: {
+      ...merged.Radio,
+      buttonBorderRadius: radius,
+    },
+    Upload: {
+      ...merged.Upload,
+      borderRadius: radius,
+    },
+    Select: {
+      ...merged.Select,
+      peers: {
+        ...merged.Select?.peers,
+        InternalSelection: {
+          ...merged.Select?.peers?.InternalSelection,
+          borderRadius: radius,
+        },
+      },
+    },
+    DatePicker: {
+      ...merged.DatePicker,
+      peers: {
+        ...merged.DatePicker?.peers,
+        Input: {
+          ...merged.DatePicker?.peers?.Input,
+          borderRadius: radius,
+        },
+      },
+    },
+    TimePicker: {
+      ...merged.TimePicker,
+      peers: {
+        ...merged.TimePicker?.peers,
+        Input: {
+          ...merged.TimePicker?.peers?.Input,
+          borderRadius: radius,
+        },
+      },
+    },
+    InputNumber: {
+      ...merged.InputNumber,
+      peers: {
+        ...merged.InputNumber?.peers,
+        Input: {
+          ...merged.InputNumber?.peers?.Input,
+          borderRadius: radius,
+        },
+      },
+    },
+    AutoComplete: {
+      ...merged.AutoComplete,
+      peers: {
+        ...merged.AutoComplete?.peers,
+        InternalSelectMenu: {
+          ...merged.AutoComplete?.peers?.InternalSelectMenu,
+          borderRadius: radius,
+        },
+      },
     },
   }
 }

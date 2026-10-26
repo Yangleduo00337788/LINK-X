@@ -11,6 +11,7 @@ export interface ThemeColorPreset {
 }
 
 export const THEME_COLOR_PRESETS: ThemeColorPreset[] = [
+  { key: 'wechat', color: '#07C160' },
   { key: 'dust', color: '#f5222d' },
   { key: 'volcano', color: '#fa541c' },
   { key: 'sunset', color: '#fa8c16' },
@@ -22,4 +23,7 @@ export const THEME_COLOR_PRESETS: ThemeColorPreset[] = [
   { key: 'purple', color: '#722ed1' },
 ]
 
-export const DEFAULT_PRIMARY_COLOR = '#1890ff'
+/** WeUI / 微信公众平台后台品牌绿 */
+export const DEFAULT_PRIMARY_COLOR = '#07C160'
+/** 深色侧栏（公众平台经典炭灰，区别于 Ant Design Pro 的 #001529） */
+export const DARK_SIDER_COLOR = '#2e2e2e'

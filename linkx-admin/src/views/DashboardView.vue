@@ -55,13 +55,13 @@ import { usePreferencesStore } from '@/stores/preferences'
 const { primaryColor } = storeToRefs(usePreferencesStore())
 
 const MODULE_COLORS = computed(() => [
-  '#13c2c2',
   primaryColor.value,
-  '#722ed1',
-  '#fa8c16',
-  '#52c41a',
-  '#eb2f96',
-  '#2f54eb',
+  '#10AEFF',
+  '#FA9D3B',
+  '#576B95',
+  '#91D300',
+  '#FA5151',
+  '#818DFF',
   '#faad14',
 ])
 
@@ -715,7 +715,7 @@ onUnmounted(() => {
         </NButton>
       </div>
 
-      <div class="stat-strip lx-surface-card">
+      <div class="stat-strip">
         <template v-for="stat in statStrip" :key="stat.key">
           <button
             v-if="stat.path"
@@ -989,7 +989,7 @@ onUnmounted(() => {
 .dashboard-oa {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
 .home-ops-banner {
@@ -1045,8 +1045,8 @@ onUnmounted(() => {
 }
 
 [data-theme='dark'] .insight-bar--info {
-  border-color: rgba(24, 144, 255, 0.35);
-  background: rgba(24, 144, 255, 0.1);
+  border-color: var(--lx-accent-soft-border);
+  background: var(--lx-accent-soft-bg);
 }
 
 [data-theme='dark'] .insight-bar--success {
@@ -1094,20 +1094,24 @@ onUnmounted(() => {
 
 .stat-strip {
   display: grid;
-  grid-template-columns: repeat(9, minmax(0, 1fr));
-  gap: 0;
+  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  gap: 12px;
   padding: 0;
-  overflow: hidden;
+  overflow: visible;
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
 
 .stat-cell {
   display: block;
   width: 100%;
-  padding: 14px 10px;
+  padding: 16px 12px;
   text-align: center;
-  border: none;
-  border-right: 1px solid var(--lx-border);
+  border: 1px solid var(--lx-border);
+  border-radius: var(--lx-radius-card, 12px);
   background: var(--lx-card);
+  box-shadow: var(--lx-card-shadow);
   font: inherit;
   color: inherit;
 }
@@ -1122,7 +1126,7 @@ onUnmounted(() => {
 }
 
 .stat-cell:nth-child(9n) {
-  border-right: none;
+  border-right: 1px solid var(--lx-border);
 }
 
 .stat-label {
@@ -1147,16 +1151,16 @@ onUnmounted(() => {
 .oa-body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 12px;
+  gap: 16px;
   align-items: start;
-  margin-top: 12px;
+  margin-top: 4px;
 }
 
 .oa-main,
 .oa-side {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
 .oa-panel {
@@ -1198,7 +1202,7 @@ onUnmounted(() => {
   content: '';
   width: 3px;
   height: 14px;
-  border-radius: 2px;
+  border-radius: 999px;
   background: var(--lx-oa-blue);
   flex-shrink: 0;
 }
@@ -1208,12 +1212,13 @@ onUnmounted(() => {
 }
 
 .urgent-title::before {
-  background: #cf1322;
+  background: var(--lx-oa-red);
 }
 
 .todo-grid {
   display: grid;
-  gap: 0;
+  gap: 12px;
+  padding: 16px;
 }
 
 .todo-cell {
@@ -1224,15 +1229,11 @@ onUnmounted(() => {
   gap: 8px;
   min-height: 88px;
   padding: 12px 10px;
-  border: none;
-  border-right: 1px solid var(--lx-border);
-  background: var(--lx-card);
+  border: 1px solid var(--lx-border);
+  border-radius: var(--lx-radius-control, 8px);
+  background: color-mix(in srgb, var(--lx-body) 40%, var(--lx-card));
   cursor: pointer;
   transition: background 0.15s ease;
-}
-
-.todo-cell:last-child {
-  border-right: none;
 }
 
 .todo-cell:hover {
@@ -1240,7 +1241,7 @@ onUnmounted(() => {
 }
 
 .todo-cell.urgent .todo-count {
-  color: #cf1322;
+  color: var(--lx-oa-red);
 }
 
 .todo-label {
@@ -1268,8 +1269,9 @@ onUnmounted(() => {
 
 .urgent-row {
   display: grid;
-  gap: 0;
-  background: rgba(255, 77, 79, 0.05);
+  gap: 12px;
+  padding: 16px;
+  background: rgba(255, 77, 79, 0.04);
 }
 
 .urgent-cell {
@@ -1278,14 +1280,10 @@ onUnmounted(() => {
   align-items: center;
   gap: 6px;
   padding: 14px 10px;
-  border: none;
-  border-right: 1px solid rgba(255, 77, 79, 0.15);
-  background: transparent;
+  border: 1px solid rgba(255, 77, 79, 0.18);
+  border-radius: var(--lx-radius-control, 8px);
+  background: var(--lx-card);
   cursor: pointer;
-}
-
-.urgent-cell:last-child {
-  border-right: none;
 }
 
 .urgent-cell:hover {
@@ -1300,7 +1298,7 @@ onUnmounted(() => {
 .urgent-num {
   font-size: 22px;
   font-weight: 700;
-  color: #cf1322;
+  color: var(--lx-oa-red);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1335,9 +1333,8 @@ onUnmounted(() => {
 .side-quick-row {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0;
-  padding: 0;
-  overflow: hidden;
+  gap: 8px;
+  padding: 12px;
 }
 
 .side-quick-btn {
@@ -1345,16 +1342,12 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  padding: 14px 8px;
+  padding: 12px 8px;
   border: none;
-  border-right: 1px solid var(--lx-border);
-  background: var(--lx-card);
+  border-radius: var(--lx-radius-control, 8px);
+  background: transparent;
   cursor: pointer;
   transition: background 0.15s ease;
-}
-
-.side-quick-btn:last-child {
-  border-right: none;
 }
 
 .side-quick-btn:hover {
@@ -1364,11 +1357,11 @@ onUnmounted(() => {
 .side-quick-icon {
   width: 36px;
   height: 36px;
-  border-radius: 8px;
+  border-radius: var(--lx-radius-control, 8px);
   display: grid;
   place-items: center;
   color: var(--lx-oa-blue);
-  background: rgba(24, 144, 255, 0.1);
+  background: var(--lx-accent-soft-bg);
 }
 
 .side-quick-label {
@@ -1424,21 +1417,15 @@ onUnmounted(() => {
 .risk-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0;
+  gap: 12px;
+  padding: 16px;
 }
 
 .risk-cell {
-  padding: 14px 20px;
-  border-right: 1px solid var(--lx-border);
-  border-bottom: 1px solid var(--lx-border);
-}
-
-.risk-cell:nth-child(2n) {
-  border-right: none;
-}
-
-.risk-cell:nth-last-child(-n + 2) {
-  border-bottom: none;
+  padding: 12px 14px;
+  border: 1px solid var(--lx-border);
+  border-radius: var(--lx-radius-control, 8px);
+  background: color-mix(in srgb, var(--lx-body) 40%, var(--lx-card));
 }
 
 .risk-label {
@@ -1690,20 +1677,8 @@ onUnmounted(() => {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
 
-  .todo-cell:nth-child(2n) {
-    border-right: none;
-  }
-
-  .todo-cell:nth-child(2n-1) {
-    border-right: 1px solid var(--lx-border);
-  }
-
   .side-quick-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .side-quick-btn:nth-child(2n) {
-    border-right: none;
   }
 
   .oa-toolbar {

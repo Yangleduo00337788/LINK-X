@@ -986,7 +986,7 @@ onMounted(load)
   <div class="page">
     <div class="page-shell">
       <NSpin :show="loading">
-        <NTabs v-model:value="activeTab" type="line" animated>
+        <NTabs v-model:value="activeTab" type="line" placement="left" animated class="setting-tabs">
           <NTabPane name="register" :tab="t('setting.registerTitle')">
             <p class="section-hint">{{ t('setting.registerHint') }}</p>
             <NForm label-placement="left" label-width="160" :disabled="!canEdit">
@@ -2229,6 +2229,20 @@ onMounted(load)
 </template>
 
 <style scoped>
+.setting-tabs {
+  min-height: 420px;
+}
+.setting-tabs :deep(.n-tabs-nav--left) {
+  min-width: 132px;
+  padding-right: 4px;
+}
+.setting-tabs :deep(.n-tabs-tab) {
+  justify-content: flex-start;
+  padding: 8px 12px;
+}
+.setting-tabs :deep(.n-tab-pane) {
+  padding-left: 20px;
+}
 .section-hint {
   margin: 4px 0 16px;
   color: var(--lx-text-3);
@@ -2253,7 +2267,7 @@ onMounted(load)
 .switch-with-action {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 .test-btn {
