@@ -138,7 +138,7 @@ public class MonitorSnapshotServiceImpl implements MonitorSnapshotService {
                                AVG(metric_value) AS val
                         FROM sys_monitor_metric_snapshot
                         WHERE category = ? AND metric_key = ? AND snapshot_at >= ?
-                        GROUP BY DATE_FORMAT(snapshot_at, '%Y-%m-%d %H:00')
+                        GROUP BY DATE_FORMAT(snapshot_at, '%Y-%m-%d %H:00:00')
                         ORDER BY bucket
                         """,
                 rs -> {
