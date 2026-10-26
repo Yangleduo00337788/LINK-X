@@ -2,17 +2,21 @@
  * 作者：yangleduo
  */
 /**
- * 在系统默认浏览器中打开线上帮助文档（Cloudflare Pages）。
+ * 打开官网「文档」页（docs.html）。演示站走同源 /site。
  */
 import { getLocale } from '../i18n'
-import { buildHelpPageUrl, HELP_PAGE_BASE_URL } from '../config/helpPage'
+import { LEGAL_PAGE_BASE_URL } from '../config/legalPage'
+import { demoWebsiteBaseUrl } from './demoSitePages'
 
-export async function openHelpPageInBrowser(articleId?: string): Promise<void> {
-  const url = buildHelpPageUrl(getLocale(), articleId, HELP_PAGE_BASE_URL)
+export async function openHelpPageInBrowser(): Promise<void> {
+  const root = demoWebsiteBaseUrl() || LEGAL_PAGE_BASE_URL
+  const url = new URL('docs.html', root.endsWith('/') ? root : `${root}/`)
+  url.searchParams.set('lang', getLocale() === 'en-US' ? 'en' : 'zh')
+  const href = url.href
   if (window.electronAPI?.openExternal) {
-    const ok = await window.electronAPI.openExternal(url)
-    if (!ok) window.open(url, '_blank', 'noopener,noreferrer')
+    const ok = await window.electronAPI.openExternal(href)
+    if (!ok) window.open(href, '_blank', 'noopener,noreferrer')
     return
   }
-  window.open(url, '_blank', 'noopener,noreferrer')
+  window.open(href, '_blank', 'noopener,noreferrer')
 }

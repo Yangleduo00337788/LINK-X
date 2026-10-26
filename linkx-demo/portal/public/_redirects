@@ -1,3 +1,6 @@
+/help  /help/index.html  200
+/help/*  /help/:splat  200
+/site/*  /site/:splat  200
 /admin/*  /admin/index.html  200
 /client/*  /client/index.html  200
 /*  /index.html  200

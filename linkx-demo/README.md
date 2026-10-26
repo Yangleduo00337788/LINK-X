@@ -1,14 +1,17 @@
 # LinkX 静态功能演示站（linkx-demo）
 
-一比一复用仓库内 `linkx-admin` 与 `linkx-client` 的真实 UI，通过本地 MOCK 拦截所有 API，适合部署到 **Cloudflare Pages** 做产品演示。
+一比一复用仓库内 `linkx-admin` 与 `linkx-client` 的真实 UI，通过本地 MOCK 拦截所有 API。文档、服务协议、隐私政策来自本目录 `website/`（官网静态页拷贝），演示时打开同源 `/site/`，不跳转线上官网。适合部署到 **Cloudflare Pages** 做产品演示。
+
+构建演示站仍需仓库中的 `linkx-client`、`linkx-admin`（C/B 端源码）。构建完成后只需上传 `linkx-demo/dist`。
 
 ## 结构
 
 | 路径 | 说明 |
 |------|------|
-| `/` | 浅色电脑屏 + 内嵌 C 端客户端；右侧按钮进入 B 端 |
-| `/admin/` | 管理后台（直接网页） |
+| `/` | 浅色电脑屏 + 内嵌 C 端客户端 |
+| `/admin/` | 管理后台 |
 | `/client/` | 桌面客户端（Hash 路由，供 iframe 加载） |
+| `/site/` | 官网静态页（文档、服务协议、隐私政策、更新日志等） |
 
 ## 本地开发
 
@@ -46,6 +49,7 @@ npm run build
 - `index.html` — 门户
 - `admin/` — B 端
 - `client/` — C 端
+- `site/` — 从 `website/` 拷入的官网文档 / 协议 / 隐私等静态页
 
 本地预览完整站点：
 

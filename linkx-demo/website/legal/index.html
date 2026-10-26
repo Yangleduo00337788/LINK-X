@@ -1,0 +1,116 @@
+<!-- 作者：yangleduo -->
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="../favicon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
+    <title>LinkX 法律文档</title>
+    <link rel="stylesheet" href="./common.css" />
+    <style>
+      .legal-index {
+        max-width: 720px;
+        margin: 48px auto;
+        padding: 32px;
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+      }
+      .legal-index h1 {
+        margin: 0 0 8px;
+        font-size: 28px;
+      }
+      .legal-index p {
+        margin: 0 0 24px;
+        color: #646a73;
+      }
+      .legal-index-list {
+        display: grid;
+        gap: 12px;
+      }
+      .legal-index-list a {
+        display: block;
+        padding: 16px 18px;
+        border: 1px solid #e5e6eb;
+        border-radius: 10px;
+        color: #1f2329;
+        text-decoration: none;
+        transition: border-color 0.15s, background 0.15s;
+      }
+      .legal-index-list a:hover {
+        border-color: #3370ff;
+        background: #f5f8ff;
+      }
+      .legal-index-list strong {
+        display: block;
+        margin-bottom: 4px;
+        font-size: 16px;
+      }
+      .legal-index-list span {
+        font-size: 13px;
+        color: #8f959e;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="legal-index">
+      <h1 id="title">LinkX 法律文档</h1>
+      <p id="subtitle">请选择要查看的文档</p>
+      <div class="legal-index-list">
+        <a id="service-link" href="./service.html">
+          <strong id="service-title">服务协议</strong>
+          <span id="service-desc">LinkX 软件许可及服务协议</span>
+        </a>
+        <a id="privacy-link" href="./privacy.html">
+          <strong id="privacy-title">隐私政策</strong>
+          <span id="privacy-desc">LinkX 隐私政策</span>
+        </a>
+        <a id="help-link" href="../help/index.html">
+          <strong id="help-title">帮助中心</strong>
+          <span id="help-desc">LinkX 使用说明与常见问题</span>
+        </a>
+      </div>
+    </main>
+    <script>
+      ;(function () {
+        var lang = new URLSearchParams(window.location.search).get('lang') === 'en-US' ? 'en-US' : 'zh-CN'
+        var copy = {
+          'zh-CN': {
+            title: 'LinkX 法律文档',
+            subtitle: '请选择要查看的文档',
+            serviceTitle: '服务协议',
+            serviceDesc: 'LinkX 软件许可及服务协议',
+            privacyTitle: '隐私政策',
+            privacyDesc: 'LinkX 隐私政策',
+            helpTitle: '帮助中心',
+            helpDesc: 'LinkX 使用说明与常见问题'
+          },
+          'en-US': {
+            title: 'LinkX Legal',
+            subtitle: 'Choose a document to read',
+            serviceTitle: 'Terms of Service',
+            serviceDesc: 'LinkX Software License and Service Agreement',
+            privacyTitle: 'Privacy Policy',
+            privacyDesc: 'LinkX Privacy Policy',
+            helpTitle: 'Help Center',
+            helpDesc: 'LinkX user guide and FAQ'
+          }
+        }
+        var text = copy[lang]
+        document.documentElement.lang = lang
+        document.getElementById('title').textContent = text.title
+        document.getElementById('subtitle').textContent = text.subtitle
+        document.getElementById('service-title').textContent = text.serviceTitle
+        document.getElementById('service-desc').textContent = text.serviceDesc
+        document.getElementById('privacy-title').textContent = text.privacyTitle
+        document.getElementById('privacy-desc').textContent = text.privacyDesc
+        document.getElementById('help-title').textContent = text.helpTitle
+        document.getElementById('help-desc').textContent = text.helpDesc
+        document.getElementById('service-link').href = './service.html?lang=' + lang
+        document.getElementById('privacy-link').href = './privacy.html?lang=' + lang
+        document.getElementById('help-link').href = '../help/index.html?lang=' + lang
+      })()
+    </script>
+  </body>
+</html>

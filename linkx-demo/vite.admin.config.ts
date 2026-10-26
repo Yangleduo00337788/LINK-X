@@ -33,6 +33,10 @@ export default defineConfig({
     strictPort: true,
     host: '127.0.0.1',
     fs: { allow: [repoRoot] },
+    proxy: {
+      '/help': { target: 'http://127.0.0.1:5200', changeOrigin: true },
+      '/site': { target: 'http://127.0.0.1:5200', changeOrigin: true },
+    },
   },
   build: {
     outDir: path.join(demoRoot, 'dist/admin'),

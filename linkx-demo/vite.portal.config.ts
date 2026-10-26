@@ -6,6 +6,7 @@ import vue from '@vitejs/plugin-vue'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { demoApiDevPlugin } from './src/mocks/vite-demo-api-plugin.ts'
+import { demoWebsitePlugin } from './src/mocks/vite-demo-website-plugin.ts'
 
 const demoRoot = fileURLToPath(new URL('.', import.meta.url))
 
@@ -13,7 +14,7 @@ export default defineConfig({
   root: path.join(demoRoot, 'portal'),
   publicDir: path.join(demoRoot, 'portal/public'),
   base: '/',
-  plugins: [vue(), demoApiDevPlugin('portal')],
+  plugins: [vue(), demoWebsitePlugin(), demoApiDevPlugin('portal')],
   resolve: {
     alias: {
       '@demo': path.join(demoRoot, 'src'),
