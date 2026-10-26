@@ -15,6 +15,7 @@ import {
   NProgress,
   NSpace,
   NSpin,
+  NSwitch,
   NTag,
   useMessage,
 } from 'naive-ui'
@@ -55,6 +56,8 @@ const form = reactive({
   rateLimitListPerMinute: 60,
   rateLimitWritePerMinute: 30,
   rateLimitUploadPerMinute: 20,
+  aiReviewEnabled: true,
+  aiReviewHumanScoreMin: 65,
 })
 
 const canEdit = computed(() => auth.hasPermission('admin:risk-policy:edit'))
@@ -79,6 +82,8 @@ function applyOverview(data: RiskPolicyOverview) {
   form.rateLimitListPerMinute = limits.listPerMinute
   form.rateLimitWritePerMinute = limits.writePerMinute
   form.rateLimitUploadPerMinute = limits.uploadPerMinute
+  form.aiReviewEnabled = data.aiReviewEnabled !== false
+  form.aiReviewHumanScoreMin = data.aiReviewHumanScoreMin ?? 65
 }
 
 function riskLevelTagType(level?: string) {
@@ -140,6 +145,8 @@ async function save() {
         rateLimitListPerMinute: form.rateLimitListPerMinute,
         rateLimitWritePerMinute: form.rateLimitWritePerMinute,
         rateLimitUploadPerMinute: form.rateLimitUploadPerMinute,
+        aiReviewEnabled: form.aiReviewEnabled,
+        aiReviewHumanScoreMin: form.aiReviewHumanScoreMin,
       })
     )
     message.success(t('riskPolicy.saveSuccess'))
@@ -197,6 +204,25 @@ onMounted(() => {
                   <NInputNumber v-model:value="form.messageStormGroupLargePerMinute" :min="1" :disabled="!canEdit" />
                 </NFormItem>
               </NForm>
+            </NCard>
+          </NGridItem>
+
+          <NGridItem span="2 m:1">
+            <NCard :title="t('riskPolicy.aiReview')" size="small">
+              <NForm label-placement="left" label-width="140">
+                <NFormItem :label="t('riskPolicy.aiReviewEnabled')">
+                  <NSwitch v-model:value="form.aiReviewEnabled" :disabled="!canEdit" />
+                </NFormItem>
+                <NFormItem :label="t('riskPolicy.aiReviewHumanScore')">
+                  <NInputNumber
+                    v-model:value="form.aiReviewHumanScoreMin"
+                    :min="0"
+                    :max="100"
+                    :disabled="!canEdit || !form.aiReviewEnabled"
+                  />
+                </NFormItem>
+              </NForm>
+              <p class="muted">{{ t('riskPolicy.aiReviewHint') }}</p>
             </NCard>
           </NGridItem>
 
@@ -293,7 +319,13 @@ onMounted(() => {
                 {{ riskLevelLabel(simulateResult.riskLevel) }}
               </NTag>
               <span>{{ t('riskPolicy.riskScore') }}: {{ simulateResult.riskScore ?? 0 }}</span>
+              <NTag :type="simulateResult.queuedForHuman ? 'warning' : 'success'" size="small">
+                {{ simulateResult.queuedForHuman ? t('riskPolicy.queuedForHuman') : t('riskPolicy.autoPass') }}
+              </NTag>
             </NSpace>
+            <p v-if="simulateResult.aiReason" class="muted">
+              {{ t('riskPolicy.aiReason') }}: {{ simulateResult.aiReason }}
+            </p>
             <NProgress
               type="line"
               :percentage="simulateResult.riskScore ?? 0"

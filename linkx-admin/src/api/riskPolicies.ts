@@ -40,6 +40,8 @@ export interface RiskPolicyOverview {
   rateLimits: RateLimitPolicy
   loginLock: LoginLockPolicy
   sensitiveFilterEnabled?: boolean
+  aiReviewEnabled?: boolean
+  aiReviewHumanScoreMin?: number
 }
 
 export interface RiskPolicyUpdatePayload {
@@ -58,6 +60,8 @@ export interface RiskPolicyUpdatePayload {
   rateLimitListPerMinute?: number
   rateLimitWritePerMinute?: number
   rateLimitUploadPerMinute?: number
+  aiReviewEnabled?: boolean
+  aiReviewHumanScoreMin?: number
 }
 
 export interface RiskPolicySimulatePayload {
@@ -72,6 +76,11 @@ export interface MatchedWordDetail {
 
 export interface RiskPolicySimulateResult {
   sensitiveFilterEnabled?: boolean
+  aiReviewEnabled?: boolean
+  aiReviewHumanScoreMin?: number
+  queuedForHuman?: boolean
+  aiReason?: string
+  aiLabels?: string[]
   blocked?: boolean
   filtered?: boolean
   alerted?: boolean

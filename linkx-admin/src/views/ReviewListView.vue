@@ -122,6 +122,7 @@ const sourceOptions = computed(() => {
   return [
     { label: t('review.allSources'), value: '' },
     { label: t('review.sourceReport'), value: 'report' },
+    { label: t('review.sourceAi'), value: 'ai' },
     { label: t('review.sourceSensitive'), value: 'sensitive' },
     { label: t('review.sourceManual'), value: 'manual' },
   ]
@@ -253,6 +254,7 @@ function statusTag(row: ReviewItem) {
 function sourceLabel(source?: string) {
   const map: Record<string, string> = {
     report: t('review.sourceReport'),
+    ai: t('review.sourceAi'),
     sensitive: t('review.sourceSensitive'),
     manual: t('review.sourceManual'),
   }

@@ -75,6 +75,7 @@ const typeOptions = computed(() => {
   return [
     { label: t('risk.allTypes'), value: '' },
     { label: t('risk.typeSensitive'), value: 'SENSITIVE_WORD_MATCH' },
+    { label: t('risk.typeAiReview'), value: 'AI_CONTENT_REVIEW' },
     { label: t('risk.typeStorm'), value: 'MESSAGE_STORM' },
     { label: t('risk.typeLoginLock'), value: 'LOGIN_LOCK' },
     { label: t('risk.typeRateLimit'), value: 'RATE_LIMIT' },
@@ -130,6 +131,7 @@ function levelTag(level?: string) {
 function typeLabel(type?: string) {
   const map: Record<string, string> = {
     SENSITIVE_WORD_MATCH: t('risk.typeSensitive'),
+    AI_CONTENT_REVIEW: t('risk.typeAiReview'),
     MESSAGE_STORM: t('risk.typeStorm'),
     LOGIN_LOCK: t('risk.typeLoginLock'),
     RATE_LIMIT: t('risk.typeRateLimit'),
