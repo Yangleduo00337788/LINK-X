@@ -83,6 +83,10 @@ public class ProductionSecurityValidator implements ApplicationRunner {
             errors.add("ADMIN_CAPTCHA_ENABLED 生产环境必须为 true");
         }
 
+        if (!linkxProperties.getAuth().isRateLimitEnabled()) {
+            errors.add("RATE_LIMIT_ENABLED 生产环境必须为 true（禁止用压测档关限流上生产）");
+        }
+
         List<String> origins = linkxProperties.getCors().getAllowedOrigins();
         if (origins != null) {
             for (String origin : origins) {

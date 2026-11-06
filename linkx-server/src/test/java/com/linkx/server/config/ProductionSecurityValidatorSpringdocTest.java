@@ -54,6 +54,19 @@ class ProductionSecurityValidatorSpringdocTest {
     }
 
     @Test
+    void prod_rateLimitDisabled_isRejected() {
+        Environment env = mock(Environment.class);
+        when(env.getProperty("SPRINGDOC_ENABLED")).thenReturn("false");
+        LinkxProperties props = new LinkxProperties();
+        props.getAuth().setRateLimitEnabled(false);
+        ProductionSecurityValidator validator = new ProductionSecurityValidator(
+                props, env, mock(ObjectStorageRouter.class));
+        assertTrue(
+                validator.collectErrors().stream().anyMatch(e -> e != null && e.contains("RATE_LIMIT_ENABLED")),
+                "生产关闭限流应拒绝启动");
+    }
+
+    @Test
     void prod_springdocConfiguredViaYmlDisabled_passes_check() {
         // springdoc.api-docs.enabled 由 application.yml 自 SPRINGDOC_ENABLED 映射而来
         Environment env = mock(Environment.class);

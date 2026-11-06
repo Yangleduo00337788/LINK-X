@@ -126,6 +126,11 @@ public class StartupBanner implements ApplicationRunner {
         log.info("    WebSocket:  ws://localhost:" + wsPort + "/ws");
         log.info("");
 
+        if (!linkxProperties.getAuth().isRateLimitEnabled()) {
+            log.warn(yellow + "  ⚠ 压测档：RATE_LIMIT_ENABLED=false，接口/登录限流已关闭。禁止用于生产。" + reset);
+            log.info("");
+        }
+
         // 提示信息
         log.info(cyan + "  💡 提示: 使用 Swagger UI 可以在线调试所有 API" + reset);
         log.info(cyan + divider + reset);

@@ -1,6 +1,8 @@
-# 全量 k6 压测：smoke → auth-load → chat-read → mixed
 param(
-    [switch]$ExportSummary
+    [ValidateSet('smoke', 'load', 'soak', 'stress')]
+    [string]$Profile = 'load',
+    [switch]$ExportSummary,
+    [switch]$WsSend
 )
 
 $ErrorActionPreference = 'Stop'
@@ -10,19 +12,20 @@ $logDir = Join-Path $here 'results'
 if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Path $logDir | Out-Null }
 $logFile = Join-Path $logDir "full-suite-$stamp.log"
 
-$scenarios = @('smoke', 'auth-load', 'chat-read', 'mixed')
+$scenarios = @('smoke', 'auth-load', 'chat-read', 'client-bootstrap', 'short-video-read', 'chat-ws', 'mixed')
 $results = @()
 
-Write-Host "=== LinkX 全量 k6 压测 $stamp ===" -ForegroundColor Cyan
-Write-Host "日志: $logFile"
+Write-Host "=== LinkX k6 full suite $stamp profile=$Profile ===" -ForegroundColor Cyan
+Write-Host "log: $logFile"
 
 foreach ($scenario in $scenarios) {
     $sep = "`n========== $scenario ==========`n"
     Add-Content -Path $logFile -Value $sep
     Write-Host $sep -ForegroundColor Yellow
 
-    $runParams = @{ Scenario = $scenario }
+    $runParams = @{ Scenario = $scenario; Profile = $Profile }
     if ($ExportSummary) { $runParams['ExportSummary'] = $true }
+    if ($WsSend) { $runParams['WsSend'] = $true }
 
     $output = & (Join-Path $here 'run.ps1') @runParams 2>&1
     $output | Tee-Object -FilePath $logFile -Append

@@ -4,24 +4,17 @@
  * k6 run -e K6_USERNAME=xxx -e K6_PASSWORD=xxx auth-load.js
  */
 import { check, sleep } from 'k6';
-import { USERNAME, PASSWORD, THRESHOLDS_DEFAULT } from './lib/config.js';
+import { USERNAME, PASSWORD, rampingVus, thresholdsForProfile } from './lib/config.js';
 import { apiGet, authHeaders, isApiOk, login, parseJson } from './lib/client.js';
 
 export const options = {
-  scenarios: {
-    auth_burst: {
-      executor: 'ramping-vus',
-      startVUs: 0,
-      stages: [
-        { duration: '20s', target: 10 },
-        { duration: '40s', target: 10 },
-        { duration: '10s', target: 0 },
-      ],
-      gracefulRampDown: '5s',
-    },
-  },
+  scenarios: rampingVus('auth_burst', [
+    { duration: '20s', target: 10 },
+    { duration: '40s', target: 10 },
+    { duration: '10s', target: 0 },
+  ]),
   thresholds: {
-    ...THRESHOLDS_DEFAULT,
+    ...thresholdsForProfile(),
     'http_req_duration{name:auth_login}': ['p(95)<1200'],
   },
 };

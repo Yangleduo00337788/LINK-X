@@ -4,24 +4,17 @@
  * k6 run -e K6_USERNAME=xxx -e K6_PASSWORD=xxx chat-read.js
  */
 import { check, sleep } from 'k6';
-import { USERNAME, PASSWORD, THRESHOLDS_DEFAULT } from './lib/config.js';
+import { USERNAME, PASSWORD, rampingVus, thresholdsForProfile } from './lib/config.js';
 import { apiGet, authHeaders, isApiOk, parseJson, setupLogin } from './lib/client.js';
 
 export const options = {
-  scenarios: {
-    chat_read: {
-      executor: 'ramping-vus',
-      startVUs: 0,
-      stages: [
-        { duration: '15s', target: 10 },
-        { duration: '45s', target: 10 },
-        { duration: '15s', target: 0 },
-      ],
-      gracefulRampDown: '5s',
-    },
-  },
+  scenarios: rampingVus('chat_read', [
+    { duration: '15s', target: 10 },
+    { duration: '45s', target: 10 },
+    { duration: '15s', target: 0 },
+  ]),
   thresholds: {
-    ...THRESHOLDS_DEFAULT,
+    ...thresholdsForProfile(),
     'http_req_duration{name:chat_messages}': ['p(95)<1000'],
     'http_req_duration{name:chat_sessions}': ['p(95)<600'],
   },

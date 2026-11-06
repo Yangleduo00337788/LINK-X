@@ -325,6 +325,10 @@ public class LinkxProperties {
         private boolean passwordRequireDigit = true;
         /** 是否必须包含特殊字符 */
         private boolean passwordRequireSpecial = false;
+        /**
+         * 业务 / 登录 / 注册限流总开关。压测 profile（k6）可关闭；生产必须为 true。
+         */
+        private boolean rateLimitEnabled = true;
         private int rateLimitLoginPerMinute = 10;
         private int rateLimitRegisterPerMinute = 5;
         // 业务接口默认限流配置

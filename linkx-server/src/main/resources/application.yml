@@ -6,6 +6,7 @@
 # 所有取值来自：
 #   .env.local  ← SPRING_PROFILES_ACTIVE=local
 #   .env.prod   ← SPRING_PROFILES_ACTIVE=prod
+#   .env.k6     ← SPRING_PROFILES_ACTIVE=k6（压测专用，关闭限流；密钥可继承 .env.local）
 # 或操作系统/容器环境变量（优先级高于 .env 文件）。
 # 改 env 或本文件后需重启后端
 # =============================================================================
@@ -101,6 +102,7 @@ linkx:
     password-require-upper-lower: ${AUTH_PASSWORD_REQUIRE_UPPER_LOWER}
     password-require-digit: ${AUTH_PASSWORD_REQUIRE_DIGIT}
     password-require-special: ${AUTH_PASSWORD_REQUIRE_SPECIAL}
+    rate-limit-enabled: ${RATE_LIMIT_ENABLED}
     rate-limit-login-per-minute: ${AUTH_RATE_LIMIT_LOGIN}
     rate-limit-register-per-minute: ${AUTH_RATE_LIMIT_REGISTER}
 

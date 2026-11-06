@@ -1,19 +1,12 @@
 /**
- * 混合场景：公开探针 + 认证读 + 聊天读（接近客户端打开后的请求模式）
+ * 混合场景：公开探针 + 认证读（接近客户端打开后的请求模式）
  *
  * k6 run -e K6_USERNAME=xxx -e K6_PASSWORD=xxx mixed.js
  */
 import http from 'k6/http';
 import { check, sleep } from 'k6';
-import { BASE_URL, USERNAME, PASSWORD, THRESHOLDS_DEFAULT } from './lib/config.js';
-import {
-  apiGet,
-  authHeaders,
-  isApiOk,
-  login,
-  parseJson,
-  setupLogin,
-} from './lib/client.js';
+import { BASE_URL, USERNAME, PASSWORD, thresholdsForProfile, profileStages } from './lib/config.js';
+import { apiGet, authHeaders, isApiOk, parseJson, setupLogin } from './lib/client.js';
 
 export const options = {
   scenarios: {
@@ -27,17 +20,17 @@ export const options = {
     authenticated: {
       executor: 'ramping-vus',
       startVUs: 0,
-      stages: [
+      stages: profileStages([
         { duration: '15s', target: 15 },
         { duration: '60s', target: 15 },
         { duration: '15s', target: 0 },
-      ],
+      ]),
       exec: 'authenticatedFlow',
       startTime: '5s',
       gracefulRampDown: '5s',
     },
   },
-  thresholds: THRESHOLDS_DEFAULT,
+  thresholds: thresholdsForProfile(),
 };
 
 export function setup() {
@@ -55,20 +48,20 @@ export function publicProbe() {
 }
 
 export function authenticatedFlow(data) {
-  const tokens = login(USERNAME, PASSWORD, __VU);
-  if (!tokens) {
-    sleep(1);
-    return;
-  }
-  const headers = authHeaders(tokens.accessToken, __VU);
+  const headers = authHeaders(data.token, __VU, { fixedDevice: true });
 
-  apiGet('/user/me', headers, { name: 'user_me' });
-  apiGet('/chat/sessions', headers, { name: 'chat_sessions' });
+  const me = apiGet('/user/me', headers, { name: 'user_me' });
+  check(me, { 'user/me ok': (r) => r.status === 200 && isApiOk(parseJson(r)) });
+
+  const sessions = apiGet('/chat/sessions', headers, { name: 'chat_sessions' });
+  check(sessions, { 'sessions ok': (r) => r.status === 200 && isApiOk(parseJson(r)) });
+
   apiGet('/chat/unread-total', headers, { name: 'chat_unread_total' });
   apiGet('/friend/list', headers, { name: 'friend_list' });
+  apiGet('/moments?limit=10', headers, { name: 'moments_list' });
 
   if (data.conversationId) {
-    apiGet(`/chat/sessions/${data.conversationId}/messages?limit=30`, authHeaders(tokens.accessToken, __VU, { fixedDevice: true }), {
+    apiGet(`/chat/sessions/${data.conversationId}/messages?limit=30`, headers, {
       name: 'chat_messages',
     });
   }

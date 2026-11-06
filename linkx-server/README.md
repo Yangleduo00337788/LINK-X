@@ -31,7 +31,7 @@ cp .env.local.example .env.local
 
 至少填写：`JWT_SECRET`（≥32 字符）、`DB_PASSWORD`、`REDIS_PASSWORD`、`MINIO_ACCESS_KEY`、`MINIO_SECRET_KEY`、`CORS_ALLOWED_ORIGINS`。
 
-模板说明见 `.env.local.example`、`.env.prod.example`、`.env.docker.example`。
+模板说明见 `.env.local.example`、`.env.prod.example`、`.env.docker.example`、`.env.k6.example`（压测专用，`SPRING_PROFILES_ACTIVE=k6`）。
 
 ### 3. 启动服务
 
@@ -75,3 +75,5 @@ mvn -DskipTests package         # 产出 target/linkx-server-1.0.1.jar
 | `docker-compose down` | 停止中间件 |
 | `mvn spring-boot:run` | 开发启动 |
 | `k6/run.ps1 -Scenario smoke` | API 冒烟压测（需 k6） |
+| `k6/run.ps1 -Scenario client-bootstrap -Profile load` | 上线前 REST 读链路压测 |
+| `k6/run.ps1 -Scenario chat-ws -Profile load` | IM WebSocket 长连接压测 |

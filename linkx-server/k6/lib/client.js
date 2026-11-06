@@ -1,6 +1,6 @@
 import http from 'k6/http';
 import { check } from 'k6';
-import { BASE_URL } from './config.js';
+import { BASE_URL, SHARED_DEVICE_ID, WS_ORIGIN } from './config.js';
 
 const JSON_HEADERS = {
   'Content-Type': 'application/json',
@@ -17,12 +17,27 @@ export function deviceHeaders(vuId = 1) {
 }
 
 export function authHeaders(token, vuId = 1, { fixedDevice = false } = {}) {
-  const deviceKey = fixedDevice ? 'k6-shared-session' : vuId;
+  const deviceKey = fixedDevice ? SHARED_DEVICE_ID : vuId;
   return {
     ...JSON_HEADERS,
     ...deviceHeaders(deviceKey),
     Authorization: `Bearer ${token}`,
   };
+}
+
+export function wsConnectParams(token) {
+  return {
+    headers: {
+      Origin: WS_ORIGIN,
+      'Sec-WebSocket-Protocol': `linkx-access-token, ${token}`,
+    },
+    tags: { name: 'im_ws' },
+  };
+}
+
+export function wsUrlWithDevice(wsBase, deviceId = SHARED_DEVICE_ID) {
+  const encoded = encodeURIComponent(deviceId);
+  return `${wsBase}?deviceId=${encoded}&deviceName=k6-load-test&deviceType=desktop`;
 }
 
 export function parseJson(res) {
@@ -52,7 +67,7 @@ export function apiGet(path, headers = JSON_HEADERS, tags = {}) {
  * 登录并返回 accessToken；失败时返回 null。
  */
 export function login(username, password, vuId = 1, { fixedDevice = false } = {}) {
-  const deviceKey = fixedDevice ? 'k6-shared-session' : vuId;
+  const deviceKey = fixedDevice ? SHARED_DEVICE_ID : vuId;
   const res = apiPost(
     '/auth/login',
     { username, password },

@@ -37,6 +37,9 @@ public class RateLimitInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
+        if (!linkxProperties.getAuth().isRateLimitEnabled()) {
+            return true;
+        }
         if (!(handler instanceof HandlerMethod hm)) {
             return true;
         }

@@ -42,6 +42,20 @@ public final class DotEnvLoader {
         Path profileFile = envDir.resolve(".env." + profile);
         Path localFallback = envDir.resolve(".env.local");
 
+        // k6 压测：必须有独立 .env.k6，密钥可继承 .env.local，k6 文件覆盖限流/验证码等
+        if ("k6".equals(profile)) {
+            if (!Files.isRegularFile(profileFile)) {
+                return Result.missingFile(profile, profileFile);
+            }
+            Map<String, String> map = new LinkedHashMap<>();
+            if (Files.isRegularFile(localFallback)) {
+                map.putAll(parseEnvFile(localFallback));
+            }
+            map.putAll(parseEnvFile(profileFile));
+            map.put("SPRING_PROFILES_ACTIVE", "k6");
+            return Result.ok(profile, profileFile, map);
+        }
+
         // test profile：允许 .env.test 只覆盖差异项（如 MinIO），其余继承 .env.local
         if ("test".equals(profile)) {
             Map<String, String> map = new LinkedHashMap<>();
@@ -105,7 +119,8 @@ public final class DotEnvLoader {
             }
             if (Files.isRegularFile(dir.resolve(".env.local"))
                     || Files.isRegularFile(dir.resolve(".env.prod"))
-                    || Files.isRegularFile(dir.resolve(".env.test"))) {
+                    || Files.isRegularFile(dir.resolve(".env.test"))
+                    || Files.isRegularFile(dir.resolve(".env.k6"))) {
                 return dir;
             }
         }
@@ -171,7 +186,7 @@ public final class DotEnvLoader {
 
         static Result notFound() {
             return new Result(false, null, null, Map.of(),
-                    "未找到 .env.local / .env.prod（已查 user.dir、linkx-server/）");
+                    "未找到 .env.local / .env.prod / .env.k6（已查 user.dir、linkx-server/）");
         }
 
         static Result missingFile(String profile, Path expected) {

@@ -1,0 +1,13 @@
+<!-- 作者：yangleduo -->
+# LinkX k6 压测文档 / k6 load-test docs
+
+脚本在 `linkx-server/k6/`。本目录只放**书面报告**。
+
+## 报告列表 / Reports
+
+| 日期 Date | 档位 Profile | 结果 Result | 路径 Path |
+|-----------|--------------|-------------|-----------|
+| 2026-11-06 | load | 7/7 通过 | [2026-11-06/](./2026-11-06/) |
+| 2026-11-06 | gradient 50→200 VU | 3/3 通过 | [2026-11-06-gradient/](./2026-11-06-gradient/) |
+
+跑法见 `linkx-server/k6/README.md`。压测必须用 `SPRING_PROFILES_ACTIVE=k6`，不要打 local/prod。

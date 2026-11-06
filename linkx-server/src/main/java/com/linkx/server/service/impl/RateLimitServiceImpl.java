@@ -50,6 +50,10 @@ public class RateLimitServiceImpl implements RateLimitService {
     private final LinkxProperties linkxProperties;
     private final AdminRiskEventService adminRiskEventService;
 
+    private boolean bypass() {
+        return !linkxProperties.getAuth().isRateLimitEnabled();
+    }
+
     @Override
     public void check(String key, int maxAttempts, int windowSeconds) {
         check(key, maxAttempts, windowSeconds, "操作过于频繁，请稍后再试");
@@ -57,6 +61,9 @@ public class RateLimitServiceImpl implements RateLimitService {
 
     @Override
     public void check(String key, int maxAttempts, int windowSeconds, String message) {
+        if (bypass()) {
+            return;
+        }
         if (key != null && key.contains("ip:") && isWhitelisted(extractIpFromKey(key))) {
             return;
         }
@@ -73,6 +80,9 @@ public class RateLimitServiceImpl implements RateLimitService {
 
     @Override
     public boolean checkLoginRateLimit(String username, HttpServletRequest request, LoginSide side) {
+        if (bypass()) {
+            return false;
+        }
         String ip = getClientIp(request);
         if (isWhitelisted(ip)) {
             return false;
@@ -109,6 +119,9 @@ public class RateLimitServiceImpl implements RateLimitService {
 
     @Override
     public void checkRegisterRateLimit(HttpServletRequest request) {
+        if (bypass()) {
+            return;
+        }
         String ip = getClientIp(request);
         if (isWhitelisted(ip)) {
             return;
@@ -125,6 +138,9 @@ public class RateLimitServiceImpl implements RateLimitService {
 
     @Override
     public void checkLoginRequestRateLimit(HttpServletRequest request, LoginSide side) {
+        if (bypass()) {
+            return;
+        }
         String ip = getClientIp(request);
         if (isWhitelisted(ip)) {
             return;
@@ -156,6 +172,9 @@ public class RateLimitServiceImpl implements RateLimitService {
 
     @Override
     public boolean isAccountLocked(String username, LoginSide side) {
+        if (bypass()) {
+            return false;
+        }
         String lockKey = LOGIN_LOCK_PREFIX + side.name().toLowerCase() + ":" + username;
         return Boolean.TRUE.equals(redisTemplate.hasKey(lockKey));
     }
@@ -193,6 +212,9 @@ public class RateLimitServiceImpl implements RateLimitService {
 
     @Override
     public void recordRefreshFailure(HttpServletRequest request) {
+        if (bypass()) {
+            return;
+        }
         String ip = getClientIp(request);
         if (isWhitelisted(ip)) {
             return;

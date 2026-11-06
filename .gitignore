@@ -14,6 +14,8 @@ dist-installer-electron/
 .env.local
 .env.prod
 .env.docker
+.env.k6
+.env.test
 # 前端本地 env（含本地接口地址/可能的 token）不入库
 linkx-client/.env
 linkx-client/.env.electron
@@ -60,6 +62,7 @@ linkx-server/docker/redis/data/
 linkx-server/docker/minio/data/
 linkx-server/backups/
 linkx-server/k6/k6.env
+linkx-server/k6/data/users.json
 linkx-server/k6/results/*.json
 linkx-server/k6/results/*.log
 linkx-server/.env.docker
