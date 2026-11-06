@@ -2,6 +2,7 @@
  * 聊天消息本地存储门面：Electron 走 SQLite IPC，Web 降级 sessionStorage。
  */
 import type { ChatMessage } from '../types'
+import { nextLastSyncId } from '../utils/messageOrder'
 import { sanitizeMessageForPersist } from '../utils/persistSanitize'
 
 export const HOT_MESSAGE_LIMIT = 200
@@ -99,10 +100,20 @@ export async function persistMessages(sessionId: string, messages: ChatMessage[]
     createTime: m.createTime ?? 0
   }))
   await chatDb.upsertMessages(sessionId, rows)
-  const lastNumeric = [...messages].reverse().find(m => /^\d+$/.test(m.id))
-  if (lastNumeric) {
-    await chatDb.setSessionMeta(sessionId, { lastSyncId: lastNumeric.id })
-  }
+  await advanceLastSyncId(sessionId, messages)
+}
+
+/** 仅当候选 id 大于当前游标时写入，翻旧历史不得回拨。 */
+export async function advanceLastSyncId(
+  sessionId: string,
+  messages: Array<{ id: string }>
+): Promise<void> {
+  const chatDb = api()
+  if (!chatDb || !messages.length) return
+  const meta = await chatDb.getSessionMeta(sessionId)
+  const next = nextLastSyncId(meta.lastSyncId, messages)
+  if (!next || next === meta.lastSyncId) return
+  await chatDb.setSessionMeta(sessionId, { lastSyncId: next })
 }
 
 export async function persistMessage(sessionId: string, msg: ChatMessage): Promise<void> {

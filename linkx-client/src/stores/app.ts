@@ -37,7 +37,14 @@ import {
   voiceCallPreviewLabel,
   voicePreviewLabel
 } from '../utils/messagePreviewText'
-import { compareMessageOrder, insertMessageInOrder, sortMessagesInOrder } from '../utils/messageOrder'
+import {
+  compareMessageOrder,
+  compareSnowflakeId,
+  insertMessageInOrder,
+  isNumericMessageId,
+  maxNumericMessageId,
+  sortMessagesInOrder
+} from '../utils/messageOrder'
 import { enrichMessageReplyQuotes, preserveReplyTo } from '../utils/enrichMessageReply'
 import { isMessageIdAtOrBefore } from '../utils/messageStatus'
 import {
@@ -54,9 +61,11 @@ import { resolveUserAvatarUrl } from '../utils/defaultAvatar'
 import { isLinkMateBotSender } from '../utils/linkmateLogo'
 import { normalizeMediaUrl } from '../utils/mediaUrl'
 import {
+  advanceLastSyncId,
   clearLocalChatDb,
   getLastSyncMessageId,
   hasOlderLocal,
+  HOT_MESSAGE_LIMIT,
   isChatLocalDbEnabled,
   loadOlderMessagesLocal,
   loadRecentMessages,
@@ -70,6 +79,22 @@ import {
 
 let reportSessionReadTimer: ReturnType<typeof setTimeout> | null = null
 const sessionMessagesLoadTasks = new Map<string, Promise<void>>()
+const sessionIncrementalTail = new Map<string, Promise<void>>()
+const HISTORY_PAGE_SIZE = 50
+const HISTORY_CATCHUP_MAX_PAGES = 40
+
+function enqueueSessionIncremental(sessionId: string, run: () => Promise<void>): Promise<void> {
+  const prev = sessionIncrementalTail.get(sessionId) ?? Promise.resolve()
+  const next = prev.then(run, run)
+  sessionIncrementalTail.set(
+    sessionId,
+    next.then(
+      () => undefined,
+      () => undefined
+    )
+  )
+  return next
+}
 
 function findLastReadableMessageId(messages: ChatMessage[]): string {
   let lastId = ''
@@ -894,23 +919,24 @@ export const useAppStore = defineStore('app', {
 
     /** 增量同步：after 游标拉取新消息并落盘 */
     async syncSessionMessagesIncremental(sessionId: string) {
-      const afterId = await getLastSyncMessageId(sessionId)
-      if (afterId && /^\d+$/.test(afterId)) {
+      return enqueueSessionIncremental(sessionId, () => this.doSyncSessionMessagesIncremental(sessionId))
+    },
+
+    async doSyncSessionMessagesIncremental(sessionId: string) {
+      const storedAfter = await getLastSyncMessageId(sessionId)
+      const memoryAfter = maxNumericMessageId(this.messagesBySession[sessionId] || [])
+      const afterId =
+        storedAfter && isNumericMessageId(storedAfter)
+          ? memoryAfter && isNumericMessageId(memoryAfter)
+            ? compareSnowflakeId(memoryAfter, storedAfter) > 0
+              ? memoryAfter
+              : storedAfter
+            : storedAfter
+          : memoryAfter
+
+      if (afterId && isNumericMessageId(afterId)) {
         try {
-          const res = await chatApi.listMessages(sessionId, { after: afterId, limit: 50 })
-          if (res.code === 200 && res.data?.length) {
-            const incoming = res.data.map(m => messageToChatMessage(m, sessionId))
-            const existing = this.messagesBySession[sessionId] || []
-            const ids = new Set(existing.map(m => m.id))
-            const unique = incoming.filter(m => !ids.has(m.id))
-            if (unique.length) {
-              const merged = [...existing, ...unique]
-              merged.sort(compareMessageOrder)
-              enrichMessageReplyQuotes(merged)
-              this.messagesBySession[sessionId] = trimHotMessages(merged)
-              await persistMessages(sessionId, unique)
-            }
-          }
+          await this.pullMessagesAfterCursor(sessionId, afterId)
         } catch (e) {
           console.warn('[syncSessionMessagesIncremental]', sessionId, e)
         }
@@ -958,6 +984,77 @@ export const useAppStore = defineStore('app', {
             })
           })
           break
+        }
+      }
+    },
+
+    /** 从 after 游标循环拉取直到本页不足一页或达到上限 */
+    async pullMessagesAfterCursor(sessionId: string, startAfterId: string) {
+      let afterId = startAfterId
+      for (let page = 0; page < HISTORY_CATCHUP_MAX_PAGES; page++) {
+        const res = await chatApi.listMessages(sessionId, {
+          after: afterId,
+          limit: HISTORY_PAGE_SIZE
+        })
+        if (res.code !== 200 || !res.data?.length) break
+
+        const incoming = res.data.map(m => messageToChatMessage(m, sessionId))
+        const list = this.messagesBySession[sessionId] ? [...this.messagesBySession[sessionId]] : []
+        const toPersist: ChatMessage[] = []
+        const keepHistory = list.length > HOT_MESSAGE_LIMIT
+
+        for (const msg of incoming) {
+          const idx = list.findIndex(
+            m =>
+              m.id === msg.id ||
+              (!!msg.clientMsgId && (m.clientMsgId === msg.clientMsgId || m.id === msg.clientMsgId))
+          )
+          if (idx >= 0) {
+            if (list[idx].id === msg.id) continue
+            const prev = list[idx]
+            preserveReplyTo(msg, prev)
+            preserveMessageSendMeta(msg, prev)
+            msg.sendStatus = 'sent'
+            msg.clientMsgId = prev.clientMsgId || msg.clientMsgId
+            list.splice(idx, 1, msg)
+            toPersist.push(msg)
+            continue
+          }
+          list.push(msg)
+          toPersist.push(msg)
+        }
+
+        if (toPersist.length) {
+          list.sort(compareMessageOrder)
+          enrichMessageReplyQuotes(list)
+          this.messagesBySession[sessionId] = keepHistory
+            ? trimInMemoryTail(list)
+            : trimHotMessages(list)
+          await persistMessages(sessionId, toPersist)
+        }
+        await advanceLastSyncId(sessionId, incoming)
+
+        const lastId = maxNumericMessageId(incoming)
+        if (!lastId || lastId === afterId) break
+        afterId = lastId
+        if (incoming.length < HISTORY_PAGE_SIZE) break
+      }
+    },
+
+    /** WebSocket 重连后补齐已打开/已加载会话的缺口（HTTP after，不当实时新消息） */
+    async catchUpMessagesAfterReconnect() {
+      if (!this.isLoggedIn) return
+      const ids = new Set<string>()
+      if (this.currentSessionId) ids.add(this.currentSessionId)
+      for (const [sessionId, loaded] of Object.entries(this.messagesLoaded)) {
+        if (loaded) ids.add(sessionId)
+      }
+      for (const sessionId of ids) {
+        if (!this.isLoggedIn) return
+        try {
+          await this.syncSessionMessagesIncremental(sessionId)
+        } catch (e) {
+          console.warn('[catchUpMessagesAfterReconnect]', sessionId, e)
         }
       }
     },
@@ -1086,6 +1183,7 @@ export const useAppStore = defineStore('app', {
       const handlers = {
         onOpen: () => {
           this.isOffline = false
+          void this.catchUpMessagesAfterReconnect()
         },
         onClose: () => {
           if (this.isLoggedIn) {

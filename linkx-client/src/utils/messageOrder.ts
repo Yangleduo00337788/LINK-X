@@ -51,3 +51,42 @@ export function sortMessagesInOrder<T extends { id: string; time?: string; creat
   list.sort(compareMessageOrder)
   return list
 }
+
+export function isNumericMessageId(id: string | undefined | null): boolean {
+  return !!id && /^\d+$/.test(id)
+}
+
+/** 雪花 ID 比较：大于 0 表示 a > b。超出 Number 安全整数时用 BigInt。 */
+export function compareSnowflakeId(a: string, b: string): number {
+  try {
+    const diff = BigInt(a) - BigInt(b)
+    if (diff < 0n) return -1
+    if (diff > 0n) return 1
+    return 0
+  } catch {
+    if (a === b) return 0
+    return a < b ? -1 : 1
+  }
+}
+
+export function maxNumericMessageId(messages: Array<{ id: string }>): string | null {
+  let max: string | null = null
+  for (const m of messages) {
+    if (!isNumericMessageId(m.id)) continue
+    if (!max || compareSnowflakeId(m.id, max) > 0) max = m.id
+  }
+  return max
+}
+
+/** 同步游标只准前进，避免翻旧历史把 lastSyncId 拨回去。 */
+export function nextLastSyncId(
+  current: string | null | undefined,
+  candidates: Array<{ id: string }>
+): string | null {
+  const incomingMax = maxNumericMessageId(candidates)
+  if (!incomingMax) {
+    return isNumericMessageId(current) ? (current as string) : null
+  }
+  if (!isNumericMessageId(current)) return incomingMax
+  return compareSnowflakeId(incomingMax, current as string) > 0 ? incomingMax : (current as string)
+}
