@@ -68,10 +68,12 @@ export function profileStages(loadDefaults) {
   const overrideVus = intEnv('K6_VUS', 0);
   if (overrideVus > 0) {
     const hold = __ENV.K6_DURATION || '2m';
+    const ramp = overrideVus >= 500 ? '1m' : '20s';
+    const down = overrideVus >= 500 ? '30s' : '15s';
     return [
-      { duration: '20s', target: overrideVus },
+      { duration: ramp, target: overrideVus },
       { duration: hold, target: overrideVus },
-      { duration: '15s', target: 0 },
+      { duration: down, target: 0 },
     ];
   }
 

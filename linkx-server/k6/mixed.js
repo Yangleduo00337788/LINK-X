@@ -47,6 +47,15 @@ export function publicProbe() {
   sleep(2);
 }
 
+/** K6_VUS 会覆盖 scenarios，需提供 default 才能在覆盖档位下跑。 */
+export default function (data) {
+  if (__VU % 20 === 0) {
+    publicProbe();
+    return;
+  }
+  authenticatedFlow(data);
+}
+
 export function authenticatedFlow(data) {
   const headers = authHeaders(data.token, __VU, { fixedDevice: true });
 
