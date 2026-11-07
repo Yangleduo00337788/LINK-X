@@ -127,7 +127,7 @@ public class StartupBanner implements ApplicationRunner {
         log.info("");
 
         if (!linkxProperties.getAuth().isRateLimitEnabled()) {
-            log.warn(yellow + "  ⚠ 压测档：RATE_LIMIT_ENABLED=false，接口/登录限流已关闭。禁止用于生产。" + reset);
+            log.warn(yellow + "  ⚠ 压测档：RATE_LIMIT_ENABLED=false，接口/登录限流与消息风暴已关闭。禁止用于生产。" + reset);
             log.info("");
         }
 

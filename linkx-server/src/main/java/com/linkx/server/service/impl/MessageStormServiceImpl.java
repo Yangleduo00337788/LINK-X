@@ -49,6 +49,15 @@ public class MessageStormServiceImpl implements MessageStormService {
     private final AdminRiskEventService adminRiskEventService;
     private final LinkxProperties linkxProperties;
 
+    /**
+     * k6 压测档 {@code RATE_LIMIT_ENABLED=false} 时一并关闭风暴拦截，
+     * 否则单账号多 VU 会在 HTTP 限流已关的情况下仍被 10 秒 30 条拦住。
+     * 生产启动校验禁止关限流，此旁路不会进生产。
+     */
+    private boolean stormBypassed() {
+        return !linkxProperties.getAuth().isRateLimitEnabled();
+    }
+
     private int userStormThreshold() {
         return linkxProperties.getRiskPolicy().getMessageStormUserThreshold();
     }
@@ -60,6 +69,9 @@ public class MessageStormServiceImpl implements MessageStormService {
     @Override
     public boolean checkAndRecordUserStorm(Long userId) {
         if (userId == null) {
+            return false;
+        }
+        if (stormBypassed()) {
             return false;
         }
         String key = USER_STORM_PREFIX + userId;
@@ -88,6 +100,9 @@ public class MessageStormServiceImpl implements MessageStormService {
 
     @Override
     public void checkAndRecordGroupStorm(Long userId, Long conversationId, int memberCount) {
+        if (stormBypassed()) {
+            return;
+        }
         LinkxProperties.RiskPolicy policy = linkxProperties.getRiskPolicy();
         if (memberCount < policy.getMessageStormGroupMinMembers()) {
             return;

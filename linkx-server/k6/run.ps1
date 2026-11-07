@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('smoke', 'auth-load', 'chat-read', 'short-video-read', 'client-bootstrap', 'chat-ws', 'mixed')]
+    [ValidateSet('smoke', 'auth-load', 'chat-read', 'short-video-read', 'client-bootstrap', 'chat-ws', 'mixed', 'chat-history', 'chat-write', 'upload-chat', 'register-load', 'pay-load', 'call-load')]
     [string]$Scenario = 'smoke',
     [ValidateSet('smoke', 'load', 'soak', 'stress', 'gradient')]
     [string]$Profile = '',

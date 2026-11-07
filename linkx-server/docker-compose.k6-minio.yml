@@ -1,0 +1,8 @@
+# 作者：yangleduo
+# 仅压测：复用本机已有 minio/minio:latest，端口打到 Windows 可达的 0.0.0.0
+# 不映射 9001，避免和本机占用冲突
+services:
+  minio:
+    image: minio/minio:latest
+    ports: !override
+      - "9000:9000"

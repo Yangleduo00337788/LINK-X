@@ -42,7 +42,7 @@ mvn spring-boot:run
 | `K6_WS_ORIGIN` | 否 | `http://127.0.0.1:5173` | WS Origin（须在 CORS 白名单） |
 | `K6_USERNAME` | 是* | — | 压测账号 |
 | `K6_PASSWORD` | 是* | — | 压测密码 |
-| `K6_CONVERSATION_ID` | 否 | 自动取第一个会话 | 固定会话 ID |
+| `K6_CONVERSATION_ID` | 否 | 自动取第一个会话 | 固定会话 ID（必须整段十进制字符串，禁止 Number()） |
 | `K6_PROFILE` | 否 | `load` | `smoke` / `load` / `soak` / `stress` |
 | `K6_VUS` / `K6_DURATION` | 否 | — | 覆盖档位的 VU 与持续时长 |
 | `K6_WS_SEND` | 否 | 关闭 | `1` 时 WS 场景发送文本消息 |

@@ -52,6 +52,31 @@ export function isApiOk(body) {
   return body && body.code === 200;
 }
 
+/**
+ * 雪花 ID 必须保持十进制字符串。JS Number 会丢掉超过 2^53-1 的低位。
+ */
+export function snowflakeId(raw) {
+  if (raw == null || raw === '') {
+    return '';
+  }
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (/^\d+$/.test(trimmed)) {
+      return trimmed;
+    }
+  }
+  return '';
+}
+
+export function extractSnowflake(bodyText, key = 'id') {
+  if (!bodyText) {
+    return '';
+  }
+  const re = new RegExp(`"${key}"\\s*:\\s*"?(\\d{15,})"?`);
+  const m = String(bodyText).match(re);
+  return m ? m[1] : '';
+}
+
 export function apiPost(path, payload, headers = JSON_HEADERS, tags = {}) {
   return http.post(`${BASE_URL}${path}`, JSON.stringify(payload), {
     headers,
@@ -102,13 +127,10 @@ export function setupLogin(username, password) {
   }
   const token = tokens.accessToken;
 
-  let conversationId = __ENV.K6_CONVERSATION_ID || '';
+  let conversationId = snowflakeId(__ENV.K6_CONVERSATION_ID);
   if (!conversationId) {
     const sessionsRes = apiGet('/chat/sessions', authHeaders(token, 0, { fixedDevice: true }), { name: 'chat_sessions_setup' });
-    const sessionsBody = parseJson(sessionsRes);
-    if (isApiOk(sessionsBody) && Array.isArray(sessionsBody.data) && sessionsBody.data.length > 0) {
-      conversationId = String(sessionsBody.data[0].id);
-    }
+    conversationId = extractSnowflake(sessionsRes && sessionsRes.body, 'id');
   }
 
   return { token, refreshToken: tokens.refreshToken, conversationId };
