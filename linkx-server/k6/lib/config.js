@@ -6,7 +6,13 @@
  * K6_WS_ORIGIN        WebSocket Origin，须在 CORS 白名单内（默认 http://127.0.0.1:5173）
  * K6_USERNAME         压测账号（必填，除 smoke 外）
  * K6_PASSWORD         压测密码
- * K6_CONVERSATION_ID  固定会话 ID（可选；不设则从 sessions 列表取第一个）
+ * K6_CONVERSATION_ID  固定私聊会话 ID（可选；不设则从 sessions 列表取第一个）
+ * K6_GROUP_ID         群会话 ID（group-load / group-write / conference）
+ * K6_CONFERENCE_ID    会议 ID
+ * K6_MOMENTS_POST_ID  朋友圈动态 ID
+ * K6_CLOUD_FILE_ID / K6_CLOUD_FOLDER_ID  网盘文件/文件夹
+ * K6_NOTE_ID / K6_CALENDAR_EVENT_ID / K6_FAVORITE_ID  笔记/日历/收藏
+ * K6_SHORT_VIDEO_POST_ID / K6_STRANGER_USERNAME / K6_PEER_ID
  * K6_PROFILE          smoke | load | soak | stress | gradient（默认 load）
  * K6_VUS / K6_DURATION 覆盖档位（设置后优先于 PROFILE 的 VU/时长）
  * K6_WS_SEND          1/true 时 chat-ws 会真正发文本消息（会写库，默认关闭）
@@ -26,6 +32,13 @@ export const WS_SEND = /^(1|true|yes)$/i.test(__ENV.K6_WS_SEND || '');
 export const WS_HOLD_MS = intEnv('K6_WS_HOLD_MS', 25000);
 
 export const SHARED_DEVICE_ID = 'k6-shared-session';
+
+/** 社交套件默认档：比写路径 200 VU 更高。K6_VUS 仍可覆盖。 */
+export const SOCIAL_LOAD_STAGES = [
+  { duration: '1m', target: 500 },
+  { duration: '1m', target: 500 },
+  { duration: '30s', target: 0 },
+];
 
 export const THRESHOLDS_DEFAULT = {
   http_req_failed: ['rate<0.01'],
@@ -65,9 +78,9 @@ export function thresholdsForProfile() {
  * 默认档位对应「上线前常规压测」；可用 K6_PROFILE / K6_VUS 覆盖。
  */
 export function profileStages(loadDefaults) {
-  const overrideVus = intEnv('K6_VUS', 0);
-  if (overrideVus > 0) {
-    const hold = __ENV.K6_DURATION || '2m';
+  const overrideVus = intEnv('K6_TARGET_VUS', intEnv('K6_VUS', 0));
+  if (overrideVus > 0 && !/^(1|true|yes)$/i.test(__ENV.K6_NATIVE_VUS || '')) {
+    const hold = __ENV.K6_HOLD || __ENV.K6_DURATION || '2m';
     const ramp = overrideVus >= 500 ? '1m' : '20s';
     const down = overrideVus >= 500 ? '30s' : '15s';
     return [
@@ -124,4 +137,20 @@ export function rampingVus(name, loadDefaults) {
       gracefulRampDown: '10s',
     },
   };
+}
+
+/** 不走 K6_PROFILE 档位缩放，社交套件固定 500 VU 爬坡。 */
+export function rampingVusFixed(name, stages) {
+  return {
+    [name]: {
+      executor: 'ramping-vus',
+      startVUs: 0,
+      stages,
+      gracefulRampDown: '10s',
+    },
+  };
+}
+
+export function withSetupTimeout(options) {
+  return { setupTimeout: '120s', ...options };
 }

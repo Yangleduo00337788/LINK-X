@@ -31,17 +31,11 @@ elif command -v python >/dev/null 2>&1; then
   python prep-k6-load.py || echo "warning: prep-k6-load.py 未完全成功。请改用 SPRING_PROFILES_ACTIVE=k6 启动后端。" >&2
 fi
 
+export K6_PROFILE="${PROFILE}"
 ARGS=()
-[[ -n "${K6_BASE_URL:-}" ]] && ARGS+=(-e "K6_BASE_URL=${K6_BASE_URL}")
-[[ -n "${K6_USERNAME:-}" ]] && ARGS+=(-e "K6_USERNAME=${K6_USERNAME}")
-[[ -n "${K6_PASSWORD:-}" ]] && ARGS+=(-e "K6_PASSWORD=${K6_PASSWORD}")
-[[ -n "${K6_WS_URL:-}" ]] && ARGS+=(-e "K6_WS_URL=${K6_WS_URL}")
-[[ -n "${K6_WS_ORIGIN:-}" ]] && ARGS+=(-e "K6_WS_ORIGIN=${K6_WS_ORIGIN}")
-[[ -n "${K6_CONVERSATION_ID:-}" ]] && ARGS+=(-e "K6_CONVERSATION_ID=${K6_CONVERSATION_ID}")
-ARGS+=(-e "K6_PROFILE=${PROFILE}")
-[[ -n "${K6_VUS:-}" ]] && ARGS+=(-e "K6_VUS=${K6_VUS}")
-[[ -n "${K6_DURATION:-}" ]] && ARGS+=(-e "K6_DURATION=${K6_DURATION}")
-[[ -n "${K6_WS_SEND:-}" ]] && ARGS+=(-e "K6_WS_SEND=${K6_WS_SEND}")
+while IFS='=' read -r name value; do
+  [[ -n "$name" && -n "$value" ]] && ARGS+=(-e "${name}=${value}")
+done < <(env | grep '^K6_' || true)
 
 if [[ "$SCENARIO" != "smoke" && ( -z "${K6_USERNAME:-}" || -z "${K6_PASSWORD:-}" ) ]]; then
   echo "非 smoke 场景需要 k6.env 中的 K6_USERNAME / K6_PASSWORD" >&2

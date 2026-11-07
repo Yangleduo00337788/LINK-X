@@ -88,6 +88,17 @@ export function apiGet(path, headers = JSON_HEADERS, tags = {}) {
   return http.get(`${BASE_URL}${path}`, { headers, tags });
 }
 
+export function apiPut(path, payload, headers = JSON_HEADERS, tags = {}) {
+  return http.put(`${BASE_URL}${path}`, JSON.stringify(payload), {
+    headers,
+    tags,
+  });
+}
+
+export function apiDel(path, headers = JSON_HEADERS, tags = {}) {
+  return http.del(`${BASE_URL}${path}`, null, { headers, tags });
+}
+
 /**
  * 登录并返回 accessToken；失败时返回 null。
  */
@@ -133,5 +144,20 @@ export function setupLogin(username, password) {
     conversationId = extractSnowflake(sessionsRes && sessionsRes.body, 'id');
   }
 
-  return { token, refreshToken: tokens.refreshToken, conversationId };
+  return {
+    token,
+    refreshToken: tokens.refreshToken,
+    conversationId,
+    groupId: snowflakeId(__ENV.K6_GROUP_ID),
+    conferenceId: snowflakeId(__ENV.K6_CONFERENCE_ID),
+    momentsPostId: snowflakeId(__ENV.K6_MOMENTS_POST_ID),
+    cloudFileId: snowflakeId(__ENV.K6_CLOUD_FILE_ID),
+    cloudFolderId: snowflakeId(__ENV.K6_CLOUD_FOLDER_ID),
+    noteId: snowflakeId(__ENV.K6_NOTE_ID),
+    calendarEventId: snowflakeId(__ENV.K6_CALENDAR_EVENT_ID),
+    favoriteId: snowflakeId(__ENV.K6_FAVORITE_ID),
+    shortVideoPostId: snowflakeId(__ENV.K6_SHORT_VIDEO_POST_ID),
+    strangerUsername: __ENV.K6_STRANGER_USERNAME || 'k6_load_stranger',
+    peerId: snowflakeId(__ENV.K6_PEER_ID) || '9999999900003',
+  };
 }

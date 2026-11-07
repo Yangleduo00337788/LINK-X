@@ -66,6 +66,10 @@ copy k6.env.example k6.env   # 首次填写账号
 
 # 全量（约数分钟，soak/stress 会更长）
 .\run-all.ps1 -Profile load -ExportSummary
+
+# 群聊 / 会议 / 网盘 / 朋友圈 / 好友 / 短视频互动 / 笔记日历收藏（默认 500 VU）
+python prep-k6-social.py
+.\run-social.ps1 -Profile stress -Vus 500 -Duration 1m -ExportSummary
 ```
 
 Linux / macOS：
@@ -95,6 +99,16 @@ k6 run -e K6_USERNAME=你的账号 -e K6_PASSWORD=你的密码 chat-ws.js
 | `short-video-read.js` | 0→8 VU | 发现流 / 热榜 / 话题 |
 | `chat-ws.js` | 0→30 VU | WS 握手、ping/pong；可选发消息 |
 | `mixed.js` | 探针 2 VU + 认证读 | 健康检查 + 混合读 |
+| `group-load.js` | 500 VU | 群列表/详情/成员/公告/资产/历史 |
+| `group-write.js` | 500 VU | 群会话 WS 发文本 |
+| `group-extra.js` | 500 VU | 邀请、发公告、群相册小图 |
+| `conference-load.js` | 500 VU | 会议详情/入会/静音/举手/信令/转让 |
+| `cloud-load.js` | 500 VU | 网盘列表 + 间歇小文件上传 |
+| `moments-load.js` | 500 VU | 朋友圈列表/赞/评 |
+| `moments-publish.js` | 500 VU | 朋友圈发纯文本 |
+| `friend-load.js` | 500 VU | 好友搜索/列表/申请 |
+| `short-video-interact.js` | 500 VU | 短视频点赞/评论/播放 |
+| `workspace-load.js` | 500 VU | 笔记/日历/收藏读 |
 
 ## 档位（`K6_PROFILE`）
 

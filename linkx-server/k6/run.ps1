@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('smoke', 'auth-load', 'chat-read', 'short-video-read', 'client-bootstrap', 'chat-ws', 'mixed', 'chat-history', 'chat-write', 'upload-chat', 'register-load', 'pay-load', 'call-load')]
+    [ValidateSet('smoke', 'auth-load', 'chat-read', 'short-video-read', 'client-bootstrap', 'chat-ws', 'mixed', 'chat-history', 'chat-write', 'upload-chat', 'register-load', 'pay-load', 'call-load', 'group-load', 'group-write', 'group-extra', 'conference-load', 'cloud-load', 'moments-load', 'moments-publish', 'friend-load', 'short-video-interact', 'workspace-load')]
     [string]$Scenario = 'smoke',
     [ValidateSet('smoke', 'load', 'soak', 'stress', 'gradient')]
     [string]$Profile = '',
@@ -55,19 +55,22 @@ if ($rateLimitEnabled -eq 'false') {
     }
 }
 
+if ($BaseUrl) { $env:K6_BASE_URL = $BaseUrl }
+if ($Username) { $env:K6_USERNAME = $Username }
+if ($Password) { $env:K6_PASSWORD = $Password }
+if ($Profile) { $env:K6_PROFILE = $Profile }
+# k6 原生会把进程环境里的 K6_VUS/K6_DURATION 当成 CLI option，整段覆盖脚本 scenarios。
+# 社交套件要用脚本里的 ramping，所以默认清掉；需要瞬时恒定 VU 时再显式 -Vus。
+Remove-Item Env:K6_VUS -ErrorAction SilentlyContinue
+Remove-Item Env:K6_DURATION -ErrorAction SilentlyContinue
+if ($Vus -gt 0) { $env:K6_TARGET_VUS = "$Vus" }
+if ($Duration) { $env:K6_HOLD = $Duration }
+if ($WsSend) { $env:K6_WS_SEND = '1' }
+
 $envArgs = @()
-if ($BaseUrl) { $envArgs += '-e', "K6_BASE_URL=$BaseUrl" }
-if ($Username) { $envArgs += '-e', "K6_USERNAME=$Username" }
-if ($Password) { $envArgs += '-e', "K6_PASSWORD=$Password" }
-if ($env:K6_WS_URL) { $envArgs += '-e', "K6_WS_URL=$($env:K6_WS_URL)" }
-if ($env:K6_WS_ORIGIN) { $envArgs += '-e', "K6_WS_ORIGIN=$($env:K6_WS_ORIGIN)" }
-if ($env:K6_CONVERSATION_ID) { $envArgs += '-e', "K6_CONVERSATION_ID=$($env:K6_CONVERSATION_ID)" }
-if ($Profile) { $envArgs += '-e', "K6_PROFILE=$Profile" }
-elseif ($env:K6_PROFILE) { $envArgs += '-e', "K6_PROFILE=$($env:K6_PROFILE)" }
-if ($Vus -gt 0) { $envArgs += '-e', "K6_VUS=$Vus" }
-if ($Duration) { $envArgs += '-e', "K6_DURATION=$Duration" }
-if ($WsSend) { $envArgs += '-e', 'K6_WS_SEND=1' }
-elseif ($env:K6_WS_SEND) { $envArgs += '-e', "K6_WS_SEND=$($env:K6_WS_SEND)" }
+Get-ChildItem Env: | Where-Object { $_.Name -like 'K6_*' -and $_.Value } | ForEach-Object {
+    $envArgs += '-e', "$($_.Name)=$($_.Value)"
+}
 
 if ($Scenario -ne 'smoke' -and (-not $Username -or -not $Password)) {
     Write-Error 'Non-smoke scenarios need k6.env or K6_USERNAME / K6_PASSWORD'
